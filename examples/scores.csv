@@ -1,0 +1,7 @@
+checkpoint,task,metric,filter,n_shot,harness,backend,value,n_samples
+Example A,example_reasoning_en,acc_norm,none,0,example,example,0.75,100
+Example A,example_reasoning_fr,acc_norm,none,0,example,example,0.625,100
+Example A,example_math_en,exact_match,none,0,example,example,0.8,100
+Example B,example_reasoning_en,acc_norm,none,0,example,example,0.7,100
+Example B,example_reasoning_fr,acc_norm,none,0,example,example,0.6,100
+Example B,example_math_en,exact_match,none,0,example,example,0.9,100

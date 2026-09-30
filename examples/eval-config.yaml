@@ -1,0 +1,43 @@
+version: 1
+name: Fictional example — not benchmark results
+aggregate: standard
+weights:
+  Reasoning: 0.5
+  Math: 0.5
+english_weights:
+  Reasoning: 0.5
+  Math: 0.5
+evals:
+  - name: Example reasoning
+    category: Reasoning
+    match: {regex: 'example_reasoning_(en|fr)'}
+    metric: acc_norm
+    filter: none
+    shots: 0
+    score: {scale: 1}
+    normalize:
+      min: 0.25
+      max: 1
+      basis: uniform_choice
+      note: Illustrative four-choice task; these are invented scores.
+  - name: Example math
+    category: Math
+    match: {name: example_math_en}
+    metric: exact_match
+    filter: none
+    shots: 0
+    score: {scale: 1}
+    normalize:
+      min: 0
+      max: 1
+      basis: not_applicable
+      note: Illustrative open-answer task with no chance correction.
+languages:
+  - tasks: [example_reasoning_en, example_math_en]
+    scope: single
+    language: eng_Latn
+  - tasks: [example_reasoning_fr]
+    scope: single
+    language: fra_Latn
+notes:
+  - Both example models and all scores are fictional; use them to explore the dashboard.

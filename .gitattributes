@@ -1,0 +1,2 @@
+# Preserve the bundled upstream distribution's indentation and checksum.
+vendor/js-yaml.js whitespace=-space-before-tab
