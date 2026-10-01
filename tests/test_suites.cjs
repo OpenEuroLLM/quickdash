@@ -46,7 +46,7 @@ test('a fixed set is incomplete when required measurements have incompatible pro
  assert.equal(c.presentA,1);assert.equal(c.presentB,1);assert.equal(c.sharedRequired,0);assert.equal(c.complete,false);
 });
 test('fixed-set scores use the shared subset and contributions reconcile in every aggregate',()=>{
- const {auditRows}=require('../app/eval_config.js'),{comparisonCoverage,totals,comparisonRows}=require('../app/app.js');
+ const {auditRows}=require('../app/eval_config.js'),{comparisonCoverage,totals,comparisonRows}=require('../app/analysis.js');
  const c=catalogue(),s=suite(),p={...profile(),english_weights:{C:.5,D:.5}},config=resolveConfig(c,s,p);
  const measurement=(task,shot,value,checkpoint='A')=>({checkpoint,task,n_shot:String(shot),value:String(value),metric:'acc',filter:'none',harness:'test',backend:'cpu'});
  const a=auditRows([measurement('e_en',0,.8),measurement('e_fr',5,.6),measurement('e_de',0,1)],c);
@@ -65,11 +65,11 @@ test('fixed-set scores use the shared subset and contributions reconcile in ever
  }
 });
 test('an alternate metric cannot satisfy a required measurement',()=>{
- const {auditRows}=require('../app/eval_config.js'),{collectWarnings}=require('../app/app.js');
+ const {auditRows}=require('../app/eval_config.js'),{diagnosticsFor}=require('./diagnostic_fixture.cjs');
  const rows=auditRows([{checkpoint:'A',task:'e_en',n_shot:'0',value:'.8',metric:'acc_norm',filter:'none',harness:'test',backend:'cpu'}],catalogue());
  assert.equal(scopeRows(rows,suite()).missing.length,2);
  assert.equal(scopeRows(rows,suite()).extras.length,0);
- assert.ok(collectWarnings(new Map([['A',rows]]),catalogue()).some(w=>w.type==='Missing scoring field'));
+ assert.ok(diagnosticsFor(new Map([['A',rows]]),catalogue()).some(w=>w.type==='Missing scoring field'));
 });
 test('all shipped sets and profiles are independent and resolve against the global catalogue',()=>{
  const fs=require('node:fs'),{parseCatalogue}=require('../app/eval_config.js');

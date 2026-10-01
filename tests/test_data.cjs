@@ -1,13 +1,14 @@
+const {diagnosticsFor}=require('./diagnostic_fixture.cjs');
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
-const {parseCSV,totals,comparisonRows,comparisonCoverage,collectWarnings,languageRoles}=require('../app/app.js');
+const {parseCSV,totals,comparisonRows,comparisonCoverage,languageRoles}=require('../app/analysis.js');
 const {auditRows,normalizeScore,validateConfig}=require('../app/eval_config.js');
 const config=()=>({version:1,name:'Fixture',weights:{C:1},evals:[{name:'Eval',category:'C',match:{regex:'task_.+'},metric:'acc',filter:'',score:{scale:1},normalize:{min:.25,max:1}}],languages:[{tasks:['task_en'],scope:'single',language:'eng_Latn'}]});
 const row=(patch={})=>({checkpoint:'Model A',task:'task_en',metric:'acc',filter:'',n_shot:'0',harness:'test',backend:'cpu',value:'.625',...patch});
 const close=(a,b)=>{assert.ok(Number.isFinite(a)&&Number.isFinite(b));assert.ok(Math.abs(a-b)<1e-9,`${a} != ${b}`);};
 
 test('language columns sort siblings recursively without changing scores or hierarchy',()=>{
- const {sortBreakdownTree}=require('../app/app.js');
+ const {sortBreakdownTree}=require('../app/analysis.js');
  const node=(label,a,children=[])=>({kind:'language',label,a,b:a===null?null:100-a,delta:a===null?null:2*a-100,count:a,children});
  const tree=[node('fra_Latn',30,[node('z',2),node('a',8)]),node('eng_Latn',80),node('deu_Latn',80),node('mul',null)];
  const original=structuredClone(tree);
@@ -66,11 +67,11 @@ test('duplicates are rejected within a model; distinct models and protocols rema
 test('invalid alternate scores are retained for inspection but never normalized or substituted',()=>{
  const cfg=config(),rows=auditRows([row({metric:'acc_norm',value:'not numeric'})],cfg);
  assert.equal(rows[0].selected,false);assert.equal(rows[0].value,'not numeric');assert.equal(rows[0].score_100,null);
- assert.ok(collectWarnings(new Map([['A',rows]]),cfg).some(w=>w.type==='Missing scoring field'));
+ assert.ok(diagnosticsFor(new Map([['A',rows]]),cfg).some(w=>w.type==='Missing scoring field'));
 });
 test('unknown language warns without exclusion or invented language labels',()=>{
  const cfg=config(),rows=auditRows([row({task:'task_unknown'})],cfg);
- const warnings=collectWarnings(new Map([['A',rows]]),cfg);
+ const warnings=diagnosticsFor(new Map([['A',rows]]),cfg);
  assert.ok(warnings.some(w=>w.type==='Unknown language'&&w.detail.includes('English')));
  assert.equal(rows[0].selected,true);assert.equal(languageRoles(rows[0],new Map())[0].language,'Unknown');
  close(totals(rows,cfg,cfg.weights,'english_eval',{C:.5}).score,50);
@@ -85,12 +86,12 @@ test('invalid optional sample counts warn without becoming weights or dropping s
  const cfg=config();
  for(const n_samples of ['0','-1','1.5','many']){
   const rows=auditRows([row({n_samples})],cfg);
-  assert.ok(collectWarnings(new Map([['A',rows]]),cfg).some(w=>w.type==='Invalid sample count'));
+  assert.ok(diagnosticsFor(new Map([['A',rows]]),cfg).some(w=>w.type==='Invalid sample count'));
   close(totals(rows,cfg,cfg.weights).score,50);
  }
  for(const n_samples of ['',undefined,'10']){
   const rows=auditRows([row({n_samples})],cfg);
-  assert.ok(!collectWarnings(new Map([['A',rows]]),cfg).some(w=>w.type==='Invalid sample count'));
+  assert.ok(!diagnosticsFor(new Map([['A',rows]]),cfg).some(w=>w.type==='Invalid sample count'));
  }
 });
 test('no shared data produces unavailable totals, not a zero score',()=>{

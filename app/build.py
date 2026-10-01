@@ -4,7 +4,9 @@ import csv
 import hashlib
 import json
 from pathlib import Path
-from .config_engine import classify, task_language, load_catalogue, shared_config, load_csv
+from quickdash.io import load_csv
+from quickdash.config import classify, task_language, load_catalogue, load_profile, load_suite, resolve_config, scope_rows
+from quickdash.analysis import totals, component_coverage, diagnostic, analyze
 
 APP = Path(__file__).resolve().parent
 ROOT = APP.parent
@@ -12,8 +14,16 @@ ROOT = APP.parent
 
 
 def summarize(audit, config, aggregate=None):
-    """Use the same component coverage and score coefficients as the browser."""
-    return shared_config('summarize', value=[audit, config, aggregate or config.get('aggregate', 'standard')])
+    """Summarize each model independently using the native Python engine."""
+    config={**config,'aggregate':aggregate or config.get('aggregate','standard')}
+    result=[]
+    for model in sorted({r['checkpoint'] for r in audit}):
+        rows=[r for r in audit if r['checkpoint']==model and r['selected']]
+        t=totals(rows,config)
+        excluded=component_coverage(rows,config)['excluded']
+        diagnostics=[diagnostic('incomplete_components',model,name,[r for r in excluded if r['eval']==name],'Incomplete component group; excluded from scoring.','excluded') for name in dict.fromkeys(r['eval'] for r in excluded)]
+        result.append(dict(model=model,score=t['score'],warnings=diagnostics,evals=t['evals'],categories=[{**c,'evals':sum(e['category']==c['name'] and not e['excluded'] for e in t['evals'])} for c in t['categories']]))
+    return result
 
 
 def write_csv(path, rows):
@@ -47,11 +57,11 @@ def config_choices(path, directory, kind, default_directory):
     if path is None:
         directory = directory or default_directory
         path = default_config(directory)
-    choices = [dict(file=path.name, config=shared_config(kind, path))]
+    choices = [dict(file=path.name, config={"weights":load_profile,"suite":load_suite}[kind](path))]
     if directory is not None:
         for candidate in directory_files(directory, {'.yaml', '.yml'}):
             if candidate.resolve() == path.resolve(): continue
-            try: config = shared_config(kind, candidate)
+            try: config = {"weights":load_profile,"suite":load_suite}[kind](candidate)
             except ValueError as error: raise ValueError(f'{candidate.name}: {error}') from error
             if any(p['config']['name'] == config['name'] for p in choices):
                 raise ValueError(f'{candidate.name}: duplicate config name {config["name"]!r}; use distinct names')
@@ -68,10 +78,10 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
     # Every offered combination must resolve before any output is replaced.
     for profile in profiles:
         for entry in suites:
-            try: shared_config('resolve', value=[catalogue, entry['config'], profile['config']])
+            try: resolve_config(catalogue, entry['config'], profile['config'])
             except ValueError as error: raise ValueError(f'{entry["file"]} / {profile["file"]}: {error}') from error
     suite, profile = suites[0]['config'], profiles[0]['config']
-    config = shared_config('resolve', value=[catalogue, suite, profile])
+    config = resolve_config(catalogue, suite, profile)
     paths=[source] if source is not None else directory_files(results_dir,{'.csv'}) if results_dir is not None else []
     rows=[];audit=[];sources=[];owners={}
     for path in paths:
@@ -84,12 +94,13 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
             owners[model]=path.name
         rows.extend(rr);audit.extend(classified)
         sources.append(dict(file=path.name,sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
-    scoped = shared_config('scope', value=[audit, suite])['rows']
+    scoped = scope_rows(audit, suite)['rows']
     identities = {tuple(r[k] for k in ['checkpoint','task','metric','filter','n_shot','harness','backend']) for r in scoped}
     included = {id(r) for r in audit if tuple(r[k] for k in ['checkpoint','task','metric','filter','n_shot','harness','backend']) in identities}
     scoped_audit = [dict(r, selected=r['selected'] and id(r) in included) for r in audit]
     aggregates = {mode: summarize(scoped_audit, config, mode) for mode in ['standard', 'english_eval', 'english_category']}
     summary = aggregates[config.get('aggregate', 'standard')]
+    diagnostics = analyze(rows,dict(catalogue=catalogue,suite=suite,profile=profile)).diagnostics
     output.mkdir(parents=True, exist_ok=True)
     if audit:
         write_csv(output/'row-audit.csv', audit)
@@ -100,7 +111,7 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
             (output/name).unlink(missing_ok=True)
     metadata = [task_language(task, catalogue) for task in sorted({r['task'] for r in rows})]
     if metadata:write_csv(output/'language-metadata.csv', metadata)
-    payload = dict(catalogue=catalogue, catalogue_file=catalogue_path.name, suite=suite, suite_file=suite_path.name,
+    payload = dict(diagnostics=diagnostics,catalogue=catalogue, catalogue_file=catalogue_path.name, suite=suite, suite_file=suite_path.name,
                    profile=profile, profile_file=weights_path.name, suites=suites, profiles=profiles,
                    metadata=metadata, scheme=config, models=summary, aggregates=aggregates, rows=audit, sources=sources,
                    source=source.name if source else results_dir.name if results_dir else '', sha256=sources[0]['sha256'] if len(sources)==1 else None)
@@ -109,7 +120,7 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
     (output/'eval-set.yaml').write_text(suite_path.read_text())
     (output/'analysis.json').write_text(json.dumps(payload, indent=2))
     template = (APP/'template.html').read_text()
-    (output/'index.html').write_text(template.replace('__APP__', (APP/'vendor/js-yaml.js').read_text()+'\n'+(APP/'eval_config.js').read_text()+'\n'+(APP/'suite_config.js').read_text()+'\n'+(APP/'app.js').read_text()).replace('__PAYLOAD__', json.dumps(payload).replace('<', '\\u003c')))
+    (output/'index.html').write_text(template.replace('__APP__', (APP/'vendor/js-yaml.js').read_text()+'\n'+(APP/'eval_config.js').read_text()+'\n'+(APP/'suite_config.js').read_text()+'\n'+(APP/'analysis.js').read_text()+'\n'+(APP/'app.js').read_text()).replace('__PAYLOAD__', json.dumps(payload).replace('<', '\\u003c')))
     print(json.dumps(dict(models=summary, rows=len(audit), selected=sum(r['selected'] for r in scoped_audit)), indent=2))
 
 

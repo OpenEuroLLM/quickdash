@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict');
-const {totals,comparisonRows,pairRows}=require('../app/app.js');
+const {totals,comparisonRows,pairRows}=require('../app/analysis.js');
 const {validateConfig}=require('../app/eval_config.js');
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-10,`${a} != ${b}`);
 const scheme={evals:[{name:'mixed',category:'C'},{name:'english',category:'C'}],weights:{C:1},english_weights:{C:.5},languages:[]};
@@ -58,7 +58,7 @@ close(totals([kept],missingScheme,missingScheme.weights).score,80);
 close(totals([kept],missingScheme,missingScheme.weights).categories.find(c=>c.name==='C').weight,1);
 assert.equal(totals([kept],missingScheme,missingScheme.weights).categories.find(c=>c.name==='D').excluded,true);
 assert.equal(totals([],missingScheme,missingScheme.weights).score,null);
-const {comparisonCoverage}=require('../app/app.js');
+const {comparisonCoverage}=require('../app/analysis.js');
 const overlap=comparisonCoverage(rows,b.filter(r=>r.task!=='english'),scheme);
 assert.equal(overlap.a.length,3);assert.equal(overlap.b.length,3);
 assert.ok(overlap.warnings.some(w=>w.name==='english'));

@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
-const E=require('../app/eval_config.js'),A=require('../app/app.js');
+const E=require('../app/eval_config.js'),A=require('../app/analysis.js');
 const levels=['low','medium','high','top'];
 const config=()=>({version:1,name:'Components',weights:{Reasoning:1},english_weights:{Reasoning:.5},evals:[{name:'Poly',category:'Reasoning',match:{regex:'poly_.+'},metric:'acc',filter:'none',score:{scale:1},aggregation:{components:levels.map((name,i)=>({name,match:{regex:'poly_.+_'+name},relative_weight:2**i}))}}],languages:['en','de','fr'].map((lang,i)=>({tasks:levels.map(l=>'poly_'+lang+'_'+l),scope:'single',language:['eng_Latn','deu_Latn','fra_Latn'][i]}))});
 const rows=(cfg=config(),langs=['en'],values=[.6,.3,.15,0],checkpoint='A')=>E.auditRows(langs.flatMap(lang=>levels.map((l,i)=>({checkpoint,task:'poly_'+lang+'_'+l,metric:'acc',filter:'none',n_shot:'0',harness:'test',backend:'cpu',value:values[i]}))),cfg);

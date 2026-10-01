@@ -26,12 +26,15 @@ The [Pages workflow](.github/workflows/pages.yml) publishes only the generated d
 
 ## Build a standalone file
 
-Building requires Python 3.8+ and Node.js 18+. The YAML parser is [bundled with its license](app/vendor/README.md); no package installation is needed.
+Building requires Python 3.8+ and the Python package below. Node.js is needed only for development tests; the generated dashboard remains standalone and offline.
 
 ```sh
 git clone https://github.com/OpenEuroLLM/quickdash.git
 cd quickdash
-python3 -m app.build examples/scores.csv --catalogue configs/examples/catalogue.yaml \
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+python -m app.build examples/scores.csv --catalogue configs/examples/catalogue.yaml \
   --weights configs/examples/weights.yaml --eval-set configs/sets/any-available.yaml --output output/example
 open output/example/index.html  # macOS; elsewhere, open it in your browser
 ```
@@ -69,12 +72,26 @@ Filters affect inspection views, while composite scores and contribution weights
 
 Language/category breakdowns show descriptive raw averages for ordinary evals. Evals with configured components, including PolyMath, show calculated scores when collapsed; expand them to see individual raw scores, relative component weights, and contributions. PolyMath stores `relative_weight` values of 1, 2, 4, and 8, divided by their total of 15 when scoring; incomplete language/protocol groups are excluded with warnings. Incompatible component configurations are rejected before taking effect. See [component aggregation](docs/configuration.md#weighted-components-within-an-eval). Weighted scores use configured normalization, whose baselines and limitations are visible per eval. Shared numerical scales do not establish comparable difficulty across benchmarks. Unknown/mixed-language scores use the documented English fallback for balancing; this does not change their language labels.
 
-## Development
+## Analyze from Python or the command line
 
-Application code lives in `app/`, tests in `tests/`, and contributor documentation in `docs/`. Common checks:
+The native Python library uses the same CSVs, YAML rules, weighting profiles, and optional eval sets as the dashboard. It returns calculated trees, effective weights, contributions, coverage, and structured diagnostics. Python emits warnings by default; applications can explicitly collect them or reject results with warnings. See the [Python API and CLI guide](docs/python-api.md).
+
+After installing the package as above:
 
 ```sh
-python3 -m unittest tests.test_data
+quickdash examples/scores.csv --catalogue configs/examples/catalogue.yaml \
+  --weights configs/examples/weights.yaml --eval-set configs/sets/any-available.yaml \
+  --compare 'Example A' 'Example B'
+```
+
+Add `--format json` for a complete report. Diagnostics go to stderr. Python and browser engines run against the same behavioral test cases.
+
+## Development
+
+Application code lives in `app/` and `quickdash/`, tests in `tests/`, and contributor documentation in `docs/`. Common checks:
+
+```sh
+python -m unittest tests.test_data tests.test_engines
 node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs
 ```
 

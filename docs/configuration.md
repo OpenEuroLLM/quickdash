@@ -137,7 +137,9 @@ For an input row with `value=0.625`, the raw score is 62.5 and the normalized sc
 | `aggregation` | Optional component rules with positive relative weights; see [weighted components](#weighted-components-within-an-eval). |
 | `normalize` | Optional object with `min`, `max`, and optional `clip`, `basis`, `note`, and `sources`. Thresholds are fractions after division by `score.scale`. |
 
-Use the common Python/JavaScript regex subset: literal text, character classes, alternatives, groups, and ordinary quantifiers. Patterns match the entire task name. Named groups and lookbehind are rejected. Language extraction does not use these patterns.
+Use the shared Python/JavaScript regex subset: literal text, character classes, alternatives, capturing/noncapturing groups, and ordinary quantifiers. Patterns match the entire task name. Flags, lookarounds, named groups, backreferences and possessive quantifiers are rejected. `\d` and `\w` use ASCII character classes; `\s` uses ECMAScript whitespace and must not appear inside a character class. Dot excludes line terminators and matches one Unicode code point. Language extraction does not use these patterns. Exact-name rules are available when regexes are unnecessary.
+
+The [Python API](python-api.md) consumes these same configurations and returns score trees, audits, coverage, and structured diagnostics. All configuration counts are derived from the supplied inputs.
 
 The Original weighting profile gives Code, Math, Reasoning, Knowledge, Commonsense, and Reading a weight of 0.15 each; Translation, Language, and Instruction following each receive 0.1/3. Category weights must be nonnegative and sum to 1. Names, metrics, and task strings are case-sensitive. Unknown config fields are rejected to catch typos. `version` must be 1; `name` labels the active config. Optional top-level `notes` is a list of strings.
 

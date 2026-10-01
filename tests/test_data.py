@@ -4,13 +4,15 @@ import io
 import json
 import random
 import subprocess
+import sys
 import tempfile
 import unittest
 from copy import deepcopy
 from pathlib import Path
 
 from app.build import build, summarize
-from app.config_engine import classify, load_csv, normalize_score, validate_config
+from quickdash.io import load_csv
+from quickdash.config import classify, normalize_score, validate_config
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -28,7 +30,7 @@ def row(**patch):
 
 
 def javascript(cases, expression):
-    script = "const api=require('./app/eval_config.js'),app=require('./app/app.js');const cases=JSON.parse(require('fs').readFileSync(0,'utf8'));process.stdout.write(JSON.stringify(cases.map(c=>{try{return {value:" + expression + "}}catch(e){return {error:e.message}}})));"
+    script = "const api=require('./app/eval_config.js'),app=require('./app/analysis.js');const cases=JSON.parse(require('fs').readFileSync(0,'utf8'));process.stdout.write(JSON.stringify(cases.map(c=>{try{return {value:" + expression + "}}catch(e){return {error:e.message}}})));"
     return json.loads(subprocess.check_output(['node', '-e', script], input=json.dumps(cases), text=True, cwd=ROOT))
 
 
@@ -113,7 +115,7 @@ class DataContracts(unittest.TestCase):
 
     def test_cli_defaults_to_any_available_and_separate_weight_profile(self):
         with tempfile.TemporaryDirectory() as tmp:
-            subprocess.run(['python3','-m','app.build','--output',tmp],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
+            subprocess.run([sys.executable,'-m','app.build','--output',tmp],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
             data=json.loads((Path(tmp)/'analysis.json').read_text())
             self.assertEqual(data['suite']['mode'],'available')
             self.assertEqual(data['profile']['name'],'Original')
@@ -173,7 +175,7 @@ class DataContracts(unittest.TestCase):
             self.assertEqual(data['models'][0]['evals'][0]['count'],1)
 
     def test_cli_rejects_both_csv_and_results_directory(self):
-        result=subprocess.run(['python3','-m','app.build','unused.csv','--results-dir','unused'],capture_output=True,text=True)
+        result=subprocess.run([sys.executable,'-m','app.build','unused.csv','--results-dir','unused'],capture_output=True,text=True)
         self.assertEqual(result.returncode,2);self.assertIn('not both',result.stderr)
 
     def test_shared_results_directory_combines_models_and_rejects_duplicates(self):

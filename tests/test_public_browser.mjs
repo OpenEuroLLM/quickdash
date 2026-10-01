@@ -186,6 +186,15 @@ try{
  assert.match(await evaluate("document.querySelector('#coverage').textContent"),/INCOMPLETE.*4\/8 requirements shared/);
  await click('[data-view=comparisons]');await change('#compareGroup','variant');await change('#compareMeasure','weighted');
  assert.match(await evaluate("document.querySelector('#view').textContent"),/10.0000 index points/);
+ // Editable weights resolve a category missing from the loaded profile.
+ const beforeCategoryEdit=await evaluate("document.querySelector('#cards').textContent");
+ const customCategory=structuredClone(componentCatalogue);customCategory.evals[0].category='Custom';
+ await click('[data-view=config]');await upload('#configFile',serializeCatalogue(customCategory),'custom-category.yaml');
+ await click('[data-view=warnings]');assert.match(await evaluate("document.querySelector('#view').textContent"),/No category weight/);
+ await click('[data-view=score]');
+ await evaluate(`{for(const input of document.querySelectorAll('[data-weight]')){input.value=input.dataset.weight==='Custom'?'1':'0';document.querySelector('#view').onchange({target:input});}}`);
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),beforeCategoryEdit);
+ await click('[data-view=warnings]');assert.doesNotMatch(await evaluate("document.querySelector('#view').textContent"),/No category weight/);
  assert.deepEqual(errors,[]);assert.deepEqual(network,[],'Loading and comparing local files must not send HTTP requests');
  console.log('Public browser checks passed: empty start, shared models, independent weights and eval sets, required coverage, temporary uploads, rollback, clear models and no uploads.');
 }finally{

@@ -1,7 +1,7 @@
 'use strict';
 const EvalConfig=(()=>{
  const yaml=typeof module!=='undefined'?require('./vendor/js-yaml.js'):jsyaml;
- const canonical=/^(?:[a-z]{3}_[A-Z][a-z]{3}|mul)$/;
+ const canonical=/^(?:[a-z]{3}_[A-Z][a-z]{3}|mul)$(?![\s\S])/;
  const objectKeys=(value,allowed,required=[])=>{if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>!allowed.includes(k))||required.some(k=>!Object.hasOwn(value,k)))throw Error('Invalid config fields; allowed '+allowed.join(', ')+'; required '+required.join(', '));};
  const number=v=>typeof v==='number'&&Number.isFinite(v);
  const decimal=/^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/;
@@ -34,8 +34,30 @@ const EvalConfig=(()=>{
    return Object.fromEntries(header.map((h,j)=>[h,r[j]]));
   });
  }
- function validateMatch(rule){objectKeys(rule,['name','regex']);const values=Object.values(rule);if(values.length!==1||typeof values[0]!=='string'||!values[0])throw Error('A match needs exactly one nonempty name or regex');if('regex'in rule){if(rule.regex.includes('(?P')||rule.regex.includes('(?<'))throw Error('Use portable regexes');new RegExp(rule.regex);}}
- function matchTask(rule,task){return 'name'in rule?rule.name===task:new RegExp('^(?:'+rule.regex+')$(?![\\s\\S])').test(task);}
+
+ function portableRegex(pattern){
+  let inside=false,quantifier=false;
+  for(let i=0;i<pattern.length;i++){
+   const c=pattern[i];
+   if(c.charCodeAt(0)===92){
+    const next=pattern[++i];
+    if(!next||(!'dDwWsSnrt.^$*+?{}[]()|/-'.includes(next)&&next.charCodeAt(0)!==92)||next==='-'&&!inside)throw Error('Unsupported portable regex escape');
+    if(inside&&['s','S'].includes(next))throw Error('Use an explicit whitespace class inside character classes');
+    quantifier=false;continue;
+   }
+   if(c==='['){if(inside||pattern.slice(i,i+2)==='[]'||pattern.slice(i,i+3)==='[^]')throw Error('Invalid portable regex character class');inside=true;}
+   else if(c===']'){if(!inside)throw Error('Unmatched portable regex bracket');inside=false;}
+   else if(!inside){
+    if(c==='('&&pattern[i+1]==='?'&&pattern[i+2]!==':')throw Error('Use portable regexes: no flags or lookarounds');
+    if(c==='{'){const match=pattern.slice(i).match(/^\{[0-9]+(?:,[0-9]*)?\}/);if(!match)throw Error('Invalid portable regex quantifier');i+=match[0].length-1;quantifier=true;continue;}
+    if(c==='}'||c==='+'&&quantifier)throw Error('Invalid portable regex quantifier');
+   }
+   quantifier=!inside&&'*+?'.includes(c);
+  }
+  return pattern;
+ }
+ function validateMatch(rule){objectKeys(rule,['name','regex']);const values=Object.values(rule);if(values.length!==1||typeof values[0]!=='string'||!values[0])throw Error('A match needs exactly one nonempty name or regex');if('regex'in rule){if(rule.regex.includes('(?P')||rule.regex.includes('(?<'))throw Error('Use portable regexes');new RegExp(portableRegex(rule.regex),'u');}}
+ function matchTask(rule,task){return 'name'in rule?rule.name===task:new RegExp('^(?:'+portableRegex(rule.regex)+')$(?![\\s\\S])','u').test(task);}
  function validateWeights(config){
   const w=config.weights;objectKeys(w,Object.keys(w||{}));
   if(!Object.keys(w).length||Object.entries(w).some(([k,v])=>!k||!number(v)||v<0)||Math.abs(Object.values(w).reduce((a,b)=>a+b,0)-1)>1e-8)throw Error('Category weights must be nonnegative and sum to 1');
@@ -57,17 +79,17 @@ const EvalConfig=(()=>{
  function serializeCatalogue(config){return yaml.dump(validateCatalogue(config),{schema:yaml.CORE_SCHEMA,lineWidth:110,noRefs:true});}
  function validateRules(config){
   if(config.version!==1)throw Error('Unsupported config version');
-  if(typeof config.name!=='string'||!config.name)throw Error('Config name is required');
+  if(typeof config.name!=='string'||!config.name.trim())throw Error('Config name is required');
   if('notes'in config&&(!Array.isArray(config.notes)||config.notes.some(n=>typeof n!=='string')))throw Error('Notes must be strings');
   if(!Array.isArray(config.evals)||!config.evals.length)throw Error('At least one eval is required');
   const names=new Set();
   for(const e of config.evals){
    objectKeys(e,['name','category','match','metric','filter','shots','select','score','normalize','warning','aggregation'],['name','category','match','metric','filter','score']);
    if(typeof e.name!=='string'||!e.name||names.has(e.name))throw Error('Eval names must be unique and nonempty');names.add(e.name);
-   if(typeof e.category!=='string'||!e.category)throw Error('Eval category must be nonempty text');
+   if(typeof e.category!=='string'||!e.category.trim())throw Error('Eval category must be nonempty text');
    if(typeof e.metric!=='string'||!e.metric||typeof e.filter!=='string')throw Error('Metric and filter must be strings');
    validateMatch(e.match);if('select'in e)validateMatch(e.select);
-   if('shots'in e&&(!Number.isInteger(e.shots)||e.shots<0))throw Error('shots must be a nonnegative integer');
+   if('shots'in e&&(!Number.isSafeInteger(e.shots)||e.shots<0))throw Error('shots must be a nonnegative integer');
    objectKeys(e.score,['scale'],['scale']);if(!number(e.score.scale)||e.score.scale<=0)throw Error('Score scale must be positive');
    if('warning'in e&&(typeof e.warning!=='string'||!e.warning.trim()))throw Error('Eval warning must be nonempty text');
    if('aggregation'in e){
@@ -137,7 +159,7 @@ const EvalConfig=(()=>{
    for(const field of ['checkpoint','task','metric','harness','backend'])if(typeof r[field]!=='string'||!r[field].trim())throw Error('CSV row '+(index+2)+': '+field+' must be nonempty text');
    if(r.checkpoint===demoModel)throw Error('Checkpoint name is reserved for the synthetic demo: '+demoModel);
    if(typeof r.filter!=='string')throw Error('CSV row '+(index+2)+': filter must be text (blank is allowed)');
-   if(!/^(?:0|[1-9][0-9]*)$/.test(String(r.n_shot))||!Number.isSafeInteger(Number(r.n_shot)))throw Error('CSV row '+(index+2)+': n_shot must be a nonnegative integer');
+   if(!/^(?:0|[1-9][0-9]*)$(?![\s\S])/.test(String(r.n_shot))||!Number.isSafeInteger(Number(r.n_shot)))throw Error('CSV row '+(index+2)+': n_shot must be a nonnegative integer');
    r.n_shot=String(r.n_shot);
    const matches=config.evals.filter(e=>matchTask(e.match,r.task));if(matches.length>1)throw Error('Ambiguous eval config for task: '+r.task);if(!matches.length)return {...r,eval:'',category:'',selected:false,decision:'No eval config; excluded from scoring',raw_score_100:null,score_100:null};const e=matches[0];let decision='Selected for the weighted score';
    if(e.select&&!matchTask(e.select,r.task))decision='Excluded summary level or alternate protocol; see eval selection rule';

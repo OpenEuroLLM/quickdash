@@ -1,12 +1,13 @@
 # Develop and publish Quickdash
 
-Run commands from the repository root. Python 3.8+ and Node.js 18+ build the dashboard without installing packages; browser tests require Node.js 22+ and Chrome. The scoring config format is documented in the [configuration reference](configuration.md).
+Run commands from the repository root. Install the Python package with `python -m pip install -e .` in a virtual environment (Python 3.8+). Building and using the Python library need no Node runtime. Cross-language tests require Node.js 18+; browser tests require Node.js 22+ and Chrome. Activate the environment before running browser tests so their builder subprocess uses the installed dependencies. The scoring config format is documented in the [configuration reference](configuration.md).
 
 ## Source layout
 
 | Directory | Contents |
 | --- | --- |
-| `app/` | Python builder, browser application, HTML template, and bundled YAML parser. |
+| `quickdash/` | Native Python interpretation, analysis, diagnostics, and CLI. |
+| `app/` | Python builder, DOM-independent JavaScript engine (`analysis.js`), browser renderer (`app.js`), HTML, and bundled YAML parser. |
 | `tests/` | Public contract tests, browser checks, and optional private-export regressions. |
 | `configs/` | Global catalogue, weighting profiles, optional named sets, and fictional examples. |
 | `results/` | Public CSV exports contributed to the shared dashboard. |
@@ -31,9 +32,11 @@ Check the views affected by your change, including their warnings and failed-inp
 These tests use small fixtures and run from a fresh checkout without private evaluation data:
 
 ```sh
-python3 -m unittest tests.test_data
+python -m unittest tests.test_data tests.test_engines
 node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs
 ```
+
+The shared suite in `tests/test_engines.py` sends the same input cases to native Python and the real browser engine through `tests/engine_adapter.cjs`. Both must satisfy independently specified expectations, then their complete semantic reports are compared. Diagnostic codes, contexts and actions are checked; presentation text is not. Numerical comparison uses absolute tolerance `1e-9` and relative tolerance `1e-12`. Fixtures vary configuration sizes, contents and ordering. Python tests also exercise warning emission and CLI stdout/stderr without Node on PATH.
 
 They cover input validation, normalization, warning/exclusion behavior, failed-build preservation, Python/JavaScript parity, hierarchy sorting, and deterministic randomized scoring comparisons against an independent calculation.
 
@@ -71,6 +74,17 @@ node --test --experimental-test-coverage --test-coverage-include=app/eval_config
 ```
 
 </details>
+
+## Compare a dashboard refactor against a baseline
+
+Preserve the revision being reviewed in a temporary checkout or directory. Build an example or private dashboard with the candidate revision, then compare the calculation paths:
+
+```sh
+QUICKDASH_BASELINE=/path/to/baseline-checkout \
+  node tests/compare_baseline.cjs output/example/analysis.json
+```
+
+This optional check compares included rows, weights, contributions, scores and descriptive trees across profiles, sets, all aggregation modes, and missing coverage. Run the browser suites against both builds as well; arithmetic agreement alone does not establish UI behavior. Record the comparison and any intentional fixes in the PR. Keep private inputs and generated evidence outside tracked files.
 
 ## Publish through GitHub Pages
 

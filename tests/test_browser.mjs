@@ -2,7 +2,11 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
 const root=fileURLToPath(new URL('../',import.meta.url));
-const initialScore=JSON.parse(fs.readFileSync(root+'output/analysis.json','utf8')).models[0].score.toFixed(2);
+const payload=JSON.parse(fs.readFileSync(root+'output/analysis.json','utf8'));
+const initialScore=payload.models[0].score.toFixed(2);
+const configuredTasks=payload.catalogue.languages.reduce((n,g)=>n+g.tasks.length,0);
+const usedEvals=payload.models[0].evals.filter(e=>!e.excluded).length;
+const usedRows=payload.models[0].evals.reduce((n,e)=>n+e.count,0);
 const tabs=await(await fetch('http://127.0.0.1:9227/json/list')).json();
 const ws=new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl);
 await new Promise(r=>ws.addEventListener('open',r,{once:true}));
@@ -43,7 +47,7 @@ assert.equal(await evaluate("document.querySelector('#cards strong').textContent
 assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'5');
 assert.match(await evaluate("document.querySelector('#view').textContent"),/English weighting group only · full weight/);
 await click('#weightEditor > summary');
-assert.equal(await evaluate("document.querySelectorAll('#weights tbody tr').length"),9);
+assert.equal(await evaluate("document.querySelectorAll('#weights tbody tr').length"),Object.keys(payload.profile.weights).length);
 assert.ok(await evaluate("[...document.querySelectorAll('#weights tbody tr')].every(r=>r.cells.length===3&&r.querySelectorAll('input').length===2)"));
 await evaluate("document.querySelector('#weightEditor').scrollIntoView()");await screenshot('weight-editor-preview');
 await click('#englishComponents > summary');
@@ -67,7 +71,7 @@ await screenshot('score-preview');
 assert.equal(await evaluate("document.querySelector('#breakdownBy')"),null);
 // Collapsed hierarchies have aggregates and expand through the requested orders.
 await click('[data-view=categories]');
-assert.equal(await evaluate("document.querySelectorAll('.breakdown-tree > .breakdown-node').length"),9);
+assert.equal(await evaluate("document.querySelectorAll('.breakdown-tree > .breakdown-node').length"),Object.keys(payload.profile.weights).length);
 assert.equal(await evaluate("document.querySelectorAll('.breakdown-node[open]').length"),0);
 const categoryPath='.breakdown-tree > [data-label="Translation"]';
 await click(categoryPath+' > summary');
@@ -111,7 +115,7 @@ assert.ok(await evaluate("[...document.querySelectorAll('[data-kind=direction]')
 await click('#clear');
 await click('[data-view=comparisons]');
 assert.equal(await evaluate("document.querySelector('#compareGroup').value"),'eval');
-assert.equal(await evaluate("document.querySelectorAll('.comparison-row').length"),45);
+assert.equal(await evaluate("document.querySelectorAll('.comparison-row').length"),usedEvals);
 assert.ok(await evaluate("!!document.querySelector('[data-chart-eval=\"Global MMLU\"]')&&!!document.querySelector('[data-chart-eval=MMLU]')"));
 // Clickable headers sort every displayed value and expose their active direction.
 for(const [field,index] of [['label',0],['category',1],['a',2],['b',3],['rawDelta',4],['weightedDelta',5],['languageCount',6]]){
@@ -134,7 +138,7 @@ assert.ok(await evaluate(`(()=>{const button=document.querySelector('[data-expan
 assert.ok(await evaluate("document.querySelectorAll('.comparison-detail').length>1"));
 assert.match(await evaluate("document.querySelector('.comparison-detail').textContent"),/Latn|Cyrl/);
 await click('[data-expand-eval="HellaSwag"]');
-assert.equal(await evaluate("document.querySelectorAll('.comparison-row').length"),45);
+assert.equal(await evaluate("document.querySelectorAll('.comparison-row').length"),usedEvals);
 assert.ok(await evaluate(`Math.abs(document.querySelector('[data-expand-eval="HellaSwag"]').getBoundingClientRect().top-scrollBefore.button)<2`),'collapse moved the clicked row');
 assert.equal(await evaluate(`document.querySelector('[data-chart-eval="HumanEval"] .language-count').textContent`),'1');
 assert.ok(await evaluate(`Number(document.querySelector('[data-chart-eval="FLORES200"] .language-count').textContent)>30`));
@@ -144,8 +148,8 @@ assert.equal(await evaluate(`document.querySelector('[data-chart-eval="Belebele"
 assert.equal(await evaluate(`document.querySelector('[data-chart-eval="FLORES200"] .language-count').textContent`),'2');
 await click('#clear');await change('#compareSort','descending');
 await change('#compareGroup','variant');
-assert.equal(await evaluate("document.querySelectorAll('.comparison-row').length"),403);
-assert.equal(await evaluate("document.querySelectorAll('.delta-track').length"),403);
+assert.equal(await evaluate("document.querySelectorAll('.comparison-row').length"),usedRows);
+assert.equal(await evaluate("document.querySelectorAll('.delta-track').length"),usedRows);
 const original=await evaluate("document.querySelector('#cards').textContent");
 await change('#category','Code');
 assert.equal(await evaluate("document.querySelectorAll('.comparison-row').length"),4);
@@ -160,7 +164,7 @@ await change('#compareMeasure','raw');await change('#compareSort','descending');
 values=await evaluate("[...document.querySelectorAll('.comparison-row')].map(r=>Number(r.cells[4].textContent))");
 assert.deepEqual(values,[...values].sort((a,b)=>b-a));
 await change('#compareGroup','eval');
-assert.equal(await evaluate("document.querySelectorAll('.comparison-row').length"),45);
+assert.equal(await evaluate("document.querySelectorAll('.comparison-row').length"),usedEvals);
 await click('[data-expand-eval="HumanEval"]');
 assert.equal(await evaluate("document.querySelectorAll('.comparison-detail').length"),1);
 await click('[data-expand-eval="HumanEval"]');
@@ -173,7 +177,7 @@ await click('#clear');
 
 await click('[data-view=config]');
 assert.equal(await evaluate("document.querySelectorAll('.catalogue-task').length"),0);
-assert.match(await evaluate("document.querySelector('#filterStatus').textContent"),/1556 of 1556 task names · 2124 metric rows/);
+assert.ok((await evaluate("document.querySelector('#filterStatus').textContent")).startsWith(`${new Set(payload.rows.map(r=>r.task)).size} of ${new Set(payload.rows.map(r=>r.task)).size} task names · ${payload.rows.length} metric rows`));
 assert.ok(await evaluate("document.querySelectorAll('#view *').length<2500"),'collapsed catalogue rendered too much content');
 assert.equal(await evaluate("document.querySelectorAll('.catalogue-metric').length"),0);
 assert.match(await evaluate("document.querySelector('[data-eval=\"ARC Challenge\"] > summary .scoring-options').textContent"),/Selected: acc_norm.*Other available metrics: acc/);
@@ -258,7 +262,7 @@ await click('#exportWeights');
 const exported=await evaluate(`exportBlob.text().then(parseWeightProfile)`);
 assert.equal(exported.weights.Code,.16);assert.equal(exported.weights.Math,.14);
 assert.equal(exported.languages,undefined);
-await click('#exportConfig');assert.equal(await evaluate('exportBlob.text().then(parseCatalogue).then(c=>c.languages.flatMap(g=>g.tasks).length)'),1556);
+await click('#exportConfig');assert.equal(await evaluate('exportBlob.text().then(parseCatalogue).then(c=>c.languages.flatMap(g=>g.tasks).length)'),configuredTasks);
 await evaluate(`URL.createObjectURL=originalCreate;HTMLAnchorElement.prototype.click=originalClick;loadTestConfig(DATA.scheme)`);
 // Missing configuration is a warning and exclusion, not a failed import.
 await evaluate(`(async()=>{const c=structuredClone(DATA.scheme);c.evals.find(e=>e.name==='HumanEval').match={name:'absent_eval_task'};await loadTestConfig(c);})()`);
