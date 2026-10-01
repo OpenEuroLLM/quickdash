@@ -72,6 +72,9 @@ class DataContracts(unittest.TestCase):
             subprocess.run(['python3','-m','app.build','--output',tmp],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
             data=json.loads((Path(tmp)/'analysis.json').read_text())
             self.assertEqual(data['suite']['mode'],'available')
+            self.assertEqual(data['profile']['name'],'Original')
+            self.assertEqual([p['config']['name'] for p in data['profiles']],['Original','Code & math emphasis'])
+            self.assertEqual(data['profiles'][1]['config']['weights'],{'Code':.2,'Math':.2,'Reasoning':.1,'Knowledge':.125,'Commonsense':.125,'Reading':.15,'Translation':.1/3,'Language':.1/3,'Instruction following':.1/3})
             self.assertEqual({p['file'] for p in data['suites']},{'any-available.yaml','flagship-1.yaml'})
             self.assertNotIn('weights',data['catalogue']);self.assertNotIn('weights',data['suite']);self.assertNotIn('evals',data['profile'])
 

@@ -10,6 +10,8 @@ A standalone, offline dashboard for comparing model evaluation scores. Explore c
 2. Choose a **Weighting profile**. Leave **Eval set** on **Any available** to compare the measurements both models have, or select **flagship-1** to check an expected set. Weights and eval sets are independent. The supplied sets exclude prompted Global PIQA pending scoring validation.
 3. Review **Warnings**, then explore the scores and breakdowns. The global catalogue determines how to interpret each eval: category, scoring field, normalization, and language assignments.
 
+**Original** is the startup weighting profile. **Code & math emphasis** gives Code and Math 20% each, with the other category weights adjusted as shown in the [configuration reference](docs/configuration.md#choose-weights-and-expected-coverage).
+
 Files opened here stay in your browser; they are not uploaded. Changes last until reload. **Clear models** removes the loaded models while keeping settings. Under **Eval configuration**, load or export the catalogue, weights, and eval set as separate YAML files. Weight exports include your edits and active score calculation.
 
 ## Share results and scoring configs

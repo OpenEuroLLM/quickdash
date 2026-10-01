@@ -11,6 +11,22 @@ Quickdash separates four inputs: model results, a weighting profile, an optional
 
 ## Choose weights and expected coverage
 
+Two profiles are supplied. **Original** is selected on startup; **Code & math emphasis** shifts weight toward those two categories.
+
+| Category | Original | Code & math emphasis |
+| --- | ---: | ---: |
+| Code | 0.15 | 0.20 |
+| Math | 0.15 | 0.20 |
+| Reasoning | 0.15 | 0.10 |
+| Knowledge | 0.15 | 0.125 |
+| Commonsense | 0.15 | 0.125 |
+| Reading | 0.15 | 0.15 |
+| Translation | 0.1/3 | 0.1/3 |
+| Language | 0.1/3 | 0.1/3 |
+| Instruction following | 0.1/3 | 0.1/3 |
+
+Both profiles default to the standard calculation and store an English share of 0.5 per category, which applies only when an English-balance calculation is selected.
+
 The **Weighting profile** and **Eval set** selectors operate independently. Switching a profile resets category weights, English shares, and the calculation to that profile's values, leaving the eval set unchanged. Switching eval sets preserves your current weights and calculation. Export edits before switching profiles if you want to keep them.
 
 **Any available** uses recognized selected measurements shared by A and B. Measurements present on only one side generate comparison warnings and are excluded from both scores. Catalogue entries absent from both models do not generate warnings. The supplied freeform set explicitly excludes prompted Global PIQA pending validation; present data for it generates a **Not used** warning.
@@ -122,7 +138,7 @@ For an input row with `value=0.625`, the raw score is 62.5 and the normalized sc
 
 Use the common Python/JavaScript regex subset: literal text, character classes, alternatives, groups, and ordinary quantifiers. Patterns match the entire task name. Named groups and lookbehind are rejected. Language extraction does not use these patterns.
 
-The supplied OELLM weighting profile gives Code, Math, Reasoning, Knowledge, Commonsense, and Reading a weight of 0.15 each; Translation, Language, and Instruction following each receive 0.1/3. Category weights must be nonnegative and sum to 1. Names, metrics, and task strings are case-sensitive. Unknown config fields are rejected to catch typos. `version` must be 1; `name` labels the active config. Optional top-level `notes` is a list of strings.
+The Original weighting profile gives Code, Math, Reasoning, Knowledge, Commonsense, and Reading a weight of 0.15 each; Translation, Language, and Instruction following each receive 0.1/3. Category weights must be nonnegative and sum to 1. Names, metrics, and task strings are case-sensitive. Unknown config fields are rejected to catch typos. `version` must be 1; `name` labels the active config. Optional top-level `notes` is a list of strings.
 
 ## Normalization and contributions
 

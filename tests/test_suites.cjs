@@ -74,8 +74,8 @@ test('an alternate metric cannot satisfy a required measurement',()=>{
 test('all shipped sets and profiles are independent and resolve against the global catalogue',()=>{
  const fs=require('node:fs'),{parseCatalogue}=require('../app/eval_config.js');
  const c=parseCatalogue(fs.readFileSync('configs/catalogue.yaml','utf8'));
- const p=parseWeightProfile(fs.readFileSync('configs/weights/oellm.yaml','utf8'));
- for(const filename of fs.readdirSync('configs/sets').filter(f=>f.endsWith('.yaml'))){
+ const profiles=fs.readdirSync('configs/weights').filter(f=>f.endsWith('.yaml')).map(f=>parseWeightProfile(fs.readFileSync('configs/weights/'+f,'utf8')));
+ for(const p of profiles)for(const filename of fs.readdirSync('configs/sets').filter(f=>f.endsWith('.yaml'))){
   const s=parseSuite(fs.readFileSync('configs/sets/'+filename,'utf8'));
   resolveConfig(c,s,p);
   assert.equal(s.weights,undefined);assert.equal(c.weights,undefined);assert.equal(p.evals,undefined);
