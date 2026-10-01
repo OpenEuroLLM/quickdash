@@ -8,7 +8,7 @@ Run commands from the repository root. Python 3.8+ and Node.js 18+ build the das
 | --- | --- |
 | `app/` | Python builder, browser application, HTML template, and bundled YAML parser. |
 | `tests/` | Public contract tests, browser checks, and optional private-export regressions. |
-| `configs/` | Selectable scoring YAML files, `default.txt`, and the language catalogue snapshot. |
+| `configs/` | Selectable scoring YAML files and `default.txt`. |
 | `results/` | Public CSV exports contributed to the shared dashboard. |
 | `examples/` | Fictional input data for the demo and tests. |
 | `docs/` | Configuration and contributor documentation. |
