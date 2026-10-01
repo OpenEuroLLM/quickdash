@@ -19,9 +19,11 @@ try{
  const empty=path.join(temporary,'empty');
  execFileSync('python3',[path.join(root,'build.py'),'--configs-dir',configs,'--output',empty],{cwd:root,stdio:'pipe'});
  let tabs;
- for(let i=0;i<50;i++){
+ // A cold CI runner can take longer than five seconds to launch Chrome.
+ const startupDeadline=Date.now()+30_000;
+ while(Date.now()<startupDeadline){
   try{tabs=await(await fetch('http://127.0.0.1:9227/json/list')).json();if(tabs.some(t=>t.type==='page'))break;}catch{}
-  await new Promise(r=>setTimeout(r,100));
+  await new Promise(r=>setTimeout(r,200));
  }
  assert.ok(tabs?.some(t=>t.type==='page'),'Start an isolated Chrome session on port 9227');
  ws=new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl);
