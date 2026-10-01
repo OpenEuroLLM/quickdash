@@ -74,7 +74,7 @@ const EvalConfig=(()=>{
     const a=e.aggregation;objectKeys(a,['components','note','sources'],['components']);
     if(!Array.isArray(a.components)||!a.components.length)throw Error('Aggregation needs components');
     const names=new Set();let total=0;
-    for(const c of a.components){objectKeys(c,['name','match','weight'],['name','match','weight']);if(typeof c.name!=='string'||!c.name.trim()||names.has(c.name))throw Error('Component names must be unique and nonempty');names.add(c.name);validateMatch(c.match);if(!number(c.weight)||c.weight<=0)throw Error('Component weights must be positive finite numbers');total+=c.weight;}
+    for(const c of a.components){objectKeys(c,['name','match','relative_weight'],['name','match','relative_weight']);if(typeof c.name!=='string'||!c.name.trim()||names.has(c.name))throw Error('Component names must be unique and nonempty');names.add(c.name);validateMatch(c.match);if(!number(c.relative_weight)||c.relative_weight<=0)throw Error('Component weights must be positive finite numbers');total+=c.relative_weight;}
     if(!Number.isFinite(total))throw Error('Component weight sum must be finite');
     if('note'in a&&typeof a.note!=='string')throw Error('Aggregation note must be text');
     if('sources'in a&&(!Array.isArray(a.sources)||a.sources.some(u=>typeof u!=='string'||!/^https?:\/\//.test(u))))throw Error('Aggregation sources must be HTTP(S) URLs');

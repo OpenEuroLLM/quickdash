@@ -97,11 +97,11 @@ def validate_rules(config):
             if not isinstance(a['components'],list) or not a['components']:raise ValueError('Aggregation needs components')
             names_seen=set();total=0
             for c in a['components']:
-                object_keys(c,{'name','match','weight'},{'name','match','weight'})
+                object_keys(c,{'name','match','relative_weight'},{'name','match','relative_weight'})
                 if not isinstance(c['name'],str) or not c['name'].strip() or c['name'] in names_seen:raise ValueError('Component names must be unique and nonempty')
                 names_seen.add(c['name']);validate_match(c['match'])
-                if not number(c['weight']) or c['weight']<=0:raise ValueError('Component weights must be positive finite numbers')
-                total+=c['weight']
+                if not number(c['relative_weight']) or c['relative_weight']<=0:raise ValueError('Component weights must be positive finite numbers')
+                total+=c['relative_weight']
             if not math.isfinite(total):raise ValueError('Component weight sum must be finite')
             if 'note' in a and not isinstance(a['note'],str):raise ValueError('Aggregation note must be text')
             if 'sources' in a and (not isinstance(a['sources'],list) or any(not isinstance(u,str) or not re.match(r'^https?://',u) for u in a['sources'])):raise ValueError('Aggregation sources must be HTTP(S) URLs')

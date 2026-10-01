@@ -166,22 +166,22 @@ aggregation:
   components:
     - name: low
       match: {regex: 'polymath_.+_low'}
-      weight: 1
+      relative_weight: 1
     - name: medium
       match: {regex: 'polymath_.+_medium'}
-      weight: 2
+      relative_weight: 2
     - name: high
       match: {regex: 'polymath_.+_high'}
-      weight: 4
+      relative_weight: 4
     - name: top
       match: {regex: 'polymath_.+_top'}
-      weight: 8
+      relative_weight: 8
   note: Difficulty-weighted accuracy; each level is required.
   sources:
     - https://qwen-polymath.github.io/#benchmark-score
 ```
 
-Each component requires a unique nonempty `name`, a full-task `match` (exact `name` or `regex`, as for eval matching), and a positive finite numeric `weight`. The weight sum must be finite. The list must be nonempty. Optional `note` is text and `sources` is a list of HTTP(S) URLs. Unknown fields are rejected. Multiplying all component weights by the same positive constant leaves the result unchanged.
+Each component requires a unique nonempty `name`, a full-task `match` (exact `name` or `regex`, as for eval matching), and a positive finite numeric `relative_weight`. The weight sum must be finite. The list must be nonempty. Optional `note` is text and `sources` is a list of HTTP(S) URLs. Unknown fields are rejected. Multiplying all component weights by the same positive constant leaves the result unchanged.
 
 The supplied PolyMath rule implements the authors' [Difficulty-Weighted Accuracy](https://qwen-polymath.github.io/#benchmark-score): `(low + 2×medium + 4×high + 8×top)/15`. The [oellm-eval template](https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/custom_lm_eval_tasks/polymath/_default_template_yaml) emits a mean accuracy for each difficulty split; those input values are not already difficulty-weighted.
 
@@ -189,7 +189,7 @@ Calculation order:
 
 1. Select the configured metric/filter/shot results and normalize each score.
 2. Within each model, eval, explicit language assignment, and protocol, require exactly one result for every component. Protocol means metric, filter, shot count, harness, and backend. Translation uses the full source/target pair; known pooled languages use their explicit pooled assignment. Unknown languages cannot form component groups.
-3. Calculate `sum(weight × normalized score) / sum(weights)` for each complete group.
+3. Calculate `sum(relative_weight × normalized score) / sum(relative_weights)` for each complete group.
 4. Average complete groups equally within the eval, or within its English/other side when balancing is enabled. Apply the selected eval/category aggregation and category weights afterward. Evals without component rules retain their ordinary variant means.
 
 For example, fictional component scores of 60, 30, 15, and 0 produce `(60 + 60 + 60 + 0)/15 = 12`. Their contributions to that language/protocol score are 4, 4, 4, and 0 points. Each component's contribution to the full composite also includes its group's share within the eval, any English balance, the eval's share of its category, and the category weight. These full contributions drive the weighted delta bars and sum to the score difference.

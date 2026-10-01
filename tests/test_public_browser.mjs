@@ -135,7 +135,7 @@ try{
  // Weighted components use fictional scores and remain inspectable after exclusion.
  await click('#clearModels');await click('[data-view=config]');
  const levels=['low','medium','high','top'];
- const componentCatalogue={version:1,name:'Component example',evals:[{name:'Poly example',category:'Reasoning',match:{regex:'poly_.+'},metric:'acc',filter:'none',score:{scale:1},aggregation:{components:levels.map((name,i)=>({name,match:{regex:'poly_.+_'+name},weight:2**i})),note:'Fictional component fixture.'}}],languages:['en','de'].map((lang,i)=>({tasks:levels.map(l=>'poly_'+lang+'_'+l),scope:'single',language:i?'deu_Latn':'eng_Latn'}))};
+ const componentCatalogue={version:1,name:'Component example',evals:[{name:'Poly example',category:'Reasoning',match:{regex:'poly_.+'},metric:'acc',filter:'none',score:{scale:1},aggregation:{components:levels.map((name,i)=>({name,match:{regex:'poly_.+_'+name},relative_weight:2**i})),note:'Fictional component fixture.'}}],languages:['en','de'].map((lang,i)=>({tasks:levels.map(l=>'poly_'+lang+'_'+l),scope:'single',language:i?'deu_Latn':'eng_Latn'}))};
  await upload('#configFile',serializeCatalogue(componentCatalogue),'components.yaml');
  await upload('#weightsFile',serializeWeightProfile({version:1,name:'Component weights',weights:{Reasoning:1},english_weights:{Reasoning:.5}}),'weights.yaml');
  const componentCSV=(model,omit=false)=>['checkpoint,task,metric,filter,n_shot,harness,backend,value',...['en','de'].flatMap(lang=>levels.flatMap((l,i)=>omit&&lang==='en'&&l==='top'?[]:[`${model},poly_${lang}_${l},acc,none,0,test,cpu,${model==='Component A'?(lang==='en'?[.6,.3,.15,0][i]:.2):(lang==='en'?.3:.1)}`]))].join('\n');
@@ -156,11 +156,11 @@ try{
   if(view==='languages'){await click('[data-language-sort=componentA]');assert.match(await evaluate("document.querySelector('#view').textContent"),/Group contribution/);}
  }
  await click('[data-view=config]');
- assert.match(await evaluate("document.querySelector('.component-info').textContent"),/sum\(component weight × normalized score\) \/ 15/);
+ assert.match(await evaluate("document.querySelector('.component-info').textContent"),/sum\(relative_weight × normalized score\) \/ 15/);
  await evaluate(`window.originalCreate=URL.createObjectURL;window.originalClick=HTMLAnchorElement.prototype.click;URL.createObjectURL=b=>{window.exportBlob=b;return 'blob:test'};HTMLAnchorElement.prototype.click=function(){};`);
  await click('#exportConfig');assert.deepEqual(await evaluate('exportBlob.text().then(parseCatalogue)'),componentCatalogue);
  await evaluate('URL.createObjectURL=originalCreate;HTMLAnchorElement.prototype.click=originalClick');
- await upload('#configFile',serializeCatalogue(componentCatalogue).replace('weight: 1','weight: 0'),'invalid-components.yaml');
+ await upload('#configFile',serializeCatalogue(componentCatalogue).replace('relative_weight: 1','relative_weight: 0'),'invalid-components.yaml');
  assert.match(await evaluate("document.querySelector('#error').textContent"),/positive/);
  assert.equal(await evaluate("document.querySelector('.score-card strong').textContent"),'16.00');
  await upload('#modelFile',componentCSV('Component C',true),'incomplete.csv');

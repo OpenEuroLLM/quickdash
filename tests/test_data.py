@@ -45,10 +45,10 @@ class DataContracts(unittest.TestCase):
     def test_component_config_validation_and_standalone_build(self):
         c=config();e=c['evals'][0];e.pop('normalize')
         levels=['low','medium','high','top']
-        e['aggregation']={'components':[dict(name=name,match={'regex':'task_.+_'+name},weight=2**i) for i,name in enumerate(levels)]}
+        e['aggregation']={'components':[dict(name=name,match={'regex':'task_.+_'+name},relative_weight=2**i) for i,name in enumerate(levels)]}
         c['languages']=[dict(tasks=['task_en_'+name for name in levels],scope='single',language='eng_Latn')]
         validate_config(c)
-        bad_values=[None,{}, {'components':[]}, {'components':[dict(name='low',match={'name':'x'},weight=True)]}]
+        bad_values=[{'components':[dict(name='low',match={'name':'x'},weight=1)]},None,{}, {'components':[]}, {'components':[dict(name='low',match={'name':'x'},relative_weight=True)]}]
         for value in bad_values:
             bad=deepcopy(c);bad['evals'][0]['aggregation']=value
             with self.assertRaises(ValueError):validate_config(bad)

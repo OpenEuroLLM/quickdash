@@ -277,16 +277,16 @@ evals:
       components:
         - name: low
           match: {regex: 'polymath_.+_low'}
-          weight: 1
+          relative_weight: 1
         - name: medium
           match: {regex: 'polymath_.+_medium'}
-          weight: 2
+          relative_weight: 2
         - name: high
           match: {regex: 'polymath_.+_high'}
-          weight: 4
+          relative_weight: 4
         - name: top
           match: {regex: 'polymath_.+_top'}
-          weight: 8
+          relative_weight: 8
       note: >-
         PolyMath difficulty-weighted accuracy combines all four levels within each language:
         (low + 2 × medium + 4 × high + 8 × top) / 15. Exported exact_match values are

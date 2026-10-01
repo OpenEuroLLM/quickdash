@@ -2,16 +2,16 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const E=require('../app/eval_config.js'),A=require('../app/app.js');
 const levels=['low','medium','high','top'];
-const config=()=>({version:1,name:'Components',weights:{Reasoning:1},english_weights:{Reasoning:.5},evals:[{name:'Poly',category:'Reasoning',match:{regex:'poly_.+'},metric:'acc',filter:'none',score:{scale:1},aggregation:{components:levels.map((name,i)=>({name,match:{regex:'poly_.+_'+name},weight:2**i}))}}],languages:['en','de','fr'].map((lang,i)=>({tasks:levels.map(l=>'poly_'+lang+'_'+l),scope:'single',language:['eng_Latn','deu_Latn','fra_Latn'][i]}))});
+const config=()=>({version:1,name:'Components',weights:{Reasoning:1},english_weights:{Reasoning:.5},evals:[{name:'Poly',category:'Reasoning',match:{regex:'poly_.+'},metric:'acc',filter:'none',score:{scale:1},aggregation:{components:levels.map((name,i)=>({name,match:{regex:'poly_.+_'+name},relative_weight:2**i}))}}],languages:['en','de','fr'].map((lang,i)=>({tasks:levels.map(l=>'poly_'+lang+'_'+l),scope:'single',language:['eng_Latn','deu_Latn','fra_Latn'][i]}))});
 const rows=(cfg=config(),langs=['en'],values=[.6,.3,.15,0],checkpoint='A')=>E.auditRows(langs.flatMap(lang=>levels.map((l,i)=>({checkpoint,task:'poly_'+lang+'_'+l,metric:'acc',filter:'none',n_shot:'0',harness:'test',backend:'cpu',value:values[i]}))),cfg);
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-9,`${a} != ${b}`);
 test('relative weights round trip; invalid component rules reject',()=>{
  const c=config();E.validateConfig(c);const catalogue={version:1,name:c.name,evals:c.evals,languages:c.languages};assert.deepEqual(E.parseCatalogue(E.serializeCatalogue(catalogue)),catalogue);
- for(const mutate of [a=>a.components=[],a=>a.components[0].weight=0,a=>a.components[0].weight=-1,a=>a.components[0].weight=Infinity,a=>a.components[0].weight='1',a=>a.components[0].name='medium',a=>a.components[0].extra=true,a=>a.components[0].match={regex:'['},a=>a.extra=true,a=>a.components.forEach(c=>c.weight=1e308)]){const bad=config();mutate(bad.evals[0].aggregation);assert.throws(()=>E.validateConfig(bad));}
+ for(const mutate of [a=>a.components=[],a=>{a.components[0].weight=1;delete a.components[0].relative_weight;},a=>a.components[0].relative_weight=0,a=>a.components[0].relative_weight=-1,a=>a.components[0].relative_weight=Infinity,a=>a.components[0].relative_weight='1',a=>a.components[0].name='medium',a=>a.components[0].extra=true,a=>a.components[0].match={regex:'['},a=>a.extra=true,a=>a.components.forEach(c=>c.relative_weight=1e308)]){const bad=config();mutate(bad.evals[0].aggregation);assert.throws(()=>E.validateConfig(bad));}
 });
 test('PolyMath formula, scale invariance, coefficients and unchanged source scores',()=>{
  const c=config(),r=rows(c),result=A.totals(r,c,c.weights);close(result.score,12);close([...result.rowWeights.values()].reduce((s,v)=>s+v,0),1);close(result.rowWeights.get(r[3]),8/15);close(r[0].raw_score_100,60);
- c.evals[0].aggregation.components.forEach(x=>x.weight*=10);close(A.totals(r,c,c.weights).score,12);
+ c.evals[0].aggregation.components.forEach(x=>x.relative_weight*=10);close(A.totals(r,c,c.weights).score,12);
 });
 test('components normalize before weighting and balance languages after weighting',()=>{
  const c=config();c.evals[0].normalize={min:.25,max:1};
@@ -59,7 +59,7 @@ test('200 independent component calculations reconcile modes, groups, and catego
  let seed=811;const rand=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/2**32);
  for(let trial=0;trial<200;trial++){
   const c=config(),share=rand(),weights=levels.map(()=>1+Math.floor(rand()*8));c.english_weights.Reasoning=share;
-  c.evals[0].aggregation.components.forEach((x,i)=>x.weight=weights[i]);
+  c.evals[0].aggregation.components.forEach((x,i)=>x.relative_weight=weights[i]);
   c.evals.push({name:'Ordinary',category:'Reasoning',match:{name:'ordinary'},metric:'acc',filter:'none',score:{scale:1}});
   c.languages.push({tasks:['ordinary'],scope:'single',language:'eng_Latn'});
   const inputs=['en','de','fr'].map(()=>levels.map(()=>rand()));
