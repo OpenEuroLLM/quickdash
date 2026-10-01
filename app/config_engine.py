@@ -132,6 +132,7 @@ def validate_rules(config):
         for field in ['note','evidence']:
             if field in group and not isinstance(group[field],str):raise ValueError(field+' must be a string')
         if group.get('evidence') and not re.match(r'^https?://',group['evidence']):raise ValueError('Evidence links must use HTTP or HTTPS')
+    if any('aggregation' in e for e in config['evals']):shared_config('aggregation', value=config)
     return config
 
 
@@ -187,6 +188,7 @@ def classify(rows,config):
         elif 'shots' in e and str(r['n_shot'])!=str(e['shots']):decision='Alternate shot setting; using '+str(e['shots'])+' shots'
         selected=decision=='Selected for the weighted score';raw=adjusted=None
         if selected:
+            if 'aggregation' in e and sum(match_task(c['match'],r['task']) is not None for c in e['aggregation']['components'])!=1:raise ValueError('Incompatible aggregation config for '+e['name']+': '+r['task']+' must match exactly one component')
             try:raw,adjusted=normalize_score(r['value'],e)
             except (ValueError,OverflowError) as error:raise ValueError(f"CSV row {index+2} · {r['checkpoint']} · {r['task']} · {r['metric']}: Invalid score: {error}") from error
             key=tuple(r[k] for k in ['checkpoint','task','metric','filter','n_shot','harness','backend'])

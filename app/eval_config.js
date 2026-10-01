@@ -93,6 +93,39 @@ const EvalConfig=(()=>{
    for(const f of ['note','evidence'])if(f in g&&typeof g[f]!=='string')throw Error(f+' must be a string');
    if(g.evidence&&!/^https?:\/\//.test(g.evidence))throw Error('Evidence links must use HTTP or HTTPS');
   }
+  return validateAggregationConfig(config);
+ }
+ // Validate concrete task selections without attempting to infer languages from regexes.
+ function validateAggregationSelection(e,variants,config,unique=true){
+  if(!e.aggregation)return;
+  const metadata=new Map(config.languages.flatMap(g=>g.tasks.map(task=>[task,g]))),groups=new Map();
+  const fail=detail=>{throw Error('Incompatible aggregation config for '+e.name+': '+detail);};
+  for(const v of variants){
+   const g=metadata.get(v.task);if(!g)fail(v.task+' needs an explicit language assignment');
+   const language=g.scope==='translation'?g.source_language+' → '+g.target_language:g.language;
+   const shot=v.n_shot??e.shots??'*',id=JSON.stringify([g.scope,language,shot]);
+   if(!groups.has(id))groups.set(id,{label:language+' / shots '+shot,parts:new Map(e.aggregation.components.map(c=>[c.name,[]]))});
+   const matches=e.aggregation.components.filter(c=>matchTask(c.match,v.task));
+   if(matches.length!==1)fail(v.task+' matches '+matches.length+' components; expected exactly one');
+   groups.get(id).parts.get(matches[0].name).push(v.task);
+  }
+  for(const group of groups.values())for(const [name,tasks] of group.parts){
+   if(!tasks.length)fail(group.label+' is missing required component '+name+'; select every component with compatible shot settings');
+   if(unique&&tasks.length>1)fail(group.label+' has multiple tasks for component '+name+': '+tasks.join(', '));
+  }
+ }
+ function validateAggregationConfig(config){
+  const knownTasks=config.languages.flatMap(g=>g.tasks);
+  for(const e of config.evals.filter(e=>e.aggregation)){
+   const eligible=task=>matchTask(e.match,task)&&(!e.select||matchTask(e.select,task));
+   const tasks=new Set(knownTasks.filter(eligible));
+   for(const c of e.aggregation.components)if('name'in c.match){
+    if(!eligible(c.match.name))throw Error('Incompatible aggregation config for '+e.name+': component '+c.name+' task '+c.match.name+' is excluded by the eval match/selection rule');
+    tasks.add(c.match.name);
+   }
+   for(const task of tasks)if(config.evals.filter(rule=>matchTask(rule.match,task)).length!==1)throw Error('Incompatible aggregation config for '+e.name+': '+task+' has ambiguous eval rules');
+   validateAggregationSelection(e,[...tasks].map(task=>({task})),config,false);
+  }
   return config;
  }
  function normalizeScore(value,e){if(!number(value)&&(typeof value!=='string'||!decimal.test(value.trim())))throw Error('Invalid score: expected a finite decimal number');const raw=Number(value)/e.score.scale;if(!Number.isFinite(raw)||raw<0||raw>1)throw Error('Invalid score: outside the configured source scale');const n=e.normalize??{min:0,max:1};let adjusted=(raw-n.min)/(n.max-n.min);if(n.clip!==false)adjusted=Math.max(0,Math.min(1,adjusted));if(!Number.isFinite(adjusted*100))throw Error('Invalid score: normalization overflow');return {raw_score_100:raw*100,score_100:adjusted*100};}
@@ -112,10 +145,10 @@ const EvalConfig=(()=>{
    else if(r.filter!==e.filter)decision='Alternate extraction filter; using '+(e.filter||'(empty)');
    else if('shots'in e&&String(r.n_shot)!==String(e.shots))decision='Alternate shot setting; using '+e.shots+' shots';
    const selected=decision==='Selected for the weighted score';let scores={raw_score_100:null,score_100:null};
-   if(selected){try{scores=normalizeScore(r.value,e);}catch(error){throw Error('CSV row '+(index+2)+' · '+r.checkpoint+' · '+r.task+' · '+r.metric+': '+error.message);}const key=JSON.stringify(['checkpoint','task','metric','filter','n_shot','harness','backend'].map(k=>r[k]));if(seen.has(key))throw Error('Duplicate selected measurement: '+r.checkpoint+' · '+r.task+' · '+r.metric);seen.add(key);}
+   if(selected){if(e.aggregation&&e.aggregation.components.filter(c=>matchTask(c.match,r.task)).length!==1)throw Error('Incompatible aggregation config for '+e.name+': '+r.task+' must match exactly one component');try{scores=normalizeScore(r.value,e);}catch(error){throw Error('CSV row '+(index+2)+' · '+r.checkpoint+' · '+r.task+' · '+r.metric+': '+error.message);}const key=JSON.stringify(['checkpoint','task','metric','filter','n_shot','harness','backend'].map(k=>r[k]));if(seen.has(key))throw Error('Duplicate selected measurement: '+r.checkpoint+' · '+r.task+' · '+r.metric);seen.add(key);}
    return {...r,eval:e.name,category:e.category,selected,decision,...scores};
   });
  }
- return {parseCatalogue,serializeCatalogue,validateCatalogue,validateWeights,parseCSV,validateConfig,matchTask,normalizeScore,taskLanguage,auditRows,demoModel};
+ return {validateAggregationConfig,validateAggregationSelection,parseCatalogue,serializeCatalogue,validateCatalogue,validateWeights,parseCSV,validateConfig,matchTask,normalizeScore,taskLanguage,auditRows,demoModel};
 })();
 if(typeof module!=='undefined')module.exports=EvalConfig;

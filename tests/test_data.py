@@ -53,6 +53,13 @@ class DataContracts(unittest.TestCase):
             bad=deepcopy(c);bad['evals'][0]['aggregation']=value
             with self.assertRaises(ValueError):validate_config(bad)
             self.assertIn('error',javascript([bad],'api.validateConfig(c)')[0])
+        for mutation in [lambda c:c['languages'][0]['tasks'].pop(),
+                         lambda c:c['evals'][0].update(select={'regex':'task_.+_(low|medium|high)'}),
+                         lambda c:c['evals'][0]['aggregation']['components'][0].update(match={'regex':'task_.+'}),
+                         lambda c:c['evals'][0]['aggregation']['components'][0].update(metric='other')]:
+            bad=deepcopy(c);mutation(bad)
+            with self.assertRaises(ValueError):validate_config(bad)
+            self.assertIn('error',javascript([bad],'api.validateConfig(c)')[0])
         rr=[row(task='task_en_'+name,value=str(value)) for name,value in zip(levels,[.6,.3,.15,0])]
         for mode in ['standard','english_eval','english_category']:
             c['english_weights']={'C':.5}
@@ -68,6 +75,16 @@ class DataContracts(unittest.TestCase):
             self.assertEqual(data['models'][0]['evals'][0]['count'],4)
             self.assertIn('Component aggregation',(folder/'out/index.html').read_text())
             self.assertTrue((folder/'out/eval-scores.csv').exists())
+            previous=(folder/'out/index.html').read_bytes()
+            suite=dict(version=1,name='Partial components',mode='fixed',evals=[dict(name='Eval',variants=[dict(task=r['task'],n_shot=0) for r in rr[:-1]])])
+            (folder/'set.yaml').write_text(json.dumps(suite));kw['suite_path']=folder/'set.yaml'
+            with self.assertRaisesRegex(ValueError,'Incompatible aggregation config.*top'):build(source,folder/'out',**kw)
+            self.assertEqual((folder/'out/index.html').read_bytes(),previous)
+            suite['evals'][0]['variants'].append(dict(task=rr[-1]['task'],n_shot=5))
+            (folder/'set.yaml').write_text(json.dumps(suite))
+            with self.assertRaisesRegex(ValueError,'Incompatible aggregation config'):build(source,folder/'out',**kw)
+            self.assertEqual((folder/'out/index.html').read_bytes(),previous)
+
 
     def test_independent_directory_defaults_and_explicit_overrides(self):
         with tempfile.TemporaryDirectory() as tmp:

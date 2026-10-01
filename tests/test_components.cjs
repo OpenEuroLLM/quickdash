@@ -79,3 +79,41 @@ test('explicit translation pairs are independent component groups',()=>{
  const c=config(),r=rows(c,['en','de']);c.languages=c.languages.slice(0,2).map((g,i)=>({tasks:g.tasks,scope:'translation',source_language:i?'deu_Latn':'eng_Latn',target_language:'fra_Latn'}));
  assert.equal(A.componentCoverage(r,c).groups.length,2);close(A.totals(r,c,c.weights).score,12);
 });
+
+test('catalogue rejects incompatible component matching and selection',()=>{
+ for(const mutate of [
+  c=>c.evals[0].aggregation.components[0].match={regex:'poly_.+'},
+  c=>c.evals[0].aggregation.components[0].match={name:'other_eval'},
+  c=>c.evals[0].select={regex:'poly_.+_(low|medium|high)'},
+  c=>c.languages[0].tasks.pop(),
+  c=>c.evals[0].aggregation.components[0].metric='other',
+  c=>c.evals[0].aggregation.components[0].filter='other',
+  c=>c.evals[0].aggregation.components[0].score={scale:100},
+  c=>c.evals[0].aggregation.components[0].normalize={min:.25,max:1},
+  c=>c.evals[0].aggregation.components[0].shots=5
+ ]){const c=config();mutate(c);assert.throws(()=>E.validateConfig(c));}
+ // A wholly absent language is not an implicit requirement.
+ const c=config();c.languages.pop();assert.doesNotThrow(()=>E.validateConfig(c));
+});
+test('named sets require compatible complete component selections per language and shots',()=>{
+ const S=require('../app/suite_config.js'),c=config(),catalogue={version:1,name:c.name,evals:c.evals,languages:c.languages},profile={version:1,name:'P',weights:c.weights};
+ const suite=()=>({version:1,name:'Components',mode:'fixed',evals:[{name:'Poly',variants:levels.map(l=>({task:'poly_en_'+l,n_shot:0}))}]});
+ for(const mutate of [s=>s.evals[0].variants.pop(),s=>s.evals[0].variants[3].n_shot=5,s=>delete s.evals[0].variants[3].n_shot,s=>s.evals[0].variants[3].task='poly_de_top']){
+  const s=suite();mutate(s);assert.throws(()=>S.resolveConfig(catalogue,s,profile),/aggregation.*Poly|Poly.*aggregation/i);
+ }
+ for(const s of [suite(),{...suite(),evals:[{name:'Poly'}]},{version:1,name:'Available',mode:'available'}])assert.doesNotThrow(()=>S.resolveConfig(catalogue,s,profile));
+ const allShots=suite();allShots.evals[0].variants.forEach(v=>delete v.n_shot);assert.doesNotThrow(()=>S.resolveConfig(catalogue,allShots,profile));
+ const pinned=structuredClone(catalogue);pinned.evals[0].shots=0;const mixed=suite();delete mixed.evals[0].variants[0].n_shot;assert.doesNotThrow(()=>S.resolveConfig(pinned,mixed,profile));
+ const both=suite();both.evals[0].variants.push(...both.evals[0].variants.map(v=>({...v,n_shot:5})));assert.doesNotThrow(()=>S.resolveConfig(catalogue,both,profile));
+ const alias=structuredClone(catalogue);alias.languages[0].tasks.push('poly_en_alias_low');const duplicate=suite();duplicate.evals[0].variants.push({task:'poly_en_alias_low',n_shot:0});assert.throws(()=>S.resolveConfig(alias,duplicate,profile),/multiple/i);
+});
+
+test('newly observed tasks must match exactly one component even beyond declared metadata',()=>{
+ const c=config(),raw={...rows(c)[0],task:'poly_en_future'};
+ assert.throws(()=>E.auditRows([raw],c),/Incompatible aggregation config.*exactly one/);
+ c.evals[0].aggregation.components[0].match.regex='poly_.+_(low|future)';
+ c.evals[0].aggregation.components[1].match.regex='poly_.+_(medium|future)';
+ assert.doesNotThrow(()=>E.validateConfig(c));
+ assert.throws(()=>E.auditRows([raw],c),/Incompatible aggregation config.*exactly one/);
+ assert.equal(E.auditRows([{...raw,metric:'alternate'}],c)[0].selected,false);
+});

@@ -171,6 +171,17 @@ try{
  await click('[data-task=poly_en_low] > summary');
  assert.match(await evaluate("document.querySelector('[data-task=poly_en_low] .task-details').textContent"),/Excluded from comparison/);
  const componentSet={version:1,name:'All component tasks',mode:'fixed',evals:[{name:'Poly example',variants:componentCatalogue.languages.flatMap(g=>g.tasks.map(task=>({task,n_shot:0})))}]};
+ const cardsBeforeRejectedConfig=await evaluate("document.querySelector('#cards').textContent");
+ for(const modify of [s=>s.evals[0].variants.pop(),s=>s.evals[0].variants[0].n_shot=5,s=>delete s.evals[0].variants[0].n_shot]){
+  const bad=structuredClone(componentSet);modify(bad);
+  await upload('#suiteFile',serializeSuite(bad),'incompatible-set.yaml');
+  assert.match(await evaluate("document.querySelector('#error').textContent"),/Incompatible aggregation config/);
+  assert.equal(await evaluate("document.querySelector('#cards').textContent"),cardsBeforeRejectedConfig);
+ }
+ const incompatibleCatalogue=structuredClone(componentCatalogue);incompatibleCatalogue.evals[0].select={regex:'poly_.+_(low|medium|high)'};
+ await upload('#configFile',JSON.stringify(incompatibleCatalogue),'incompatible-catalogue.yaml');
+ assert.match(await evaluate("document.querySelector('#error').textContent"),/Incompatible aggregation config.*top/);
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),cardsBeforeRejectedConfig);
  await upload('#suiteFile',serializeSuite(componentSet),'components-set.yaml');
  assert.match(await evaluate("document.querySelector('#coverage').textContent"),/INCOMPLETE.*4\/8 requirements shared/);
  await click('[data-view=comparisons]');await change('#compareGroup','variant');await change('#compareMeasure','weighted');

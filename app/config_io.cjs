@@ -10,6 +10,6 @@ try{
    return {model,score:t.score,warnings:coverage.warnings,evals:t.evals.map(e=>Object.fromEntries(['name','category','metric','score','weight','contribution','aggregateScore','excluded','englishShare','effectiveEnglishShare','englishScore','otherScore','issue'].map(k=>[k,e[k]]).concat([['count',e.rows.length]]))),categories:t.categories.map(c=>({...c,evals:t.evals.filter(e=>e.category===c.name&&!e.excluded).length}))};
   });
  };
- const value=mode==='summarize'?summarize(JSON.parse(source)):mode==='resolve'?sets.resolveConfig(...JSON.parse(source)):mode==='scope'?sets.scopeRows(...JSON.parse(source)):parsers[mode](source);
+ const value=mode==='aggregation'?evals.validateAggregationConfig(JSON.parse(source)):mode==='summarize'?summarize(JSON.parse(source)):mode==='resolve'?sets.resolveConfig(...JSON.parse(source)):mode==='scope'?sets.scopeRows(...JSON.parse(source)):parsers[mode](source);
  process.stdout.write(JSON.stringify(value));
 }catch(error){process.stderr.write(error.message+'\n');process.exitCode=1;}
