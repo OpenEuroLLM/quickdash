@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict');
-const {totals,comparisonRows,pairRows}=require('./app.js');
-const {validateConfig}=require('./eval_config.js');
+const {totals,comparisonRows,pairRows}=require('../app/app.js');
+const {validateConfig}=require('../app/eval_config.js');
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-10,`${a} != ${b}`);
 const scheme={evals:[{name:'mixed',category:'C'},{name:'english',category:'C'}],weights:{C:1},english_weights:{C:.5},languages:[]};
 const rows=[['en','mixed',80],['fr','mixed',20],['de','mixed',40],['english','english',100]].map(([task,ev,score])=>({task,eval:ev,category:'C',score_100:score,raw_score_100:score,metric:'acc',filter:'none',n_shot:'0',harness:'test',backend:'test'}));
@@ -40,11 +40,11 @@ close(totals(rows,scheme,scheme.weights,'english_category',scheme.english_weight
 const translation=new Map(rows.map(r=>[r.task,{scope:'translation',source_language:metadata.get(r.task).language==='eng_Latn'?'fra_Latn':'eng_Latn',target_language:metadata.get(r.task).language}]));
 close(totals(rows,scheme,scheme.weights,'english_category',scheme.english_weights,translation).score,60);
 for(const invalid of [-.1,1.1,NaN])assert.equal(totals(rows,scheme,scheme.weights,'english_category',{C:invalid},metadata).score,null);
-const config=require('./eval_config.js').parseConfig(require('node:fs').readFileSync('eval-config.yaml','utf8'));
+const config=require('../app/eval_config.js').parseConfig(require('node:fs').readFileSync('configs/oellm.yaml','utf8'));
 for(const english_weights of [{Code:-1},{Code:1.1},{Missing:.5},{Code:'0.5'}])assert.throws(()=>validateConfig({...config,english_weights}));
 assert.throws(()=>validateConfig({...config,aggregate:'oops'}));
 console.log('English-share arithmetic, coverage, translation, contribution reconciliation, filters, and validation passed.');
-const data=require('./output/analysis.json');
+const data=require('../output/analysis.json');
 for(const mode of ['standard','english_eval','english_category']){
  const actual=totals(data.rows.filter(r=>r.selected),data.scheme,data.scheme.weights,mode),expected=data.aggregates[mode][0];
  close(actual.score,expected.score);
@@ -58,7 +58,7 @@ close(totals([kept],missingScheme,missingScheme.weights).score,80);
 close(totals([kept],missingScheme,missingScheme.weights).categories.find(c=>c.name==='C').weight,1);
 assert.equal(totals([kept],missingScheme,missingScheme.weights).categories.find(c=>c.name==='D').excluded,true);
 assert.equal(totals([],missingScheme,missingScheme.weights).score,null);
-const {comparisonCoverage}=require('./app.js');
+const {comparisonCoverage}=require('../app/app.js');
 const overlap=comparisonCoverage(rows,b.filter(r=>r.task!=='english'),scheme);
 assert.equal(overlap.a.length,3);assert.equal(overlap.b.length,3);
 assert.ok(overlap.warnings.some(w=>w.name==='english'));

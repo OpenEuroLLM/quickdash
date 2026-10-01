@@ -26,8 +26,8 @@ jobs:
           node-version: '22'
       - name: Check scoring, imports, and configuration
         run: |
-          python3 -m unittest test_data.py
-          node --test test_data.cjs test_yaml.cjs
+          python3 -m unittest tests.test_data
+          node --test tests/test_data.cjs tests/test_yaml.cjs
       - name: Check the browser with public fixtures
         run: |
           google-chrome --headless --no-sandbox --disable-gpu \
@@ -37,17 +37,17 @@ jobs:
             > "$RUNNER_TEMP/quickdash-chrome.log" 2>&1 &
           quickdash_chrome_pid=$!
           trap 'kill "$quickdash_chrome_pid" 2>/dev/null || true' EXIT
-          node test_public_browser.mjs || { cat "$RUNNER_TEMP/quickdash-chrome.log"; exit 1; }
+          node tests/test_public_browser.mjs || { cat "$RUNNER_TEMP/quickdash-chrome.log"; exit 1; }
       - name: Build shared results and the fictional demo
         run: |
-          python3 build.py --results-dir results --configs-dir configs \
+          python3 -m app.build --results-dir results --configs-dir configs \
             --output output/shared > "$RUNNER_TEMP/quickdash-shared.json"
-          python3 build.py examples/scores.csv --config configs/example.yaml \
+          python3 -m app.build examples/scores.csv --config configs/example.yaml \
             --output output/demo > "$RUNNER_TEMP/quickdash-demo.json"
           mkdir -p output/site
           cp output/shared/index.html output/site/index.html
           cp output/demo/index.html output/site/demo.html
-          cp LICENSE vendor/js-yaml.LICENSE output/site/
+          cp LICENSE app/vendor/js-yaml.LICENSE output/site/
       - uses: actions/upload-pages-artifact@v5
         with:
           path: output/site

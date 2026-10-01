@@ -6,18 +6,20 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createRequire} from 'node:module';
-const require=createRequire(import.meta.url),{parseConfig,serializeConfig}=require('./eval_config.js');
-const root=fileURLToPath(new URL('.',import.meta.url));
+const require=createRequire(import.meta.url),{parseConfig,serializeConfig}=require('../app/eval_config.js');
+const root=fileURLToPath(new URL('../',import.meta.url));
 const temporary=fs.mkdtempSync(path.join(os.tmpdir(),'quickdash-browser-'));
 let ws;
 try{
  const fixture=parseConfig(fs.readFileSync(path.join(root,'configs/example.yaml'),'utf8'));
  const configs=path.join(temporary,'configs');fs.mkdirSync(configs);
+ fs.copyFileSync(path.join(root,'configs/oellm.yaml'),path.join(configs,'oellm.yaml'));
+ fs.writeFileSync(path.join(configs,'default.txt'),'oellm.yaml\n');
  fs.writeFileSync(path.join(configs,'example.yaml'),serializeConfig(fixture));
  const invalidForScores=structuredClone(fixture);invalidForScores.name='Small scale fixture';invalidForScores.evals[0].score.scale=.1;
  fs.writeFileSync(path.join(configs,'small.yaml'),serializeConfig(invalidForScores));
  const empty=path.join(temporary,'empty');
- execFileSync('python3',[path.join(root,'build.py'),'--configs-dir',configs,'--output',empty],{cwd:root,stdio:'pipe'});
+ execFileSync('python3',['-m','app.build','--configs-dir',configs,'--output',empty],{cwd:root,stdio:'pipe'});
  let tabs;
  // A cold CI runner can take longer than five seconds to launch Chrome.
  const startupDeadline=Date.now()+30_000;
@@ -76,7 +78,7 @@ try{
  const results=path.join(temporary,'results');fs.mkdirSync(results);
  fs.copyFileSync(path.join(root,'examples/scores.csv'),path.join(results,'example.csv'));
  const shared=path.join(temporary,'shared');
- execFileSync('python3',[path.join(root,'build.py'),'--results-dir',results,'--config',path.join(root,'configs/example.yaml'),'--output',shared],{cwd:root,stdio:'pipe'});
+ execFileSync('python3',['-m','app.build','--results-dir',results,'--config',path.join(root,'configs/example.yaml'),'--output',shared],{cwd:root,stdio:'pipe'});
  await navigate(pathToFileURL(path.join(shared,'index.html')).href);
  assert.equal(await evaluate("document.querySelector('#modelB').value"),'Example B');
  for(const view of ['score','categories','languages','comparisons','config','warnings'])await click('[data-view='+view+']');

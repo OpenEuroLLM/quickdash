@@ -11,7 +11,7 @@ checkpoint,task,metric,filter,n_shot,harness,backend,value
 method-a-100k,my_eval_en,acc_norm,none,0,lm-eval,vllm,0.72
 ```
 
-The row above illustrates the format; `my_eval_en` needs a matching eval entry and an explicit language assignment in the chosen YAML config. See [CSV requirements](../CONFIG.md#data-validation-and-failure-behavior) and [adding configurations](../configs/README.md).
+The row above illustrates the format; `my_eval_en` needs a matching eval entry and an explicit language assignment in the chosen YAML config. See [CSV requirements](../docs/configuration.md#data-validation-and-failure-behavior) and [adding configurations](../configs/README.md).
 
 - Use a distinct `checkpoint` label for each model/run. A file may contain several models, but a label cannot occur in two files. Replace a model’s existing file when updating it, or give a new run a new label.
 - Keep raw metric values in their original scale. The config chooses the metric and applies normalization.
@@ -22,7 +22,7 @@ The row above illustrates the format; `my_eval_en` needs a matching eval entry a
 To check a contribution locally:
 
 ```sh
-python3 build.py --results-dir results --configs-dir configs --output output/shared
+python3 -m app.build --results-dir results --output output/shared
 ```
 
 Open `output/shared/index.html`, select your model, and inspect **Warnings** and **Eval configuration**. Removing a CSV and rebuilding removes its models from the published page. A failed build leaves the last successful site online.

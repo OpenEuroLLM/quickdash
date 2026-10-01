@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict'),fs=require('node:fs');
-const {parseConfig,serializeConfig}=require('./eval_config.js');
-const config=parseConfig(fs.readFileSync('eval-config.yaml','utf8'));
+const {parseConfig,serializeConfig}=require('../app/eval_config.js');
+const config=parseConfig(fs.readFileSync('configs/oellm.yaml','utf8'));
 assert.equal(config.evals.length,45);
 assert.deepEqual(parseConfig(serializeConfig(config)),config);
 const source=`# A four-choice example with quoted regex and a flow mapping

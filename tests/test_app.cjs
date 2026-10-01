@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict'),fs=require('node:fs');
-const {parseCSV,selectRows,totals,pairRows,synthetic}=require('./app.js');
-const data=JSON.parse(fs.readFileSync(__dirname+'/output/analysis.json')),scheme=data.scheme;
+const {parseCSV,selectRows,totals,pairRows,synthetic}=require('../app/app.js');
+const data=JSON.parse(fs.readFileSync(__dirname+'/../output/analysis.json')),scheme=data.scheme;
 const selected=selectRows(data.rows,scheme);
 assert.equal(selected.length,403);
 assert.ok(Math.abs(totals(selected,scheme,scheme.weights).score-data.models[0].score)<1e-10);
@@ -22,7 +22,7 @@ assert.equal(pairRows(selected,fake.slice(1)).length,402);
 console.log('JS checks passed: scoring, missing data, protocol matching, CSV parsing, synthetic reproducibility, Python parity.');
 
 // The catalogue must retain excluded tasks, summaries and alternate metrics.
-const {auditRows,buildCatalogue}=require('./app.js');
+const {auditRows,buildCatalogue}=require('../app/app.js');
 const audited=auditRows(data.rows,scheme);
 assert.equal(audited.length,2124);
 assert.equal(audited.filter(r=>r.selected).length,403);
@@ -48,7 +48,7 @@ assert.equal(union.find(f=>f.name==='HumanEval').tasks.length,1);
 assert.equal(union.find(f=>f.name==='HumanEval').tasks[0].rows.length,3);
 console.log('Catalogue checks passed: all tasks and metrics retained, category mapping, protocols, model union.');
 
-const {comparisonRows,languageRoles,matchesLanguage}=require('./app.js');
+const {comparisonRows,languageRoles,matchesLanguage}=require('../app/app.js');
 const toy=[{task:'a',eval:'f1',category:'C',delta:10,score_delta:10,a:30,b:20},{task:'b',eval:'f1',category:'C',delta:30,score_delta:30,a:50,b:20},{task:'c',eval:'f2',category:'C',delta:-10,score_delta:-10,a:10,b:20},{task:'d',eval:'f3',category:'D',delta:5,score_delta:5,a:25,b:20}];
 const toyWeights={C:.8,D:.2};
 for(const grouping of ['category','eval','variant']){
@@ -73,7 +73,7 @@ assert.equal(matchesLanguage({task:'flores200:fin_Latn-eng_Latn'},metadata,'fin_
 assert.equal(matchesLanguage({task:'flores200:fin_Latn-eng_Latn'},metadata,'eng_Latn','to'),true);
 assert.deepEqual(languageRoles({task:'not-a-known-task'},metadata),[{language:'Unknown',role:'eval'}]);
 // Raw deltas stay independent of chance normalization; weighted deltas reconcile.
-const {normalizeScore,validateConfig,taskLanguage,matchTask}=require('./eval_config.js');
+const {normalizeScore,validateConfig,taskLanguage,matchTask}=require('../app/eval_config.js');
 const adjusted=structuredClone(scheme);adjusted.evals[0].normalize={min:.25,max:1};
 const ar=selectRows(data.rows,adjusted),br=synthetic(ar,adjusted),pp=pairRows(ar,br);
 const rawPairs=pairRows(selected,fake);
@@ -91,7 +91,7 @@ assert.equal(matchTask({regex:'eval_(fr|en)'},'eval_fr\n'),false);
 for(const mutate of [c=>c.languages.push(c.languages[0]),c=>c.languages[0].language='English',c=>c.evals[0].normalize={min:1,max:1},c=>c.weights.Code=.2,c=>c.evals[0].shots='0',c=>c.evals[0].extra='typo']){const c=structuredClone(scheme);mutate(c);assert.throws(()=>validateConfig(c));}
 console.log('Config and comparison checks passed: explicit languages, translation roles, normalization, raw preservation, weighted reconciliation, validation.');
 
-const {buildBreakdownTree,breakdownAggregate}=require('./app.js');
+const {buildBreakdownTree,breakdownAggregate}=require('../app/app.js');
 const pairs=pairRows(selected,fake),ct=buildBreakdownTree(pairs,metadata,'category'),lt=buildBreakdownTree(pairs,metadata,'language');
 assert.equal(ct.length,9);
 assert.equal(ct.reduce((n,c)=>n+c.count,0),403);
@@ -115,7 +115,7 @@ assert.equal(breakdownAggregate([...pairs,pairs[0]]).count,403);
 assert.equal(breakdownAggregate([...pairs,pairs[0]]).a,breakdownAggregate(pairs).a);
 console.log('Hierarchy checks passed: category/eval/language and language/category/eval ordering, translation directions/pairs, filtered branches, unique aggregates.');
 
-const {collectWarnings}=require('./app.js');
+const {collectWarnings}=require('../app/app.js');
 const baselineWarnings=collectWarnings(new Map([['real',audited]]),scheme);
 assert.deepEqual(baselineWarnings.filter(w=>w.type==='Inconsistent scoring settings').map(w=>w.name).sort(),['ARC Challenge','MGSM','PIQA']);
 assert.deepEqual(baselineWarnings.filter(w=>w.type==='Config caveat').map(w=>w.name).sort(),['FLORES200','MultiBlimp','OpenSubtitles','SIB-200']);
@@ -129,7 +129,7 @@ assert.ok(warnings.some(w=>w.type==='No eval data'&&w.name==='HumanEval'));
 const alternate=structuredClone(scheme);alternate.evals.find(e=>e.name==='HumanEval').metric='nonexistent';
 assert.ok(collectWarnings(new Map([['real',auditRows(data.rows,alternate)]]),alternate).some(w=>w.type==='No selected score'));
 console.log('Warning checks passed: unconfigured exclusion, absent evals, selected metric gaps.');
-const {languageCoverage}=require('./app.js');
+const {languageCoverage}=require('../app/app.js');
 assert.deepEqual(languageCoverage([{task:'AIME24'},{task:'AIME25'}],metadata),{count:1,pooled:0,unknown:0});
 assert.deepEqual(languageCoverage([{task:'flores200:eng_Latn-fin_Latn'},{task:'flores200:fin_Latn-eng_Latn'}],metadata),{count:2,pooled:0,unknown:0});
 assert.deepEqual(languageCoverage([{task:'bigbench_language_identification_multiple_choice'},{task:'multiblimp_hbs'},{task:'not-known'}],metadata),{count:1,pooled:1,unknown:1});

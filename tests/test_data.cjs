@@ -1,13 +1,13 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
-const {parseCSV,totals,comparisonRows,comparisonCoverage,collectWarnings,languageRoles}=require('./app.js');
-const {auditRows,normalizeScore,validateConfig}=require('./eval_config.js');
+const {parseCSV,totals,comparisonRows,comparisonCoverage,collectWarnings,languageRoles}=require('../app/app.js');
+const {auditRows,normalizeScore,validateConfig}=require('../app/eval_config.js');
 const config=()=>({version:1,name:'Fixture',weights:{C:1},evals:[{name:'Eval',category:'C',match:{regex:'task_.+'},metric:'acc',filter:'',score:{scale:1},normalize:{min:.25,max:1}}],languages:[{tasks:['task_en'],scope:'single',language:'eng_Latn'}]});
 const row=(patch={})=>({checkpoint:'Model A',task:'task_en',metric:'acc',filter:'',n_shot:'0',harness:'test',backend:'cpu',value:'.625',...patch});
 const close=(a,b)=>{assert.ok(Number.isFinite(a)&&Number.isFinite(b));assert.ok(Math.abs(a-b)<1e-9,`${a} != ${b}`);};
 
 test('language columns sort siblings recursively without changing scores or hierarchy',()=>{
- const {sortBreakdownTree}=require('./app.js');
+ const {sortBreakdownTree}=require('../app/app.js');
  const node=(label,a,children=[])=>({kind:'language',label,a,b:a===null?null:100-a,delta:a===null?null:2*a-100,count:a,children});
  const tree=[node('fra_Latn',30,[node('z',2),node('a',8)]),node('eng_Latn',80),node('deu_Latn',80),node('mul',null)];
  const original=structuredClone(tree);

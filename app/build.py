@@ -5,9 +5,10 @@ import hashlib
 import json
 from pathlib import Path
 from statistics import mean
-from config_engine import classify, task_language, load_config, load_csv
+from .config_engine import classify, task_language, load_config, load_csv
 
-ROOT = Path(__file__).resolve().parent
+APP = Path(__file__).resolve().parent
+ROOT = APP.parent
 
 
 
@@ -85,8 +86,26 @@ def directory_files(directory, suffixes):
     return sorted(path for path in directory.iterdir() if path.is_file() and path.suffix.lower() in suffixes)
 
 
-def build(source, output, config_path=ROOT/"eval-config.yaml", results_dir=None, configs_dir=None):
+def default_config(directory):
+    """Resolve the filename selected by a config directory's default.txt."""
+    selection = directory/'default.txt'
+    try:
+        name = selection.read_text().strip()
+    except OSError as error:
+        raise ValueError(f'{selection}: cannot read default config selection') from error
+    if not name or len(name.splitlines()) != 1 or '/' in name or '\\' in name or Path(name).suffix.lower() not in {'.yaml', '.yml'}:
+        raise ValueError(f'{selection}: expected one YAML filename in this directory')
+    path = directory/name
+    if not path.is_file():
+        raise ValueError(f'{selection}: selected config {name!r} does not exist')
+    return path
+
+
+def build(source, output, config_path=None, results_dir=None, configs_dir=None):
     if source is not None and results_dir is not None:raise ValueError('Choose a CSV or --results-dir, not both')
+    if config_path is None:
+        configs_dir = configs_dir if configs_dir is not None else ROOT/'configs'
+        config_path = default_config(configs_dir)
     config = load_config(config_path)
     configurations=[dict(file=config_path.name,config=config)]
     if configs_dir is not None:
@@ -126,8 +145,8 @@ def build(source, output, config_path=ROOT/"eval-config.yaml", results_dir=None,
     payload = dict(config_file=config_path.name, configurations=configurations, metadata=metadata, scheme=config, models=summary, aggregates=aggregates, rows=audit, sources=sources, source=source.name if source else results_dir.name if results_dir else '', sha256=sources[0]['sha256'] if len(sources)==1 else None)
     (output/'eval-config.yaml').write_text(config_path.read_text())
     (output/'analysis.json').write_text(json.dumps(payload, indent=2))
-    template = (ROOT/'template.html').read_text()
-    (output/'index.html').write_text(template.replace('__APP__', (ROOT/'vendor/js-yaml.js').read_text()+'\n'+(ROOT/'eval_config.js').read_text()+'\n'+(ROOT/'app.js').read_text()).replace('__PAYLOAD__', json.dumps(payload).replace('<', '\\u003c')))
+    template = (APP/'template.html').read_text()
+    (output/'index.html').write_text(template.replace('__APP__', (APP/'vendor/js-yaml.js').read_text()+'\n'+(APP/'eval_config.js').read_text()+'\n'+(APP/'app.js').read_text()).replace('__PAYLOAD__', json.dumps(payload).replace('<', '\\u003c')))
     print(json.dumps(dict(models=summary, rows=len(audit), selected=sum(r['selected'] for r in audit)), indent=2))
 
 
@@ -135,9 +154,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('csv', type=Path, nargs='?', help='CSV to embed; omit to start without results')
     parser.add_argument('--results-dir', type=Path, help='Embed all CSV files directly inside this directory')
-    parser.add_argument('--configs-dir', type=Path, help='Offer additional YAML configs from this directory')
+    parser.add_argument('--configs-dir', type=Path, help='Offer YAML configs from this directory; default: repository configs/ when --config is omitted')
     parser.add_argument('--output', type=Path, default=ROOT/'output')
-    parser.add_argument('--config', type=Path, default=ROOT/'eval-config.yaml')
+    parser.add_argument('--config', type=Path, help='Use this config instead of the filename in configs/default.txt; used alone, embed only this config')
     args = parser.parse_args()
     if args.csv is not None and args.results_dir is not None:parser.error('Choose a CSV or --results-dir, not both')
     build(args.csv, args.output, args.config, args.results_dir, args.configs_dir)

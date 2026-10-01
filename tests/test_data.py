@@ -9,10 +9,10 @@ import unittest
 from copy import deepcopy
 from pathlib import Path
 
-from build import build, summarize
-from config_engine import classify, load_csv, normalize_score, validate_config
+from app.build import build, summarize
+from app.config_engine import classify, load_csv, normalize_score, validate_config
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 
 
 def config():
@@ -28,11 +28,44 @@ def row(**patch):
 
 
 def javascript(cases, expression):
-    script = "const api=require('./eval_config.js'),app=require('./app.js');const cases=JSON.parse(require('fs').readFileSync(0,'utf8'));process.stdout.write(JSON.stringify(cases.map(c=>{try{return {value:" + expression + "}}catch(e){return {error:e.message}}})));"
+    script = "const api=require('./app/eval_config.js'),app=require('./app/app.js');const cases=JSON.parse(require('fs').readFileSync(0,'utf8'));process.stdout.write(JSON.stringify(cases.map(c=>{try{return {value:" + expression + "}}catch(e){return {error:e.message}}})));"
     return json.loads(subprocess.check_output(['node', '-e', script], input=json.dumps(cases), text=True, cwd=ROOT))
 
 
 class DataContracts(unittest.TestCase):
+    def test_directory_default_controls_selection_and_explicit_config_overrides_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);configs=folder/'configs';configs.mkdir()
+            first=config();first['name']='First'
+            second=config();second['name']='Second'
+            (configs/'first.yaml').write_text(json.dumps(first))
+            (configs/'second.yml').write_text(json.dumps(second))
+            (configs/'default.txt').write_text('second.yml\n')
+            with contextlib.redirect_stdout(io.StringIO()):build(None,folder/'out',configs_dir=configs)
+            data=json.loads((folder/'out/analysis.json').read_text())
+            self.assertEqual(data['config_file'],'second.yml')
+            self.assertEqual([p['config']['name'] for p in data['configurations']],['Second','First'])
+            with contextlib.redirect_stdout(io.StringIO()):build(None,folder/'out',configs/'first.yaml',configs_dir=configs)
+            self.assertEqual(json.loads((folder/'out/analysis.json').read_text())['scheme']['name'],'First')
+
+    def test_invalid_directory_defaults_preserve_existing_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);configs=folder/'configs';configs.mkdir();out=folder/'out';out.mkdir()
+            (out/'index.html').write_text('keep')
+            (configs/'valid.yaml').write_text(json.dumps(config()))
+            for value in [None,'','valid.yaml\nother.yaml','../valid.yaml','/valid.yaml','sub/valid.yaml','sub\\valid.yaml','default.txt','missing.yaml']:
+                with self.subTest(default=value):
+                    if value is not None:(configs/'default.txt').write_text(value)
+                    with self.assertRaisesRegex(ValueError,'default.txt'):build(None,out,configs_dir=configs)
+                    self.assertEqual((out/'index.html').read_text(),'keep')
+
+    def test_cli_uses_repository_default_without_config_flags(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            subprocess.run(['python3','-m','app.build','--output',tmp],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
+            data=json.loads((Path(tmp)/'analysis.json').read_text())
+            self.assertEqual(data['config_file'],(ROOT/'configs/default.txt').read_text().strip())
+            self.assertEqual(set(p['file'] for p in data['configurations']),{'oellm.yaml','example.yaml'})
+
     def test_empty_dashboard_contains_config_but_no_models(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder=Path(tmp);cfg=folder/'config.yaml';cfg.write_text(json.dumps(config()))
@@ -72,7 +105,7 @@ class DataContracts(unittest.TestCase):
             self.assertEqual((folder/'out/index.html').read_bytes(),previous)
 
     def test_cli_rejects_both_csv_and_results_directory(self):
-        result=subprocess.run(['python3',str(ROOT/'build.py'),'unused.csv','--results-dir','unused'],capture_output=True,text=True)
+        result=subprocess.run(['python3','-m','app.build','unused.csv','--results-dir','unused'],capture_output=True,text=True)
         self.assertEqual(result.returncode,2);self.assertIn('not both',result.stderr)
 
     def test_shared_results_directory_combines_models(self):

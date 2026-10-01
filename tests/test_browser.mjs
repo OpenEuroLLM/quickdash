@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
-const root=fileURLToPath(new URL('.',import.meta.url));
+const root=fileURLToPath(new URL('../',import.meta.url));
 const initialScore=JSON.parse(fs.readFileSync(root+'output/analysis.json','utf8')).models[0].score.toFixed(2);
 const tabs=await(await fetch('http://127.0.0.1:9227/json/list')).json();
 const ws=new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl);
@@ -15,7 +15,7 @@ const change=(selector,value)=>evaluate(`{const e=document.querySelector(${JSON.
 const screenshot=async name=>fs.writeFileSync(root+'output/'+name+'.png',Buffer.from((await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false})).data,'base64'));
 await send('Runtime.enable');await send('Page.enable');
 await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false});
-await send('Page.navigate',{url:new URL('output/index.html',import.meta.url).href});
+await send('Page.navigate',{url:new URL('../output/index.html',import.meta.url).href});
 for(let i=0;i<50;i++){if(await evaluate("!!document.querySelector('#cards strong')"))break;await new Promise(r=>setTimeout(r,100));}
 assert.equal(await evaluate("document.querySelector('#cards strong').textContent"),initialScore);
 assert.equal(await evaluate("document.querySelectorAll('[data-view]').length"),6);

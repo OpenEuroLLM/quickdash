@@ -1,10 +1,12 @@
 # Eval config reference
 
-Edit `eval-config.yaml`, then load it in **Eval configuration → Load config**, or rebuild with `python3 build.py DATA.csv --config CONFIG.yaml`. Browser imports apply to every loaded real model and regenerate the synthetic comparison. If validation fails, the active config and scores remain unchanged. **Export config YAML** includes current category weights, English shares, and the selected aggregate; use that exported file when building to persist the choices.
+Edit `configs/oellm.yaml`, then load it in **Eval configuration → Load config**, or rebuild with `python3 -m app.build DATA.csv --config CONFIG.yaml`. Browser imports apply to every loaded real model and regenerate the synthetic comparison. If validation fails, the active config and scores remain unchanged. **Export config YAML** includes current category weights, English shares, and the selected aggregate; use that exported file when building to persist the choices.
 
 ## Shared config choices and results
 
-The default config is selected with `--config` (the root `eval-config.yaml` when omitted). Add `--configs-dir configs` to embed the YAML files directly in that directory as additional choices. Each config’s `name` must be unique. See [adding shared configs](configs/README.md).
+By default, the builder embeds all `.yaml` and `.yml` files directly in `configs/`. The single filename in `configs/default.txt` chooses the startup config, currently `oellm.yaml`. To choose another default, edit that line; no application code changes are needed. A missing selection file, invalid filename, or missing selected config stops the build before replacing output.
+
+`--configs-dir PATH` uses another directory and its `default.txt`. `--config PATH` overrides the startup selection; used alone it embeds only that config, or combined with `--configs-dir` it also embeds the directory’s other choices. Every config’s `name` must be unique. See [adding shared configs](../configs/README.md).
 
 The page’s **Eval configuration** selector applies one config to every loaded model. Switching resets scoring weights, English shares, and the aggregate to that config’s values. Export edits before switching if you want to keep them. A temporary YAML upload appears as an uploaded choice for the current session; switching to a shared config replaces it. Reload restores the published defaults.
 
@@ -121,7 +123,7 @@ note: The benchmark definition identifies all three subsets as English.
 
 The URL above is illustrative; the supplied config contains actual benchmark source links. `evidence` and `note` are optional. Evidence links must use HTTP or HTTPS. Duplicate task assignments are rejected. Unlisted task names remain Unknown, even if they look like language codes.
 
-Use `scope: pooled` for scores combining languages that cannot be separated, for example `language: mul`. The supplied MultiBLiMP `multiblimp_hbs` assignment instead uses `scope: single` and `language: srp_Latn` as an explicit grouping approximation: Serbian has more speakers than Croatian. Its eval-level `warning` and language-assignment `note` record that the score pools both languages; no data separation or Serbian-only measurement is implied. Identifiers otherwise follow `xxx_Ssss` form, such as `fra_Latn` or `srp_Cyrl`. Normalized identifiers are written directly; short aliases and spelled-out names are not interpreted at runtime. The [catalogue snapshot](languages.txt) records the source inventory used to prepare the explicit assignments; the dashboard does not load it at runtime.
+Use `scope: pooled` for scores combining languages that cannot be separated, for example `language: mul`. The supplied MultiBLiMP `multiblimp_hbs` assignment instead uses `scope: single` and `language: srp_Latn` as an explicit grouping approximation: Serbian has more speakers than Croatian. Its eval-level `warning` and language-assignment `note` record that the score pools both languages; no data separation or Serbian-only measurement is implied. Identifiers otherwise follow `xxx_Ssss` form, such as `fra_Latn` or `srp_Cyrl`. Normalized identifiers are written directly; short aliases and spelled-out names are not interpreted at runtime. The [catalogue snapshot](../configs/languages.txt) records the source inventory used to prepare the explicit assignments; the dashboard does not load it at runtime.
 
 Translation requires both endpoints and no single `language` field:
 
