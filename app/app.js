@@ -33,35 +33,68 @@ function englishAssignment(row,metadata){
  const language=weightingLanguage(row,metadata);
  return !language||language==='mul'?'English (fallback: unknown or mixed language; weighting only)':language==='eng_Latn'?'English':'Other languages';
 }
+// Component completeness is checked before scoring, within an explicit language and protocol.
+function componentCoverage(rows,config){
+ const accepted=new Set(),groups=[],warnings=[];
+ const metadata=new Map((config.languages||[]).flatMap(g=>g.tasks.map(t=>[t,g])));
+ for(const e of config.evals){
+  const rr=rows.filter(r=>r.eval===e.name);
+  if(!e.aggregation){for(const r of rr)accepted.add(r);continue;}
+  const buckets=new Map();
+  for(const r of rr){
+   const m=metadata.get(r.task),language=m?.scope==='translation'?m.source_language+' → '+m.target_language:m?.language;
+   const id=JSON.stringify([r.checkpoint,language||'Unknown',m?.scope,...['metric','filter','n_shot','harness','backend'].map(k=>r[k])]);
+   if(!buckets.has(id))buckets.set(id,{language:language||'Unknown',known:!!language,rows:[]});buckets.get(id).rows.push(r);
+  }
+  for(const group of buckets.values()){
+   const matches=new Map(e.aggregation.components.map(c=>[c,[]])),problems=[];
+   if(!group.known)problems.push('explicit language assignment missing');
+   for(const r of group.rows){const cc=e.aggregation.components.filter(c=>matchTask(c.match,r.task));if(cc.length!==1)problems.push(r.task+': '+(cc.length?'ambiguous component matches':'no component match'));else matches.get(cc[0]).push(r);}
+   for(const [c,rr] of matches)if(rr.length!==1)problems.push(c.name+': '+(rr.length?'multiple results':'missing'));
+   if(problems.length){warnings.push({type:'Incomplete components',name:e.name,eval:e.name,detail:group.language+' · '+group.rows[0].n_shot+' shots: '+problems.join('; ')+'. This language/protocol group is excluded from the calculation. All configured components are required; raw results remain in Eval configuration.',variants:[{settings:'Excluded component group',tasks:group.rows.map(r=>r.task)}]});continue;}
+   const total=e.aggregation.components.reduce((sum,c)=>sum+c.weight,0),parts=[...matches].map(([c,rr])=>({row:rr[0],component:c,share:c.weight/total}));
+   for(const r of group.rows)accepted.add(r);groups.push({...group,eval:e.name,parts});
+  }
+ }
+ return {rows:rows.filter(r=>accepted.has(r)),excluded:rows.filter(r=>!accepted.has(r)),groups,warnings};
+}
+// Each complete language/protocol group has equal influence within its eval.
+function evalDistribution(rows,config){
+ const e=config.evals.find(e=>e.name===rows[0]?.eval),coefficients=new Map();
+ const coverage=e?.aggregation?componentCoverage(rows,{...config,evals:[e]}):{rows,groups:[]};
+ if(e?.aggregation){for(const g of coverage.groups)for(const p of g.parts)coefficients.set(p.row,p.share/coverage.groups.length);}
+ else for(const r of coverage.rows)coefficients.set(r,1/coverage.rows.length);
+ return {rows:coverage.rows,coefficients,score:coverage.rows.length?coverage.rows.reduce((sum,r)=>sum+r.score_100*coefficients.get(r),0):null};
+}
 function totals(rows,scheme,weights,aggregate='standard',englishWeights=scheme.english_weights||{},metadata=new Map((scheme.languages||[]).flatMap(g=>g.tasks.map(task=>[task,g])))){
  const rowWeights=new Map(rows.map(r=>[r,0]));
- const fs=scheme.evals.map(f=>{const rr=rows.filter(r=>r.eval===f.name);return {...f,score:avg(rr.map(r=>r.score_100)),rows:rr,weight:0,contribution:rr.length?null:0,aggregateScore:null,excluded:!rr.length,englishShare:0,effectiveEnglishShare:null,englishScore:null,otherScore:null,issue:''};});
+ const fs=scheme.evals.map(f=>{const distribution=evalDistribution(rows.filter(r=>r.eval===f.name),scheme),rr=distribution.rows;return {...f,score:distribution.score,rows:rr,weight:0,contribution:rr.length?null:0,aggregateScore:null,excluded:!rr.length,englishShare:0,effectiveEnglishShare:null,englishScore:null,otherScore:null,issue:''};});
  const availableWeight=Object.entries(weights).filter(([name])=>fs.some(f=>f.category===name&&f.rows.length)).reduce((sum,[,weight])=>sum+weight,0);
  const cats=Object.keys(weights).map(name=>{
   const configured=fs.filter(f=>f.category===name),ff=configured.filter(f=>f.rows.length),share=aggregate!=='standard'?(englishWeights[name]??0):0,split=share!==0;
   const c={name,weight:ff.length&&availableWeight?weights[name]/availableWeight:0,excluded:!ff.length,excludedEvals:configured.filter(f=>!f.rows.length).map(f=>f.name),score:null,englishShare:share,effectiveEnglishShare:null,englishScore:null,otherScore:null,issue:''};
   if(c.excluded)return c;
   if(!Number.isFinite(share)||share<0||share>1)c.issue='English share must be between 0 and 1.';
-  else if(!split){c.score=avg(ff.map(f=>f.score));for(const f of ff)for(const r of f.rows)rowWeights.set(r,c.weight/ff.length/f.rows.length);}
+  else if(!split){c.score=avg(ff.map(f=>f.score));for(const f of ff)for(const [r,w] of evalDistribution(f.rows,scheme).coefficients)rowWeights.set(r,c.weight/ff.length*w);}
   else if(aggregate==='english_eval'){
    for(const f of ff){
     f.englishShare=share;
     const groups=['english','other'].map(side=>f.rows.filter(r=>scoreLanguage(r,metadata)===side));
-    [f.englishScore,f.otherScore]=groups.map(group=>avg(group.map(r=>r.score_100)));
+    [f.englishScore,f.otherScore]=groups.map(group=>evalDistribution(group,scheme).score);
     f.effectiveEnglishShare=f.englishScore===null?0:f.otherScore===null?1:share;
     f.aggregateScore=f.effectiveEnglishShare*(f.englishScore??0)+(1-f.effectiveEnglishShare)*(f.otherScore??0);
-    groups.forEach((group,i)=>{for(const r of group)rowWeights.set(r,c.weight/ff.length*(i===0?f.effectiveEnglishShare:1-f.effectiveEnglishShare)/group.length);});
+    groups.forEach((group,i)=>{for(const [r,w] of evalDistribution(group,scheme).coefficients)rowWeights.set(r,c.weight/ff.length*(i===0?f.effectiveEnglishShare:1-f.effectiveEnglishShare)*w);});
    }
    if(!c.issue)c.score=avg(ff.map(f=>f.aggregateScore));
   }
   else {
    const groups=['english','other'].map(side=>ff.map(f=>({eval:f,rows:f.rows.filter(r=>scoreLanguage(r,metadata)===side)})).filter(f=>f.rows.length));
-   [c.englishScore,c.otherScore]=groups.map(group=>avg(group.map(f=>avg(f.rows.map(r=>r.score_100)))));
+   [c.englishScore,c.otherScore]=groups.map(group=>avg(group.map(f=>evalDistribution(f.rows,scheme).score)));
    if(!c.issue){
     c.effectiveEnglishShare=c.englishScore===null?0:c.otherScore===null?1:share;
     const parts=[c.effectiveEnglishShare,1-c.effectiveEnglishShare];
     c.score=parts[0]*(c.englishScore??0)+parts[1]*(c.otherScore??0);
-    groups.forEach((group,i)=>{for(const f of group)for(const r of f.rows)rowWeights.set(r,c.weight*parts[i]/group.length/f.rows.length);});
+    groups.forEach((group,i)=>{for(const f of group)for(const [r,w] of evalDistribution(f.rows,scheme).coefficients)rowWeights.set(r,c.weight*parts[i]/group.length*w);});
    }
   }
   for(const f of ff){f.weight=f.rows.reduce((sum,r)=>sum+rowWeights.get(r),0);f.contribution=c.score===null?null:f.rows.reduce((sum,r)=>sum+r.score_100*rowWeights.get(r),0);f.aggregateScore=c.score!==null&&f.weight?f.contribution/f.weight:null;}
@@ -73,8 +106,12 @@ function totals(rows,scheme,weights,aggregate='standard',englishWeights=scheme.e
 function pairRows(a,b){const bm=new Map(b.map(r=>[key(r),r]));return a.filter(r=>bm.has(key(r))).map(r=>({...r,a:r.raw_score_100,b:bm.get(key(r)).raw_score_100,delta:r.raw_score_100-bm.get(key(r)).raw_score_100,score_delta:r.score_100-bm.get(key(r)).score_100}));}
 function sampleCount(row){const value=String(row.n_samples??'');return /^[1-9][0-9]*$/.test(value)&&Number.isSafeInteger(Number(value))?Number(value):null;}
 function comparisonCoverage(a,b,config){
- const pairs=pairRows(a,b),matched=new Set(pairs.map(key)),aa=a.filter(r=>matched.has(key(r))),bb=b.filter(r=>matched.has(key(r)));
+ const left=componentCoverage(a,config),right=componentCoverage(b,config),initial=pairRows(left.rows,right.rows),shared=new Set(initial.map(key));
+ const sharedLeft=componentCoverage(left.rows.filter(r=>shared.has(key(r))),config),sharedRight=componentCoverage(right.rows.filter(r=>shared.has(key(r))),config);
+ const aa=sharedLeft.rows,bb=sharedRight.rows,pairs=pairRows(aa,bb),matched=new Set(pairRows(a,b).map(key));
  const onlyA=a.filter(r=>!matched.has(key(r))),onlyB=b.filter(r=>!matched.has(key(r))),warnings=[];
+ for(const [model,coverage] of [['A',left],['B',right],['Shared A',sharedLeft],['Shared B',sharedRight]])for(const w of coverage.warnings)warnings.push({...w,detail:model+': '+w.detail});
+ const excludedA=a.filter(r=>!aa.includes(r)),excludedB=b.filter(r=>!bb.includes(r));
  for(const e of config.evals){const left=onlyA.filter(r=>r.eval===e.name),right=onlyB.filter(r=>r.eval===e.name);if(!left.length&&!right.length)continue;
   const hasShared=pairs.some(r=>r.eval===e.name);
   warnings.push({type:'Comparison coverage',name:e.name,eval:e.name,detail:(hasShared?'Unmatched variants are excluded from both scores.':'No matching scores: this eval is excluded from both scores.')+' '+left.length+' measurement(s) available only in A; '+right.length+' only in B. Remaining evals share their category weight; empty categories are excluded and remaining category weights are rescaled.',variants:[[left,'Available only in A (missing from B)'],[right,'Available only in B (missing from A)']].filter(([rr])=>rr.length).map(([rr,settings])=>({settings,tasks:rr.map(r=>r.task+' · '+r.metric+' / '+(r.filter||'blank filter')+' / '+r.n_shot+' shots / '+r.harness+' / '+r.backend)}))});
@@ -84,7 +121,7 @@ function comparisonCoverage(a,b,config){
   const mismatch=aa.filter(r=>r.eval===e.name&&sampleCount(r)!==null&&sampleCount(bm.get(key(r)))!==null&&sampleCount(r)!==sampleCount(bm.get(key(r))));
   if(mismatch.length)warnings.push({type:'Sample-count mismatch',name:e.name,eval:e.name,detail:'Matched measurements report different n_samples for A and B. Scores remain included; review dataset coverage before comparing.',variants:[{settings:'Reported sample counts',tasks:mismatch.map(r=>r.task+' · '+r.metric+' · A: '+r.n_samples+' / B: '+bm.get(key(r)).n_samples)}]});
  }
- return {a:aa,b:bb,pairs,warnings,onlyA,onlyB};
+ return {a:aa,b:bb,pairs,warnings,onlyA,onlyB,excludedA,excludedB};
 }
 function synthetic(rows,config){let seed=20260930;const rand=()=>{seed=(Math.imul(1664525,seed)+1013904223)>>>0;return (seed+.5)/4294967296;};return rows.map(r=>{const perturb=2*Math.sqrt(-2*Math.log(rand()))*Math.cos(2*Math.PI*rand());return {...r,checkpoint:'SYNTHETIC demo — perturbed',...normalizeScore(Math.max(0,Math.min(100,r.raw_score_100+perturb))/100*config.evals.find(e=>e.name===r.eval).score.scale,config.evals.find(e=>e.name===r.eval)),stderr:'',result_time:'',results_file:'synthetic: seed 20260930; normal sd 2 score points; clipped to [0,100]'};});}
 function languageRoles(row,metadata){const m=metadata.get(row.task);return m?.scope==='translation'?[{language:m.source_language,role:'from'},{language:m.target_language,role:'to'}]:[{language:m?.language||'Unknown',role:'eval'}];}
@@ -107,15 +144,24 @@ function sortBreakdownTree(tree,field='label',order='ascending'){
  });
 }
 // Summaries use distinct measurements, independent of repeated translation branches.
-function breakdownAggregate(rows){
+function breakdownAggregate(rows,config=null){
  const unique=[...new Map(rows.map(r=>[key(r),r])).values()],evals=[...new Set(unique.map(r=>r.eval))];
- const a=avg(evals.map(e=>avg(unique.filter(r=>r.eval===e).map(r=>r.a)))),b=avg(evals.map(e=>avg(unique.filter(r=>r.eval===e).map(r=>r.b))));
+ const scores=evals.map(name=>{
+  const rr=unique.filter(r=>r.eval===name),e=config?.evals.find(e=>e.name===name);
+  if(!e?.aggregation)return {a:avg(rr.map(r=>r.a)),b:avg(rr.map(r=>r.b))};
+  const dist=evalDistribution(rr,config);
+  if(dist.rows.length!==rr.length||!rr.length)return {a:null,b:null};
+  return {a:dist.score,b:rr.reduce((sum,r)=>sum+(r.score_100-r.score_delta)*dist.coefficients.get(r),0)};
+ });
+ const a=scores.some(s=>s.a===null)?null:avg(scores.map(s=>s.a)),b=scores.some(s=>s.b===null)?null:avg(scores.map(s=>s.b));
  return {a,b,delta:a===null||b===null?null:a-b,count:unique.length,evals:evals.length};
 }
-function buildBreakdownTree(rows,metadata,view,languageFilter='',roleFilter=''){
+function buildBreakdownTree(rows,metadata,view,languageFilter='',roleFilter='',config=null,reference=rows){
+ const components=new Map();
+ if(config)for(const group of componentCoverage(reference,config).groups)for(const p of group.parts)components.set(key(p.row),{componentName:p.component.name,componentWeight:p.component.weight,componentShare:p.share,componentNormalizedA:p.row.score_100,componentNormalizedB:p.row.score_100-p.row.score_delta,componentA:p.row.score_100*p.share,componentB:(p.row.score_100-p.row.score_delta)*p.share});
  const groups=(rr,values)=>{const map=new Map();for(const r of rr)for(const value of new Set(values(r))){if(!map.has(value))map.set(value,[]);map.get(value).push(r);}return [...map].sort(([a],[b])=>a.localeCompare(b));};
- const node=(kind,label,rr,children=[])=>({kind,label,...breakdownAggregate(rr),children});
- const leaves=rr=>rr.slice().sort((a,b)=>a.task.localeCompare(b.task)||key(a).localeCompare(key(b))).map(r=>({...node('variant',r.task,[r]),detail:r.metric+' · '+(r.filter||'no filter')+' · '+r.n_shot+' shot'}));
+ const node=(kind,label,rr,children=[])=>({kind,label,...breakdownAggregate(rr,config),componentAggregate:rr.length>0&&rr.every(r=>config?.evals.find(e=>e.name===r.eval)?.aggregation),children});
+ const leaves=rr=>rr.slice().sort((a,b)=>a.task.localeCompare(b.task)||key(a).localeCompare(key(b))).map(r=>({...node('variant',r.task,[r]),...breakdownAggregate([r]),...components.get(key(r)),detail:r.metric+' · '+(r.filter||'no filter')+' · '+r.n_shot+' shot'}));
  const languageGroups=rr=>groups(rr,r=>languageRoles(r,metadata).filter(m=>(!languageFilter||m.language===languageFilter)&&(!roleFilter||m.role===roleFilter)).map(m=>m.language));
  function details(rr,language){
   const ordinary=rr.filter(r=>metadata.get(r.task)?.scope!=='translation'),translation=rr.filter(r=>metadata.get(r.task)?.scope==='translation');
@@ -141,7 +187,7 @@ function protocolWarning(rows,evalConfig,config,model){
   const labels=names.sort().map(task=>{const m=taskLanguage(task,config),language=m.scope==='translation'?m.source_language+' → '+m.target_language:m.language||'Unknown';return task+' ['+language+']';});
   return {settings,tasks:labels};
  });
- return {type:'Inconsistent scoring settings',name:evalConfig.name,eval:evalConfig.name,model,detail:'Selected variants use different settings: '+variants.map(v=>v.settings+' ('+v.tasks.length+' tasks; '+v.tasks.slice(0,2).join(', ')+(v.tasks.length>2?', …':'')+')').join(' versus ')+'. These variants are still included in the aggregate. Review the protocol before comparing languages.',variants};
+ return {type:'Inconsistent scoring settings',name:evalConfig.name,eval:evalConfig.name,model,detail:'Selected variants use different settings: '+variants.map(v=>v.settings+' ('+v.tasks.length+' tasks; '+v.tasks.slice(0,2).join(', ')+(v.tasks.length>2?', …':'')+')').join(' versus ')+'. '+(evalConfig.aggregation?'Only complete component groups within each protocol are included.':'These variants are still included in the aggregate.')+' Review the protocol before comparing languages.',variants};
 }
 function collectWarnings(audits,config,aggregate='standard',englishWeights=config.english_weights||{},suite={mode:'available'},displayedRows=null){
  const displayed=new Set((displayedRows??[...audits.values()].flat().filter(r=>r.selected&&inSuite(r,suite))).map(r=>r.eval));
@@ -155,7 +201,7 @@ function collectWarnings(audits,config,aggregate='standard',englishWeights=confi
    const matching=all.filter(r=>inSuite(r,suite));
    if(!matching.length)continue;
    const selected=matching.filter(r=>r.selected),unknown=[...new Set(selected.filter(r=>taskLanguage(r.task,config).status==='unknown').map(r=>r.task))];
-   if(unknown.length)warnings.push({type:'Unknown language',name:e.name,eval:e.name,model,detail:'No explicit language assignment for '+unknown.length+' selected task(s). Included in scoring; both English-balance modes use the English fallback. Language views retain Unknown.',variants:[{settings:'Add an explicit language assignment in YAML',tasks:unknown}]});
+   if(unknown.length)warnings.push({type:'Unknown language',name:e.name,eval:e.name,model,detail:'No explicit language assignment for '+unknown.length+' selected task(s). '+(e.aggregation?'Excluded from component scoring until explicitly assigned; groups cannot be inferred from task names.':'Included in scoring; both English-balance modes use the English fallback. Language views retain Unknown.'),variants:[{settings:'Add an explicit language assignment in YAML',tasks:unknown}]});
    const badSamples=selected.filter(r=>r.n_samples!==undefined&&r.n_samples!==null&&String(r.n_samples)!==''&&sampleCount(r)===null);
    if(badSamples.length)warnings.push({type:'Invalid sample count',name:e.name,eval:e.name,model,detail:'n_samples must be a positive integer when supplied. Scores remain included; sample counts do not determine score weights. Check the export.',variants:[{settings:'Invalid reported n_samples',tasks:badSamples.map(r=>r.task+' · '+String(r.n_samples))}]});
    const protocol=protocolWarning(matching,e,config,model);if(protocol)warnings.push(protocol);
@@ -171,7 +217,7 @@ function collectWarnings(audits,config,aggregate='standard',englishWeights=confi
 }
 function normalizationLabel(e){const n=e.normalize;if(!n||n.min===0&&n.max===1)return n?.basis==='unresolved'?'Unresolved · no correction':'No chance correction';return fmt(n.min*100,2)+'% baseline';}
 function sameCoverage(a,b){return a.length===b.length&&pairRows(a,b).length===a.length;}
-if(typeof module!=='undefined')module.exports={parseCSV,auditRows,selectRows,buildCatalogue,totals,pairRows,comparisonCoverage,synthetic,comparisonRows,languageRoles,matchesLanguage,languageCoverage,breakdownAggregate,buildBreakdownTree,sortBreakdownTree,collectWarnings,sameCoverage};
+if(typeof module!=='undefined')module.exports={componentCoverage,evalDistribution,parseCSV,auditRows,selectRows,buildCatalogue,totals,pairRows,comparisonCoverage,synthetic,comparisonRows,languageRoles,matchesLanguage,languageCoverage,breakdownAggregate,buildBreakdownTree,sortBreakdownTree,collectWarnings,sameCoverage};
 if(typeof document!=='undefined')start();
 
 function start(){
@@ -201,7 +247,8 @@ function start(){
  function selected(){
   const scope=suiteCoverage(models.get($('modelA').value)||[],models.get($('modelB').value)||[],suite);
   const coverage=comparisonCoverage(scope.a,scope.b,scheme);
-  return {...coverage,scope,shown:coverage.pairs.filter(filters)};
+  const effective=suiteCoverage(coverage.a,coverage.b,suite);
+  return {...coverage,scope:{...scope,complete:effective.complete,sharedRequired:effective.sharedRequired},shown:coverage.pairs.filter(filters)};
  }
  function activeWarnings(){
   const coverage=selected(),chosen=new Map([...sourceAudits].filter(([name])=>[$('modelA').value,$('modelB').value].includes(name)));
@@ -223,7 +270,7 @@ function start(){
  function renderScore(a,b,ta,tb,valid){
   if(!models.size)return '<h2>Compare your evaluation results</h2><p>Use <strong>Add model CSV</strong> to open your results. Add a second model to compare training methods.</p><p>Active config: <strong>'+esc(scheme.name)+'</strong>. To use your own YAML, open <button class="text-button" data-open-config="true">Eval configuration</button> and choose <strong>Load catalogue</strong>.</p><p>CSV and YAML files opened here stay in your browser; they are not uploaded. Reloading restores the published models and settings.</p>';
 
-  let html='<div class="section-heading"><div><h2>Weighted score</h2><p>Follow selected variants through eval means and category weights.</p></div></div><div class="formula"><span>Normalize variant scores to 0–100</span><b>→</b><span>'+(state.aggregate==='english_eval'?'Balance languages within each eval':'Mean within each eval')+'</span><b>→</b><span>'+(state.aggregate==='english_category'?'Balance languages across each category':'Average evals equally within each category')+'</span><b>→</b><span>Apply category weights</span></div>';
+  let html='<div class="section-heading"><div><h2>Weighted score</h2><p>Follow selected variants through eval means and category weights.</p></div></div><div class="formula"><span>Normalize variant scores to 0–100</span><b>→</b><span>Combine configured components within each language / protocol</span><b>→</b><span>'+(state.aggregate==='english_eval'?'Balance languages within each eval':'Mean within each eval')+'</span><b>→</b><span>'+(state.aggregate==='english_category'?'Balance languages across each category':'Average evals equally within each category')+'</span><b>→</b><span>Apply category weights</span></div>';
   html+=table(['Category','Weight','A','B','A contribution','B contribution','Contribution Δ','Explore'],ta.categories.map((c,i)=>{const d=tb.categories[i],w=c.weight,ca=c.excluded?0:c.score===null?null:c.score*w,cb=d.excluded?0:d.score===null?null:d.score*w;return '<tr><td>'+esc(c.name)+(state.aggregate!=='standard'?'<small class="variant-language">'+esc(state.aggregate==='english_eval'?(c.englishShare?fmt(c.englishShare*100,0)+'% English within each eval':'Original · split off'):englishShareLabel(c))+'</small>':'')+(c.excluded?'<small class="missing-field">Excluded · no shared scores</small>':c.excludedEvals.length?'<small class="variant-language">'+c.excludedEvals.length+' eval(s) excluded</small>':'')+(c.issue?'<small class="missing-field">'+esc(c.issue)+'</small>':'')+'</td><td class="num">'+fmt(w*100,3)+'%</td>'+num(c.score)+num(d.score)+num(ca,4)+num(cb,4)+delta(valid&&ca!==null&&cb!==null?ca-cb:null,4)+'<td>'+button('Evals','data-score-category',c.name)+'</td></tr>';}),[1,2,3,4,5,6]);
   html+='<details id="weightEditor"><summary>Adjust category weights and English shares</summary><p class="notice">English shares apply only when <strong>either English-balance option</strong> is selected in <strong>Score calculation</strong> above. '+(state.aggregate!=='standard'?'They are active now: '+(state.aggregate==='english_eval'?'inside each eval':'across each category')+'.':'They are saved but inactive while Original weighted score is selected.')+'</p><p class="caption">Category weights sum to 1. English share gives English and other languages 0.5 each at a 50/50 setting. It is applied inside each eval or across the category, according to the selected calculation. A group with only one language side keeps its full weight automatically. Set 0 to disable the split.</p><div id="weights">'+table(['Category','Category weight','English share'],Object.entries(weights).map(([c,w])=>'<tr data-weight-category="'+esc(c)+'"><td>'+esc(c)+'</td><td class="num"><input aria-label="'+esc(c)+' category weight" type="number" step="any" min="0" max="1" data-weight="'+esc(c)+'" value="'+w+'"></td><td class="num"><input aria-label="'+esc(c)+' English share" type="number" step="0.05" min="0" max="1" data-english-weight="'+esc(c)+'" value="'+(englishWeights[c]??0)+'"></td></tr>'),[1,2])+'</div><p id="weightSum">Total category weight: '+fmt(Object.values(weights).reduce((s,w)=>s+w,0),6)+' · must equal 1.</p><button id="resetWeights">Reset profile weights</button></details>';
 
@@ -238,26 +285,29 @@ function start(){
   html+='<p class="caption">Effective weights and eval scores reflect the selected aggregate. Contributions sum to the category contribution. An eval represented on both sides can have different weights for its English and other-language variants.</p>';
   return html;
  }
- function renderBreakdown(shown){
+ function renderBreakdown(shown,reference){
   const isLanguage=state.view==='languages';
   let html='<div class="section-heading"><div><h2>'+(isLanguage?'Languages':'Categories')+'</h2><p>'+(isLanguage?'Languages → categories → evals':'Categories → evals → languages')+'. Expand a row to inspect its components.</p></div></div>';
-  let tree=buildBreakdownTree(shown,metadata,isLanguage?'language':'category',$('language').value,$('direction').value);
+  const hasComponents=shown.some(r=>scheme.evals.find(e=>e.name===r.eval)?.aggregation);
+  let tree=buildBreakdownTree(shown,metadata,isLanguage?'language':'category',$('language').value,$('direction').value,scheme,reference);
   if(isLanguage)tree=sortBreakdownTree(tree,state.languageSort,state.languageOrder);
   function branch(n,depth,parent=[]){
    const path=[...parent,[n.kind,n.label,n.detail||'']];
    const label=n.kind==='language'?languageLabel(n.label):n.label;
-   const cells='<span class="tree-label" style="padding-left:'+depth*18+'px"><span class="tree-chevron">'+(n.children.length?'▸':'·')+'</span><span>'+esc(label)+(n.detail?'<small>'+esc(n.detail)+'</small>':'')+'</span></span><span class="tree-count">'+n.count+'</span><span class="tree-number">'+fmt(n.a)+'</span><span class="tree-number">'+fmt(n.b)+'</span><span class="tree-number '+(n.delta>0?'positive':n.delta<0?'negative':'')+'">'+fmt(n.delta)+'</span>';
+   let cells='<span class="tree-label" style="padding-left:'+depth*18+'px"><span class="tree-chevron">'+(n.children.length?'▸':'·')+'</span><span>'+esc(label)+(n.detail?'<small>'+esc(n.detail)+'</small>':'')+(n.componentAggregate&&n.children.length?'<small>Calculated component score</small>':'')+(n.componentShare!==undefined?'<small>Normalized A '+fmt(n.componentNormalizedA)+' · B '+fmt(n.componentNormalizedB)+'</small>':'')+'</span></span><span class="tree-count">'+n.count+'</span><span class="tree-number">'+fmt(n.a)+'</span><span class="tree-number">'+fmt(n.b)+'</span><span class="tree-number '+(n.delta>0?'positive':n.delta<0?'negative':'')+'">'+fmt(n.delta)+'</span>';
+   if(hasComponents)cells+='<span class="tree-number">'+(n.componentShare!==undefined?esc(n.componentWeight)+' · '+fmt(n.componentShare*100,2)+'%':'—')+'</span><span class="tree-number">'+fmt(n.componentA,3)+'</span><span class="tree-number">'+fmt(n.componentB,3)+'</span>';
    const attr=' data-kind="'+n.kind+'" data-label="'+esc(n.label)+'" data-node-key="'+esc(JSON.stringify(path))+'"';
    return n.children.length?'<details class="breakdown-node"'+attr+'><summary class="tree-row">'+cells+'</summary>'+n.children.map(c=>branch(c,depth+1,path)).join('')+'</details>':'<div class="tree-row tree-leaf"'+attr+'>'+cells+'</div>';
   }
-  const headers=[[(isLanguage?'Language':'Category')+' / details','label'],['Variants','count'],['Raw A','a'],['Raw B','b'],['A − B','delta']].map(([label,field])=>{
+  const headers=[[(isLanguage?'Language':'Category')+' / details','label'],['Variants','count'],[hasComponents?'A score':'Raw A','a'],[hasComponents?'B score':'Raw B','b'],['A − B','delta'],...(hasComponents?[['Component weight','componentShare'],['Group contribution A','componentA'],['Group contribution B','componentB']]:[])].map(([label,field])=>{
    if(!isLanguage)return '<span>'+label+'</span>';
    const active=state.languageSort===field,order=active?state.languageOrder:'none';
    return '<span role="columnheader" aria-sort="'+order+'"><button class="sort-header" data-language-sort="'+field+'" title="Sort by '+esc(label)+'">'+label+(active?(order==='ascending'?' ↑':' ↓'):' ↕')+'</button></span>';
   }).join('');
-  html+='<div class="breakdown-scroll"><div class="breakdown-tree'+(isLanguage?' sortable':'')+'"><div class="tree-row tree-head"'+(isLanguage?' role="row"':'')+'>'+headers+'</div>'+tree.map(n=>branch(n,0)).join('')+'</div></div>';
+  html+='<div class="breakdown-scroll"><div class="breakdown-tree'+(isLanguage?' sortable':'')+(hasComponents?' with-components':'')+'"><div class="tree-row tree-head"'+(isLanguage?' role="row"':'')+'>'+headers+'</div>'+tree.map(n=>branch(n,0)).join('')+'</div></div>';
   if(isLanguage)html+='<p class="caption">Click a column heading to sort; click again to reverse. Sorting applies within each level of the hierarchy and keeps expanded sections open.</p>';
-  html+='<p class="caption">Each aggregate averages variants within an eval, then represented evals equally. Counts and means use distinct measurements. Translation is expandable under either endpoint, then From / To, then language pairs; repeated branches do not add weight. Language scores are descriptive because eval coverage differs.</p>';
+  if(hasComponents)html+='<p class="notice">Configured component evals show their calculated, normalized score when collapsed. Leaves show raw scores; component weights apply to normalized scores. Group contributions are points toward one language/protocol score, before language and category weights. Other evals retain raw averages. A filtered, incomplete component set shows — instead of a partial score.</p>';
+  html+='<p class="caption">For evals without component rules, each aggregate averages variants within an eval, then represented evals equally. Counts and means use distinct measurements. Translation is expandable under either endpoint, then From / To, then language pairs; repeated branches do not add weight. Language scores are descriptive because eval coverage differs.</p>';
   return html;
  }
  function renderComparisons(shown,reference,valid){
@@ -289,11 +339,16 @@ function start(){
   const explanation=n.min===0?(n.basis==='unresolved'?'Baseline unresolved; no chance correction is currently applied.':'No chance correction is applied. Zero is a configured floor, not a measured random-model score.'):'Chance baseline used for this eval.';
   return '<div class="normalization-info"><strong>Score calculation</strong><p><code>'+esc(formula)+'</code></p><p><code>random_score '+(baseline===n.min?'=':'≈')+' '+baseline+'</code> ('+fmt(n.min*100,2)+'%). '+esc(explanation)+'</p><p class="caption">'+(n.clip===false?'Scores are not clipped.':'The result is clipped to 0–100.')+' The source value is shown in the scoring details below.</p>'+(e.warning?'<p class="missing-field">Warning: '+esc(e.warning)+'</p>':'')+'<details class="baseline-rationale"><summary>Baseline rationale and sources</summary><p>'+esc(n.note||'The baseline is set by normalize.min in the YAML config.')+'</p><p class="caption">random_score is normalize.min in the YAML config; the upper bound is normalize.max.</p>'+((n.sources||[]).length?'<p>'+n.sources.map((url,i)=>'<a target="_blank" rel="noopener" href="'+esc(url)+'">Source '+(i+1)+'</a>').join(' · ')+'</p>':'')+'</details></div>';
  }
+ function aggregationInfo(e){
+  const a=e.aggregation;if(!a)return '';
+  const total=a.components.reduce((sum,c)=>sum+c.weight,0);
+  return '<div class="normalization-info component-info"><strong>Component aggregation</strong><p><code>group score = sum(component weight × normalized score) / '+esc(total)+'</code></p>'+table(['Component','Task match','Relative weight','Share of group'],a.components.map(c=>'<tr>'+td(c.name)+td(c.match.name??c.match.regex)+num(c.weight,3)+'<td class="num">'+fmt(c.weight/total*100,2)+'%</td></tr>'),[2,3])+'<p>All components are required within the same language and scoring protocol. Missing, ambiguous, or duplicate components exclude that group from both comparison scores. Complete groups are averaged within the eval, with the selected English balance applied afterward.</p>'+(a.note?'<p>'+esc(a.note)+'</p>':'')+(a.sources?.length?'<p>'+a.sources.map((u,i)=>'<a target="_blank" rel="noopener" href="'+esc(u)+'">Aggregation source '+(i+1)+'</a>').join(' · ')+'</p>':'')+'</div>';
+ }
  function renderWarnings(){const warnings=activeWarnings();return '<div class="section-heading"><div><h2>Warnings</h2><p>Coverage for the selected comparison, scoring consistency, and config caveats. A named eval set checks required measurements; unused global catalogue rules are allowed.</p></div></div>'+(warnings.length?table(['Warning','Eval / task','Model','Details'],warnings.map(w=>'<tr>'+td(w.type)+td(w.name)+td(w.model)+'<td>'+esc(w.detail)+(w.variants?'<details><summary>All affected variants</summary>'+w.variants.map(v=>'<p><strong>'+esc(v.settings)+'</strong><br>'+v.tasks.map(esc).join('<br>')+'</p>').join('')+'</details>':'')+'</td></tr>')):'<p>No warnings. The selected comparison has no detected data or configuration issues.</p>');}
  function scoringOptions(e,rows){
   const used=rows.filter(r=>r.selected),values=(rr,key)=>[...new Set(rr.map(r=>String(r[key])))].sort((a,b)=>key==='n_shot'?Number(a)-Number(b):a.localeCompare(b));
   const shots=values(used,'n_shot'),otherMetrics=values(rows,'metric').filter(m=>m!==e.metric),otherShots=values(rows,'n_shot').filter(n=>!shots.includes(n)),otherFilters=values(rows,'filter').filter(f=>f!==e.filter);
-  return '<strong>Selected: '+esc(e.metric)+'</strong>'+(e.metric==='python_pass@1'?'<small>Python solutions passing tests on one attempt.</small>':'')+'<small>'+(shots.length===1&&shots[0]==='0'?'0-shot · no examples in the prompt':shots.length?'Shots used: '+esc(shots.join(', '))+' · examples in the prompt':'No selected scores')+'</small>'+(e.filter&&e.filter!=='none'?'<small>Answer extraction: '+esc(e.filter)+'</small>':'')+(otherMetrics.length?'<small>Other available metrics: '+esc(otherMetrics.join(', '))+'</small>':'')+(otherShots.length?'<small>Other available shot settings: '+esc(otherShots.join(', '))+'</small>':'')+(otherFilters.length?'<small>Other answer extraction settings: '+esc(otherFilters.map(f=>f||'not specified').join(', '))+'</small>':'');
+  return '<strong>Selected: '+esc(e.metric)+'</strong>'+(e.aggregation?'<small>Weighted components · expand for weights</small>':'')+(e.metric==='python_pass@1'?'<small>Python solutions passing tests on one attempt.</small>':'')+'<small>'+(shots.length===1&&shots[0]==='0'?'0-shot · no examples in the prompt':shots.length?'Shots used: '+esc(shots.join(', '))+' · examples in the prompt':'No selected scores')+'</small>'+(e.filter&&e.filter!=='none'?'<small>Answer extraction: '+esc(e.filter)+'</small>':'')+(otherMetrics.length?'<small>Other available metrics: '+esc(otherMetrics.join(', '))+'</small>':'')+(otherShots.length?'<small>Other available shot settings: '+esc(otherShots.join(', '))+'</small>':'')+(otherFilters.length?'<small>Other answer extraction settings: '+esc(otherFilters.map(f=>f||'not specified').join(', '))+'</small>':'');
  }
  function selectionInfo(e){
   return '<p class="caption"><strong>Selection rule:</strong> use metric <code>'+esc(e.metric)+'</code>; '+(e.filter?'answer extraction setting <code>'+esc(e.filter)+'</code>':'the CSV extraction-filter field must be blank')+'; '+('shots'in e?'require '+e.shots+' examples in the prompt':'accept any shot count found in the export')+'. A shot is one example provided in the prompt. Other metrics and shot settings remain available for inspection below.</p>';
@@ -302,7 +357,11 @@ function start(){
   const m=metadata.get(t.name)||{};
   const warning=missing.filter(w=>w.name===t.name).map(w=>'<p class="missing-field">'+esc(w.model+': '+w.detail)+'</p>').join('');
   const info='<p>'+esc(m.provenance||'No language assignment available.')+(m.evidence?' <a target="_blank" rel="noopener" href="'+esc(m.evidence)+'">Source</a>':'')+'</p><p class="caption">'+esc(f.category)+' · language assignment: '+esc(m.status||'unknown')+'. Selected metrics use the eval’s score calculation above.</p>';
-  return warning+info+'<p class="caption"><strong>English-balance group:</strong> '+esc(englishAssignment({task:t.name},metadata))+'. Used in both English-balance modes when this category’s English share is non-zero.</p><p class="caption">Raw source scores are shown for every metric. The 0–100 columns apply to selected scores only.</p>'+table(['Model','Metric','Filter','Shots','Raw source score','Raw / 100','Normalized / 100','Use','Reason','Harness / backend'],t.rows.map(r=>'<tr class="catalogue-metric">'+td(r.checkpoint)+td(r.metric)+td(r.filter||'Not specified')+'<td class="num">'+esc(r.n_shot)+'</td><td class="num source-score">'+esc(r.value)+'</td>'+num(r.raw_score_100)+num(r.score_100)+'<td class="'+(r.selected?'positive':'muted')+'">'+(r.selected?(inSuite(r,suite)?'Selected':'Outside eval set'):'Excluded')+'</td>'+td(r.selected&&!inSuite(r,suite)?'Excluded by '+suite.name:r.decision)+td(r.harness+' / '+r.backend)+'</tr>'),[3,4,5,6]);
+  const cc=f.aggregation?.components.filter(c=>matchTask(c.match,t.name))||[],component=cc.length===1?cc[0]:null;
+  const componentInfo=component?'<p class="caption">Component: <strong>'+esc(component.name)+'</strong> · relative weight '+esc(component.weight)+' / '+f.aggregation.components.reduce((sum,c)=>sum+c.weight,0)+'. Applied after normalization, before language and category weights.</p>':'';
+  const coverage=selected(),used=new Map([[$('modelA').value,new Set(coverage.a.map(key))],[$('modelB').value,new Set(coverage.b.map(key))]]);
+  const use=r=>!r.selected?['Excluded',r.decision]:!inSuite(r,suite)?['Outside eval set','Excluded by '+suite.name]:used.has(r.checkpoint)&&!used.get(r.checkpoint).has(key(r))?['Excluded from comparison','No complete shared component group or matching A/B measurement; see Warnings.']:['Selected',r.decision];
+  return warning+info+componentInfo+'<p class="caption"><strong>English-balance group:</strong> '+esc(englishAssignment({task:t.name},metadata))+'. Used in both English-balance modes when this category’s English share is non-zero.</p><p class="caption">Raw source scores are shown for every metric. The 0–100 columns apply to selected scores only.</p>'+table(['Model','Metric','Filter','Shots','Raw source score','Raw / 100','Normalized / 100','Use','Reason','Harness / backend'],t.rows.map(r=>'<tr class="catalogue-metric">'+td(r.checkpoint)+td(r.metric)+td(r.filter||'Not specified')+'<td class="num">'+esc(r.n_shot)+'</td><td class="num source-score">'+esc(r.value)+'</td>'+num(r.raw_score_100)+num(r.score_100)+'<td class="'+(use(r)[0]==='Selected'?'positive':'muted')+'">'+esc(use(r)[0])+'</td>'+td(use(r)[1])+td(r.harness+' / '+r.backend)+'</tr>'),[3,4,5,6]);
  }
  function catalogueTasks(f,missing){
   return table(['Variant / scoring details','Language(s)','Selected metric','Other metrics'],f.tasks.map(t=>{
@@ -322,30 +381,30 @@ function start(){
   $('filterStatus').textContent=new Set(filtered.map(r=>r.task)).size+' of '+new Set(all.map(r=>r.task)).size+' task names · '+filtered.length+' metric rows · all loaded real exports; comparison exclusions appear in Warnings';
   let html='<div class="section-heading"><div><h2>Eval configuration</h2><p>Category, language, and scoring field for every eval. Expand an eval to inspect its variants.</p></div></div><div class="catalogue-head"><span>Eval</span><span>Category</span><span>Scoring options</span><span>Languages</span><span>Normalization</span></div>';
   catalogueGroups=new Map();
-  html+=groups.map(f=>{const allRows=all.filter(r=>r.eval===f.name),missing=warnings.filter(w=>w.eval===f.name&&['Missing scoring field','Missing scoring setting'].includes(w.type)),inconsistent=warnings.filter(w=>w.eval===f.name&&w.type==='Inconsistent scoring settings');catalogueGroups.set(f.name,{f,missing});const langs=[...new Set(f.tasks.flatMap(t=>languages(t.rows[0]).map(languageLabel)))].sort();return '<details class="catalogue-eval"'+(groups.length===1?' open':'')+' data-eval="'+esc(f.name)+'"><summary class="catalogue-summary"><span>'+esc(f.name)+' <small>('+f.tasks.length+')</small></span><span>'+esc(f.category)+'</span><span class="scoring-options">'+scoringOptions(f,allRows)+(missing.length?'<small class="missing-field">'+missing.length+' missing scoring field/settings</small>':'')+(inconsistent.length?'<small class="missing-field">Inconsistent scoring settings</small>':'')+'</span><small>'+esc(langs.length>4?langs.slice(0,3).join(', ')+' + '+(langs.length-3)+' more':langs.join(', '))+'</small><small>'+esc(normalizationLabel(f))+(f.warning?'<span class="missing-field">Config warning</span>':'')+'</small></summary>'+selectionInfo(f)+normalizationInfo(f)+inconsistent.map(w=>'<p class="notice">'+esc(w.model+': '+w.detail)+'</p>').join('')+'<div class="catalogue-tasks"'+(groups.length===1?' data-loaded="true"':'')+'>'+(groups.length===1?catalogueTasks(f,missing):'')+'</div>'+'</details>';}).join('');
+  html+=groups.map(f=>{const allRows=all.filter(r=>r.eval===f.name),missing=warnings.filter(w=>w.eval===f.name&&['Missing scoring field','Missing scoring setting'].includes(w.type)),inconsistent=warnings.filter(w=>w.eval===f.name&&w.type==='Inconsistent scoring settings');catalogueGroups.set(f.name,{f,missing});const langs=[...new Set(f.tasks.flatMap(t=>languages(t.rows[0]).map(languageLabel)))].sort();return '<details class="catalogue-eval"'+(groups.length===1?' open':'')+' data-eval="'+esc(f.name)+'"><summary class="catalogue-summary"><span>'+esc(f.name)+' <small>('+f.tasks.length+')</small></span><span>'+esc(f.category)+'</span><span class="scoring-options">'+scoringOptions(f,allRows)+(missing.length?'<small class="missing-field">'+missing.length+' missing scoring field/settings</small>':'')+(inconsistent.length?'<small class="missing-field">Inconsistent scoring settings</small>':'')+'</span><small>'+esc(langs.length>4?langs.slice(0,3).join(', ')+' + '+(langs.length-3)+' more':langs.join(', '))+'</small><small>'+esc(normalizationLabel(f))+(f.warning?'<span class="missing-field">Config warning</span>':'')+'</small></summary>'+selectionInfo(f)+normalizationInfo(f)+aggregationInfo(f)+inconsistent.map(w=>'<p class="notice">'+esc(w.model+': '+w.detail)+'</p>').join('')+'<div class="catalogue-tasks"'+(groups.length===1?' data-loaded="true"':'')+'>'+(groups.length===1?catalogueTasks(f,missing):'')+'</div>'+'</details>';}).join('');
   if(!groups.length)html+='<p>No evals match the filters.</p>';
   html+='<details><summary>Scoring assumptions and source files</summary><ol>'+(scheme.notes||[]).map(n=>'<li>'+esc(n)+'</li>').join('')+'</ol><p><a href="row-audit.csv">Source row audit</a> · <a href="language-metadata.csv">Language assignments</a> · <a href="analysis.json">Analysis JSON</a></p><p class="caption">'+esc(DATA.source)+' · SHA-256 '+esc(DATA.sha256)+'</p></details>';
-  const configControls='<details open><summary>Global eval catalogue</summary><p>The catalogue defines matching, categories, scoring fields, normalization, and language assignments for every known eval. It does not require models to run all those evals.</p><p><strong>Normalization:</strong> each eval lists its baseline, formula, and sources below. Chance correction affects weighted scores; raw scores stay unchanged. <code>acc_norm</code> is length-normalized answer scoring, not chance correction.</p><div class="view-controls"><button id="exportConfig">Export catalogue YAML</button><label>Load catalogue<input id="configFile" type="file" accept=".yaml,.yml"></label></div><p class="caption">Active catalogue: '+esc(catalogue.name)+' · '+catalogue.languages.reduce((n,g)=>n+g.tasks.length,0)+' explicit task language assignments.</p></details><details><summary>Weighting profile and optional eval set</summary><p>Weights apply independently of the eval set. <strong>Any available</strong> compares shared recognized measurements and warns on differences. A named set also warns about missing requirements and excludes extra measurements. An incomplete named-set score uses the shared subset with redistributed weights.</p><div class="view-controls"><button id="exportWeights">Export weights YAML</button><label>Load weights<input id="weightsFile" type="file" accept=".yaml,.yml"></label><button id="exportSuite">Export eval set YAML</button><label>Load eval set<input id="suiteFile" type="file" accept=".yaml,.yml"></label></div><p class="caption">Active eval set: '+esc(suite.name)+(suite.exclude?.length?' · Explicitly excluded: '+suite.exclude.map(esc).join(', '):'')+'.</p><p class="caption">All imports are temporary and stay in your browser. Exports save the three inputs separately. Weight exports include your edits and active score calculation.</p></details>';
+  const configControls='<details open><summary>Global eval catalogue</summary><p>The catalogue defines matching, categories, scoring fields, normalization, and language assignments for every known eval. It does not require models to run all those evals.</p><p><strong>Normalization:</strong> each eval lists its baseline, formula, and sources below. Chance correction and component aggregation affect calculated scores; individual raw scores stay unchanged. <code>acc_norm</code> is length-normalized answer scoring, not chance correction.</p><div class="view-controls"><button id="exportConfig">Export catalogue YAML</button><label>Load catalogue<input id="configFile" type="file" accept=".yaml,.yml"></label></div><p class="caption">Active catalogue: '+esc(catalogue.name)+' · '+catalogue.languages.reduce((n,g)=>n+g.tasks.length,0)+' explicit task language assignments.</p></details><details><summary>Weighting profile and optional eval set</summary><p>Weights apply independently of the eval set. <strong>Any available</strong> compares shared recognized measurements and warns on differences. A named set also warns about missing requirements and excludes extra measurements. An incomplete named-set score uses the shared subset with redistributed weights.</p><div class="view-controls"><button id="exportWeights">Export weights YAML</button><label>Load weights<input id="weightsFile" type="file" accept=".yaml,.yml"></label><button id="exportSuite">Export eval set YAML</button><label>Load eval set<input id="suiteFile" type="file" accept=".yaml,.yml"></label></div><p class="caption">Active eval set: '+esc(suite.name)+(suite.exclude?.length?' · Explicitly excluded: '+suite.exclude.map(esc).join(', '):'')+'.</p><p class="caption">All imports are temporary and stay in your browser. Exports save the three inputs separately. Weight exports include your edits and active score calculation.</p></details>';
   html=html.replace('<div class="catalogue-head">',configControls+'<div class="catalogue-head">');
 
   return html;
  }
  function render(){
   const weightOpen=$('weightEditor')?.open,englishOpen=$('englishComponents')?.open;
-  const {a,b,pairs,shown,onlyA,onlyB,scope}=selected(),ta=totals(a,scheme,weights,state.aggregate,englishWeights,metadata),tb=totals(b,scheme,weights,state.aggregate,englishWeights,metadata),valid=sameCoverage(a,b)&&ta.score!==null&&tb.score!==null;
+  const {a,b,pairs,shown,excludedA,excludedB,scope}=selected(),ta=totals(a,scheme,weights,state.aggregate,englishWeights,metadata),tb=totals(b,scheme,weights,state.aggregate,englishWeights,metadata),valid=sameCoverage(a,b)&&ta.score!==null&&tb.score!==null;
   const demo=[$('modelA').value,$('modelB').value].some(n=>n===demoModel);
   configOptions();$('cards').hidden=!models.size;document.querySelector('.aggregate-controls').hidden=!models.size;
   $('demo').textContent=!models.size?'Ready for your eval results. Load a CSV to begin.':demo?'Demo comparison: one model has synthetic scores. Replace it with a real eval CSV to compare training methods.':'Real-model comparison · Check evaluation settings and training budgets before drawing a conclusion.';
   document.querySelectorAll('[data-aggregate]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.aggregate===state.aggregate)));
-  $('aggregateNote').textContent=state.aggregate!=='standard'?(state.aggregate==='english_eval'?'Balance English and other languages inside each eval, then average evals equally within categories.':'Balance English and other languages across each category. Evals with non-English coverage can receive more weight.')+' Shares are set in the weight editor. Unknown or mixed-language scores count as English for weighting; known non-English pools count as other. Raw views stay unchanged.':'Original aggregate: average variants within each eval, then evals within each category.';
+  $('aggregateNote').textContent=state.aggregate!=='standard'?(state.aggregate==='english_eval'?'Balance English and other languages inside each eval, then average evals equally within categories.':'Balance English and other languages across each category. Evals with non-English coverage can receive more weight.')+' Shares are set in the weight editor. Unknown or mixed-language scores count as English for weighting; known non-English pools count as other. Raw views stay unchanged.':'Original aggregate: combine configured components within each language/protocol; average those groups within the eval. Other evals average variants. Then average evals within each category.';
   $('cards').innerHTML=[[$('modelA').value,ta.score,'A · '+(state.aggregate==='english_eval'?'English balance per eval':state.aggregate==='english_category'?'English balance per category':'original weighted score')],[$('modelB').value,tb.score,'B · '+(state.aggregate==='english_eval'?'English balance per eval':state.aggregate==='english_category'?'English balance per category':'original weighted score')],['A − B',valid?ta.score-tb.score:null,'Weighted difference'+(suite.mode==='fixed'&&!scope.complete?' · incomplete set':'')]].map(([name,value,label])=>'<div class="score-card"><small>'+esc(name)+'</small><strong>'+fmt(value)+'</strong><span>'+label+'</span></div>').join('');
   $('coverage').classList.toggle('notice',models.size>0&&suite.mode==='fixed'&&!scope.complete);
-  $('coverage').textContent=!models.size?'No models loaded · add your CSV.':(suite.mode==='fixed'?suite.name+' · '+(scope.complete?'Complete':'INCOMPLETE')+' · '+scope.sharedRequired+'/'+scope.required+' requirements shared (A '+scope.presentA+', B '+scope.presentB+') · '+(scope.extrasA+scope.extrasB)+' extra measurements excluded · ':suite.name+' · ')+pairs.length+' matched variants · excluded: '+onlyA.length+' from A, '+onlyB.length+' from B · weights use shared data only'+(valid?'':' · Score unavailable: check weights and language assignments.');
+  $('coverage').textContent=!models.size?'No models loaded · add your CSV.':(suite.mode==='fixed'?suite.name+' · '+(scope.complete?'Complete':'INCOMPLETE')+' · '+scope.sharedRequired+'/'+scope.required+' requirements shared (A '+scope.presentA+', B '+scope.presentB+') · '+(scope.extrasA+scope.extrasB)+' extra measurements excluded · ':suite.name+' · ')+pairs.length+' matched variants · excluded: '+excludedA.length+' from A, '+excludedB.length+' from B · weights use shared data only'+(valid?'':' · Score unavailable: check weights and language assignments.');
   $('filters').hidden=['score','warnings'].includes(state.view);
   $('filterStatus').textContent=shown.length+' of '+pairs.length+' matched variants · filters do not change the full weighted score';
   const warnings=activeWarnings();$('warningCount').textContent=warnings.length;$('warningCount').classList.toggle('has-warnings',warnings.length>0);
   document.querySelectorAll('[data-view]').forEach(e=>e.classList.toggle('active',e.dataset.view===state.view));
-  $('view').innerHTML=state.view==='score'?renderScore(a,b,ta,tb,valid):['categories','languages'].includes(state.view)?renderBreakdown(shown,a,valid):state.view==='comparisons'?renderComparisons(shown,a,valid):state.view==='warnings'?renderWarnings():renderConfig();
+  $('view').innerHTML=state.view==='score'?renderScore(a,b,ta,tb,valid):['categories','languages'].includes(state.view)?renderBreakdown(shown,pairs):state.view==='comparisons'?renderComparisons(shown,a,valid):state.view==='warnings'?renderWarnings():renderConfig();
   if(weightOpen&&$('weightEditor'))$('weightEditor').open=true;if(englishOpen&&$('englishComponents'))$('englishComponents').open=true;
   markHorizontalScroll();
   if(!shown.length&&['categories','languages','comparisons'].includes(state.view))$('view').insertAdjacentHTML('beforeend','<p>No matched variants pass these filters.</p>');

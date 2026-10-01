@@ -146,7 +146,13 @@ class AnalysisTests(unittest.TestCase):
   raw=classify(DATA['rows'],c)
   scoped=shared_config('scope',value=[raw,DATA['suite']])['rows']
   from statistics import mean
-  expected_raw=sum(weight*mean(mean(r['raw_score_100'] for r in scoped if r['eval']==e) for e in {r['eval'] for r in scoped if r['category']==category}) for category,weight in c['weights'].items())
+  def raw_eval(name):
+   rr=[r for r in scoped if r['eval']==name]
+   if name!='PolyMath':return mean(r['raw_score_100'] for r in rr)
+   levels={'low':1,'medium':2,'high':4,'top':8}
+   languages={r['task'].split('_')[1] for r in rr}
+   return mean(sum(r['raw_score_100']*levels[r['task'].split('_')[-1]] for r in rr if r['task'].split('_')[1]==lang)/15 for lang in languages)
+  expected_raw=sum(weight*mean(raw_eval(e) for e in {r['eval'] for r in scoped if r['category']==category}) for category,weight in c['weights'].items())
   self.assertAlmostEqual(summarize(scoped,c)[0]['score'],expected_raw)
   self.assertLess(DATA['models'][0]['score'],expected_raw)
   self.assertEqual([r['raw_score_100'] for r in raw],[r['raw_score_100'] for r in DATA['rows']])

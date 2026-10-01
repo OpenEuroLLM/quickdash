@@ -4,7 +4,6 @@ import csv
 import hashlib
 import json
 from pathlib import Path
-from statistics import mean
 from .config_engine import classify, task_language, load_catalogue, shared_config, load_csv
 
 APP = Path(__file__).resolve().parent
@@ -13,65 +12,8 @@ ROOT = APP.parent
 
 
 def summarize(audit, config, aggregate=None):
-    aggregate = aggregate or config.get('aggregate', 'standard')
-    metadata = {task: group for group in config['languages'] for task in group['tasks']}
-    def side(row):
-        language = metadata.get(row['task'], {})
-        code = language.get('target_language') if language.get('scope') == 'translation' else language.get('language') if language.get('scope') in ['single', 'pooled'] else None
-        return 'english' if not code or code in ['eng_Latn', 'mul'] else 'other'
-    result = []
-    for model in sorted({r['checkpoint'] for r in audit}):
-        selected = [r for r in audit if r['checkpoint'] == model and r['selected']]
-        eval_rows = {e['name']: [r for r in selected if r['eval'] == e['name']] for e in config['evals']}
-        evals = [dict(name=e['name'], category=e['category'], metric=e['metric'], count=len(eval_rows[e['name']]),
-                      score=mean(r['score_100'] for r in eval_rows[e['name']]) if eval_rows[e['name']] else None,
-                      weight=0, contribution=None if eval_rows[e['name']] else 0, aggregateScore=None, excluded=not eval_rows[e['name']], englishShare=0, effectiveEnglishShare=None, englishScore=None, otherScore=None, issue='') for e in config['evals']]
-        available_weight = sum(weight for category, weight in config['weights'].items() if any(e['category'] == category and e['count'] for e in evals))
-        categories = []
-        for category, weight in config['weights'].items():
-            configured = [e for e in evals if e['category'] == category]
-            ff = [e for e in configured if e['count']]
-            effective_weight = weight/available_weight if ff and available_weight else 0
-            share = config.get('english_weights', {}).get(category, 0) if aggregate != 'standard' else 0
-            c = dict(name=category, weight=effective_weight, excluded=not ff, excludedEvals=[e['name'] for e in configured if not e['count']], score=None, evals=len(ff), englishShare=share, effectiveEnglishShare=None, englishScore=None, otherScore=None, issue='')
-            coefficients = {}
-            if not ff:
-                categories.append(c)
-                continue
-            if not share:
-                c['score'] = mean(e['score'] for e in ff)
-                for e in ff:
-                    for r in eval_rows[e['name']]: coefficients[id(r)] = effective_weight / len(ff) / len(eval_rows[e['name']])
-            elif aggregate == 'english_eval':
-                for e in ff:
-                    rr = eval_rows[e['name']]
-                    e['englishShare'] = share
-                    groups = [[r for r in rr if side(r) == group] for group in ['english', 'other']]
-                    e['englishScore'], e['otherScore'] = [mean(r['score_100'] for r in group) if group else None for group in groups]
-                    e['effectiveEnglishShare'] = 0 if e['englishScore'] is None else 1 if e['otherScore'] is None else share
-                    parts = [e['effectiveEnglishShare'], 1-e['effectiveEnglishShare']]
-                    e['aggregateScore'] = parts[0]*(e['englishScore'] or 0)+parts[1]*(e['otherScore'] or 0)
-                    for part, group in zip(parts, groups):
-                        for r in group: coefficients[id(r)] = effective_weight/len(ff)*part/len(group)
-                if not c['issue']: c['score'] = mean(e['aggregateScore'] for e in ff)
-            else:
-                groups = [[variants for e in ff if (variants := [r for r in eval_rows[e['name']] if side(r) == group])] for group in ['english', 'other']]
-                c['englishScore'], c['otherScore'] = [mean(mean(r['score_100'] for r in variants) for variants in group) if group else None for group in groups]
-                if not c['issue']:
-                    c['effectiveEnglishShare'] = 0 if c['englishScore'] is None else 1 if c['otherScore'] is None else share
-                    parts = [c['effectiveEnglishShare'], 1-c['effectiveEnglishShare']]
-                    c['score'] = parts[0]*(c['englishScore'] or 0) + parts[1]*(c['otherScore'] or 0)
-                    for part, group in zip(parts, groups):
-                        for variants in group:
-                            for r in variants: coefficients[id(r)] = effective_weight * part / len(group) / len(variants)
-            for e in ff:
-                e['weight'] = sum(coefficients.get(id(r), 0) for r in eval_rows[e['name']])
-                e['contribution'] = sum(r['score_100']*coefficients.get(id(r), 0) for r in eval_rows[e['name']]) if c['score'] is not None else None
-                e['aggregateScore'] = e['contribution']/e['weight'] if c['score'] is not None and e['weight'] else None
-            categories.append(c)
-        complete = available_weight > 0 and all(c['score'] is not None for c in categories if not c['excluded'])
-        result.append(dict(model=model, evals=evals, categories=categories, score=sum(c['score']*c['weight'] for c in categories if not c['excluded']) if complete else None))
-    return result
+    """Use the same component coverage and score coefficients as the browser."""
+    return shared_config('summarize', value=[audit, config, aggregate or config.get('aggregate', 'standard')])
 
 
 def write_csv(path, rows):

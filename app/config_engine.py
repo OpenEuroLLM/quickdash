@@ -80,7 +80,7 @@ def validate_rules(config):
     if not isinstance(config['evals'],list) or not config['evals']:raise ValueError('At least one eval is required')
     names=set();categories=set()
     for e in config['evals']:
-        object_keys(e,{'name','category','match','metric','filter','shots','select','score','normalize','warning'}, {'name','category','match','metric','filter','score'})
+        object_keys(e,{'name','category','match','metric','filter','shots','select','score','normalize','warning','aggregation'}, {'name','category','match','metric','filter','score'})
         if not isinstance(e['name'],str) or not e['name'] or e['name'] in names:raise ValueError('Eval names must be unique and nonempty')
         names.add(e['name'])
         if not isinstance(e['category'],str) or not e['category'].strip():raise ValueError('Eval category must be text')
@@ -92,6 +92,19 @@ def validate_rules(config):
         object_keys(e['score'],{'scale'},{'scale'})
         if not number(e['score']['scale']) or e['score']['scale']<=0:raise ValueError('Score scale must be positive')
         if 'warning' in e and (not isinstance(e['warning'],str) or not e['warning'].strip()):raise ValueError('Eval warning must be nonempty text')
+        if 'aggregation' in e:
+            a=e['aggregation'];object_keys(a,{'components','note','sources'},{'components'})
+            if not isinstance(a['components'],list) or not a['components']:raise ValueError('Aggregation needs components')
+            names_seen=set();total=0
+            for c in a['components']:
+                object_keys(c,{'name','match','weight'},{'name','match','weight'})
+                if not isinstance(c['name'],str) or not c['name'].strip() or c['name'] in names_seen:raise ValueError('Component names must be unique and nonempty')
+                names_seen.add(c['name']);validate_match(c['match'])
+                if not number(c['weight']) or c['weight']<=0:raise ValueError('Component weights must be positive finite numbers')
+                total+=c['weight']
+            if not math.isfinite(total):raise ValueError('Component weight sum must be finite')
+            if 'note' in a and not isinstance(a['note'],str):raise ValueError('Aggregation note must be text')
+            if 'sources' in a and (not isinstance(a['sources'],list) or any(not isinstance(u,str) or not re.match(r'^https?://',u) for u in a['sources'])):raise ValueError('Aggregation sources must be HTTP(S) URLs')
         if 'normalize' in e:
             n=e['normalize'];object_keys(n,{'min','max','clip','basis','note','sources'},{'min','max'})
             if not number(n['min']) or not number(n['max']) or not 0<=n['min']<n['max']<=1:raise ValueError('Normalization needs 0 <= min < max <= 1')

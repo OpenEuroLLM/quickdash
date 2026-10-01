@@ -42,6 +42,33 @@ def inputs(folder, c=None):
 
 
 class DataContracts(unittest.TestCase):
+    def test_component_config_validation_and_standalone_build(self):
+        c=config();e=c['evals'][0];e.pop('normalize')
+        levels=['low','medium','high','top']
+        e['aggregation']={'components':[dict(name=name,match={'regex':'task_.+_'+name},weight=2**i) for i,name in enumerate(levels)]}
+        c['languages']=[dict(tasks=['task_en_'+name for name in levels],scope='single',language='eng_Latn')]
+        validate_config(c)
+        bad_values=[None,{}, {'components':[]}, {'components':[dict(name='low',match={'name':'x'},weight=True)]}]
+        for value in bad_values:
+            bad=deepcopy(c);bad['evals'][0]['aggregation']=value
+            with self.assertRaises(ValueError):validate_config(bad)
+            self.assertIn('error',javascript([bad],'api.validateConfig(c)')[0])
+        rr=[row(task='task_en_'+name,value=str(value)) for name,value in zip(levels,[.6,.3,.15,0])]
+        for mode in ['standard','english_eval','english_category']:
+            c['english_weights']={'C':.5}
+            self.assertAlmostEqual(summarize(classify(rr,c),c,mode)[0]['score'],12)
+            result=summarize(classify(rr[:-1],c),c,mode)[0]
+            self.assertIsNone(result['score']);self.assertTrue(result['warnings'])
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);kw=inputs(folder,c);source=folder/'scores.csv'
+            source.write_text(','.join(rr[0])+'\n'+'\n'.join(','.join(r.values()) for r in rr))
+            with contextlib.redirect_stdout(io.StringIO()):build(source,folder/'out',**kw)
+            data=json.loads((folder/'out/analysis.json').read_text())
+            self.assertAlmostEqual(data['models'][0]['score'],12)
+            self.assertEqual(data['models'][0]['evals'][0]['count'],4)
+            self.assertIn('Component aggregation',(folder/'out/index.html').read_text())
+            self.assertTrue((folder/'out/eval-scores.csv').exists())
+
     def test_independent_directory_defaults_and_explicit_overrides(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder=Path(tmp);kw=inputs(folder);profiles=folder/'profiles';profiles.mkdir()

@@ -62,7 +62,7 @@ const EvalConfig=(()=>{
   if(!Array.isArray(config.evals)||!config.evals.length)throw Error('At least one eval is required');
   const names=new Set();
   for(const e of config.evals){
-   objectKeys(e,['name','category','match','metric','filter','shots','select','score','normalize','warning'],['name','category','match','metric','filter','score']);
+   objectKeys(e,['name','category','match','metric','filter','shots','select','score','normalize','warning','aggregation'],['name','category','match','metric','filter','score']);
    if(typeof e.name!=='string'||!e.name||names.has(e.name))throw Error('Eval names must be unique and nonempty');names.add(e.name);
    if(typeof e.category!=='string'||!e.category)throw Error('Eval category must be nonempty text');
    if(typeof e.metric!=='string'||!e.metric||typeof e.filter!=='string')throw Error('Metric and filter must be strings');
@@ -70,6 +70,15 @@ const EvalConfig=(()=>{
    if('shots'in e&&(!Number.isInteger(e.shots)||e.shots<0))throw Error('shots must be a nonnegative integer');
    objectKeys(e.score,['scale'],['scale']);if(!number(e.score.scale)||e.score.scale<=0)throw Error('Score scale must be positive');
    if('warning'in e&&(typeof e.warning!=='string'||!e.warning.trim()))throw Error('Eval warning must be nonempty text');
+   if('aggregation'in e){
+    const a=e.aggregation;objectKeys(a,['components','note','sources'],['components']);
+    if(!Array.isArray(a.components)||!a.components.length)throw Error('Aggregation needs components');
+    const names=new Set();let total=0;
+    for(const c of a.components){objectKeys(c,['name','match','weight'],['name','match','weight']);if(typeof c.name!=='string'||!c.name.trim()||names.has(c.name))throw Error('Component names must be unique and nonempty');names.add(c.name);validateMatch(c.match);if(!number(c.weight)||c.weight<=0)throw Error('Component weights must be positive finite numbers');total+=c.weight;}
+    if(!Number.isFinite(total))throw Error('Component weight sum must be finite');
+    if('note'in a&&typeof a.note!=='string')throw Error('Aggregation note must be text');
+    if('sources'in a&&(!Array.isArray(a.sources)||a.sources.some(u=>typeof u!=='string'||!/^https?:\/\//.test(u))))throw Error('Aggregation sources must be HTTP(S) URLs');
+   }
    if('normalize'in e){const n=e.normalize;objectKeys(n,['min','max','clip','basis','note','sources'],['min','max']);if(!number(n.min)||!number(n.max)||!(0<=n.min&&n.min<n.max&&n.max<=1))throw Error('Normalization needs 0 <= min < max <= 1');if('clip'in n&&typeof n.clip!=='boolean')throw Error('Normalization clip must be boolean');if('basis'in n&&!['uniform_choice','uniform_integer','not_applicable','unresolved'].includes(n.basis))throw Error('Invalid normalization basis');if('note'in n&&typeof n.note!=='string')throw Error('Normalization note must be text');if('sources'in n&&(!Array.isArray(n.sources)||n.sources.some(u=>typeof u!=='string'||!/^https?:\/\//.test(u))))throw Error('Normalization sources must be HTTP(S) URLs');}
   }
   if(!Array.isArray(config.languages))throw Error('languages must be a list');const seen=new Set();
