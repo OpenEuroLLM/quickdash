@@ -1,8 +1,6 @@
 'use strict';
 const EvalConfig=(()=>{
  const yaml=typeof module!=='undefined'?require('./vendor/js-yaml.js'):jsyaml;
- function parseConfig(source){return validateConfig(yaml.load(source,{schema:yaml.CORE_SCHEMA}));}
- function serializeConfig(config){return yaml.dump(validateConfig(config),{schema:yaml.CORE_SCHEMA,lineWidth:110,noRefs:true,sortKeys:false});}
  const canonical=/^(?:[a-z]{3}_[A-Z][a-z]{3}|mul)$/;
  const objectKeys=(value,allowed,required=[])=>{if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>!allowed.includes(k))||required.some(k=>!Object.hasOwn(value,k)))throw Error('Invalid config fields; allowed '+allowed.join(', ')+'; required '+required.join(', '));};
  const number=v=>typeof v==='number'&&Number.isFinite(v);
@@ -38,21 +36,35 @@ const EvalConfig=(()=>{
  }
  function validateMatch(rule){objectKeys(rule,['name','regex']);const values=Object.values(rule);if(values.length!==1||typeof values[0]!=='string'||!values[0])throw Error('A match needs exactly one nonempty name or regex');if('regex'in rule){if(rule.regex.includes('(?P')||rule.regex.includes('(?<'))throw Error('Use portable regexes');new RegExp(rule.regex);}}
  function matchTask(rule,task){return 'name'in rule?rule.name===task:new RegExp('^(?:'+rule.regex+')$(?![\\s\\S])').test(task);}
- function validateConfig(config){
-  objectKeys(config,['version','name','weights','evals','languages','notes','aggregate','english_weights'],['version','name','weights','evals','languages']);
-  if(config.version!==1)throw Error('Unsupported config version');
-  if(typeof config.name!=='string'||!config.name)throw Error('Config name is required');
+ function validateWeights(config){
   const w=config.weights;objectKeys(w,Object.keys(w||{}));
   if(!Object.keys(w).length||Object.entries(w).some(([k,v])=>!k||!number(v)||v<0)||Math.abs(Object.values(w).reduce((a,b)=>a+b,0)-1)>1e-8)throw Error('Category weights must be nonnegative and sum to 1');
   if('aggregate'in config&&!['standard','english_eval','english_category'].includes(config.aggregate))throw Error('Aggregate must be standard, english_eval, or english_category');
   if('english_weights'in config){objectKeys(config.english_weights,Object.keys(w));if(Object.values(config.english_weights).some(v=>!number(v)||v<0||v>1))throw Error('English weights must be between 0 and 1');}
+ }
+ function validateCatalogue(config){
+  objectKeys(config,['version','name','evals','languages','notes'],['version','name','evals','languages']);
+  return validateRules(config);
+ }
+ // Resolved scoring configuration used by arithmetic helpers, never a YAML input format.
+ function validateConfig(config){
+  objectKeys(config,['version','name','weights','evals','languages','notes','aggregate','english_weights'],['version','name','weights','evals','languages']);
+  validateWeights(config);validateRules(config);
+  for(const e of config.evals)if(!Object.hasOwn(config.weights,e.category))throw Error('Eval category has no weight: '+e.category);
+  return config;
+ }
+ function parseCatalogue(source){return validateCatalogue(yaml.load(source,{schema:yaml.CORE_SCHEMA}));}
+ function serializeCatalogue(config){return yaml.dump(validateCatalogue(config),{schema:yaml.CORE_SCHEMA,lineWidth:110,noRefs:true});}
+ function validateRules(config){
+  if(config.version!==1)throw Error('Unsupported config version');
+  if(typeof config.name!=='string'||!config.name)throw Error('Config name is required');
   if('notes'in config&&(!Array.isArray(config.notes)||config.notes.some(n=>typeof n!=='string')))throw Error('Notes must be strings');
   if(!Array.isArray(config.evals)||!config.evals.length)throw Error('At least one eval is required');
-  const names=new Set(),categories=new Set();
+  const names=new Set();
   for(const e of config.evals){
    objectKeys(e,['name','category','match','metric','filter','shots','select','score','normalize','warning'],['name','category','match','metric','filter','score']);
-   if(typeof e.name!=='string'||!e.name||names.has(e.name))throw Error('Eval names must be unique and nonempty');names.add(e.name);categories.add(e.category);
-   if(typeof e.category!=='string'||!Object.hasOwn(w,e.category))throw Error('Eval category has no weight: '+e.category);
+   if(typeof e.name!=='string'||!e.name||names.has(e.name))throw Error('Eval names must be unique and nonempty');names.add(e.name);
+   if(typeof e.category!=='string'||!e.category)throw Error('Eval category must be nonempty text');
    if(typeof e.metric!=='string'||!e.metric||typeof e.filter!=='string')throw Error('Metric and filter must be strings');
    validateMatch(e.match);if('select'in e)validateMatch(e.select);
    if('shots'in e&&(!Number.isInteger(e.shots)||e.shots<0))throw Error('shots must be a nonnegative integer');
@@ -60,7 +72,6 @@ const EvalConfig=(()=>{
    if('warning'in e&&(typeof e.warning!=='string'||!e.warning.trim()))throw Error('Eval warning must be nonempty text');
    if('normalize'in e){const n=e.normalize;objectKeys(n,['min','max','clip','basis','note','sources'],['min','max']);if(!number(n.min)||!number(n.max)||!(0<=n.min&&n.min<n.max&&n.max<=1))throw Error('Normalization needs 0 <= min < max <= 1');if('clip'in n&&typeof n.clip!=='boolean')throw Error('Normalization clip must be boolean');if('basis'in n&&!['uniform_choice','uniform_integer','not_applicable','unresolved'].includes(n.basis))throw Error('Invalid normalization basis');if('note'in n&&typeof n.note!=='string')throw Error('Normalization note must be text');if('sources'in n&&(!Array.isArray(n.sources)||n.sources.some(u=>typeof u!=='string'||!/^https?:\/\//.test(u))))throw Error('Normalization sources must be HTTP(S) URLs');}
   }
-  if(categories.size!==Object.keys(w).length)throw Error('Each weighted category needs at least one eval');
   if(!Array.isArray(config.languages))throw Error('languages must be a list');const seen=new Set();
   for(const g of config.languages){
    objectKeys(g,['tasks','scope','language','source_language','target_language','evidence','note'],['tasks','scope']);
@@ -78,7 +89,7 @@ const EvalConfig=(()=>{
  function normalizeScore(value,e){if(!number(value)&&(typeof value!=='string'||!decimal.test(value.trim())))throw Error('Invalid score: expected a finite decimal number');const raw=Number(value)/e.score.scale;if(!Number.isFinite(raw)||raw<0||raw>1)throw Error('Invalid score: outside the configured source scale');const n=e.normalize??{min:0,max:1};let adjusted=(raw-n.min)/(n.max-n.min);if(n.clip!==false)adjusted=Math.max(0,Math.min(1,adjusted));if(!Number.isFinite(adjusted*100))throw Error('Invalid score: normalization overflow');return {raw_score_100:raw*100,score_100:adjusted*100};}
  function taskLanguage(task,config){const g=config.languages.find(g=>g.tasks.includes(task));return {task,language:g?.language??'',source_language:g?.source_language??'',target_language:g?.target_language??'',scope:g?.scope??'unknown',status:g?'resolved':'unknown',evidence:g?.evidence??'',provenance:g?(g.note??'Explicit language assignment in eval config.'):'No explicit language assignment for this task.'};}
  function auditRows(rows,config){
-  validateConfig(config);const seen=new Set();return rows.map((source,index)=>{
+  (Object.hasOwn(config,'weights')?validateConfig:validateCatalogue)(config);const seen=new Set();return rows.map((source,index)=>{
    const r={...source};
    for(const field of ['checkpoint','task','metric','filter','n_shot','harness','backend','value'])if(!Object.hasOwn(r,field))throw Error('Missing CSV column: '+field);
    for(const field of ['checkpoint','task','metric','harness','backend'])if(typeof r[field]!=='string'||!r[field].trim())throw Error('CSV row '+(index+2)+': '+field+' must be nonempty text');
@@ -96,6 +107,6 @@ const EvalConfig=(()=>{
    return {...r,eval:e.name,category:e.category,selected,decision,...scores};
   });
  }
- return {parseCSV,parseConfig,serializeConfig,validateConfig,matchTask,normalizeScore,taskLanguage,auditRows,demoModel};
+ return {parseCatalogue,serializeCatalogue,validateCatalogue,validateWeights,parseCSV,validateConfig,matchTask,normalizeScore,taskLanguage,auditRows,demoModel};
 })();
 if(typeof module!=='undefined')module.exports=EvalConfig;

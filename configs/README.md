@@ -1,27 +1,21 @@
-# Share evaluation configurations
+# Share eval rules, weights and named sets
 
-The dashboard’s **Eval configuration** selector offers the YAML files directly in this directory, including the [OELLM config](oellm.yaml). Each file’s `name` appears in the selector, so give it a distinct, descriptive name. [example.yaml](example.yaml) is for the fictional scores in [examples/scores.csv](../examples/scores.csv).
+Choose the file to edit based on what you want to change:
 
-[default.txt](default.txt) contains the filename selected when the page opens:
+- **Interpret a new eval:** add its task matching, category, scoring metric, normalization, and explicit language assignments to [catalogue.yaml](catalogue.yaml). Adding a rule does not require every model to run it.
+- **Try different weighting:** add a YAML profile to [weights/](weights/). It can be used with any eval set. Category weights, English shares, and the default calculation live here.
+- **Require a standard comparison set:** add a YAML file to [sets/](sets/). [flagship-1.yaml](sets/flagship-1.yaml) pins expected tasks and shot counts; [any-available.yaml](sets/any-available.yaml) needs no list and compares shared data.
 
-```text
-oellm.yaml
-```
+Each profile or set needs a distinct `name` within its directory. To change a selector's startup choice, edit that directory's `default.txt` to name one YAML file. The catalogue is selected at build time with `--catalogue`, or temporarily loaded in the browser.
 
-To change the default, replace that line with another YAML filename from this directory and commit it. The build rejects missing files, paths outside this directory, and multiple filenames. The display label still comes from the selected YAML’s `name` field.
+The [configuration reference](../docs/configuration.md) describes all three formats with small examples. [examples/](examples/) contains the fictional catalogue and weights used by [examples/scores.csv](../examples/scores.csv).
 
-To add a scoring scheme:
-
-1. Copy an existing config and edit its eval matches, categories, metrics, normalization, and language assignments. The [config reference](../docs/configuration.md) explains each field and provides a small complete example.
-2. Save it here as a `.yaml` or `.yml` file, then submit a PR or use GitHub’s **Add file → Upload files**.
-3. Check the generated dashboard and its warnings before using the scores to choose a training method.
+Submit changes as a PR, then check the generated dashboard:
 
 ```sh
 python3 -m app.build --results-dir results --output output/shared
 ```
 
-The build checks every config against the shared CSVs before publishing. Invalid schemas, duplicate config names, overlapping eval matches, or invalid selected score scales stop the update. A config can intentionally cover only part of the results: unmatched tasks and missing metrics are excluded with warnings when that config is selected.
+The build validates every offered combination before replacing output. In the dashboard, inspect **Warnings** for the comparison you intend to use. Named-set scores with missing requirements are explicitly incomplete; extras are excluded but remain inspectable.
 
-Switching configs recalculates all loaded models. If a temporary uploaded model is incompatible with a config, the browser reports the error and keeps the previous config and scores. **Clear models** starts a fresh browser comparison while retaining the config choices; reload restores the published results.
-
-For a temporary config, use **Eval configuration → Load config** in the dashboard instead of committing a file. It appears as an uploaded choice for that browser session. **Export config YAML** saves your edits, including adjusted weights and the chosen aggregation mode; it does not modify this repository.
+For temporary changes, use the separate load/export controls under **Eval configuration**. Files stay in the browser. Weight exports save edited weights and the active calculation; catalogue and eval-set exports are independent. None of these controls modify the repository.

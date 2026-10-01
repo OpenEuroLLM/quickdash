@@ -198,7 +198,7 @@ assert.equal(await evaluate("document.querySelectorAll('.catalogue-task').length
 assert.match(await evaluate("document.querySelector('#view').textContent"),/Excluded/);
 await click('#clear');
 // Config import changes metric/category/normalization/languages atomically.
-await evaluate(`window.loadTestConfig=async config=>{const dt=new DataTransfer();dt.items.add(new File(['# Browser YAML import\\n'+jsyaml.dump(config,{schema:jsyaml.CORE_SCHEMA})],'config.yaml'));const e=document.querySelector('#configFile');e.files=dt.files;await document.querySelector('#view').onchange({target:e});};`);
+await evaluate(`window.loadTestConfig=async config=>{for(const [selector,object] of [['#weightsFile',Object.fromEntries(Object.entries(config).filter(([k])=>['version','name','weights','english_weights','aggregate'].includes(k)))],['#configFile',Object.fromEntries(Object.entries(config).filter(([k])=>!['weights','english_weights','aggregate'].includes(k)))]]){const dt=new DataTransfer();dt.items.add(new File([jsyaml.dump(object,{schema:jsyaml.CORE_SCHEMA})],'config.yaml'));const e=document.querySelector(selector);e.files=dt.files;await document.querySelector('#view').onchange({target:e});if(document.querySelector('#error').textContent)break;}};`);
 await evaluate(`(async()=>{const c=structuredClone(DATA.scheme);c.name='Browser custom config';const he=c.evals.find(e=>e.name==='HumanEval');he.metric='sh_pass@1';he.category='Math';c.evals.find(e=>e.name==='HellaSwag').normalize={min:.25,max:1};const group=c.languages.find(g=>g.tasks.includes('AIME24'));group.tasks=group.tasks.filter(t=>t!=='AIME24');c.languages=c.languages.filter(g=>g.tasks.length);c.languages.push({tasks:['AIME24'],scope:'single',language:'fin_Latn'});await loadTestConfig(c);})()`);
 assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
 assert.notEqual(await evaluate("document.querySelector('#cards strong').textContent"),initialScore);
@@ -232,20 +232,20 @@ assert.match(await evaluate("document.querySelector('#view').textContent"),/Comp
 await evaluate(`(async()=>{const fields=['checkpoint','task','metric','filter','n_shot','harness','backend','value'];const rows=DATA.rows.filter(r=>r.eval!=='IFEval').map(r=>({...r,checkpoint:'Missing IFEval'}));const csv=[fields.join(','),...rows.map(r=>fields.map(f=>r[f]).join(','))].join('\\n');const dt=new DataTransfer();dt.items.add(new File([csv],'missing-eval.csv'));const e=document.querySelector('#modelFile');e.files=dt.files;await e.onchange({target:e});})()`);
 assert.notEqual(await evaluate("document.querySelector('#cards strong').textContent"),'—');
 assert.equal(await evaluate("document.querySelector('#cards .score-card:last-child strong').textContent"),'0.00');
-assert.match(await evaluate("document.querySelector('#view').textContent"),/No eval data.*IFEval/s);
+assert.doesNotMatch(await evaluate("document.querySelector('#view').textContent"),/No eval data/);
 assert.match(await evaluate("document.querySelector('#view').textContent"),/Comparison coverage.*IFEval/s);
 for(const mode of ['standard','english_eval','english_category']){await click('[data-aggregate='+mode+']');assert.equal(await evaluate("document.querySelector('#cards .score-card:last-child strong').textContent"),'0.00');}
 // Reload restores the original export before the remaining import checks.
 await send('Page.reload');
 for(let i=0;i<50;i++){await new Promise(r=>setTimeout(r,100));if(await evaluate("document.querySelector('#warningCount')?.textContent==='6'"))break;}
 await click('[data-view=config]');
-await evaluate(`window.loadTestConfig=async config=>{const dt=new DataTransfer();dt.items.add(new File([jsyaml.dump(config,{schema:jsyaml.CORE_SCHEMA})],'config.yaml'));const e=document.querySelector('#configFile');e.files=dt.files;await document.querySelector('#view').onchange({target:e});};`);
+await evaluate(`window.loadTestConfig=async config=>{for(const [selector,object] of [['#weightsFile',Object.fromEntries(Object.entries(config).filter(([k])=>['version','name','weights','english_weights','aggregate'].includes(k)))],['#configFile',Object.fromEntries(Object.entries(config).filter(([k])=>!['weights','english_weights','aggregate'].includes(k)))]]){const dt=new DataTransfer();dt.items.add(new File([jsyaml.dump(object,{schema:jsyaml.CORE_SCHEMA})],'config.yaml'));const e=document.querySelector(selector);e.files=dt.files;await document.querySelector('#view').onchange({target:e});if(document.querySelector('#error').textContent)break;}};`);
 // English shares and the active aggregate are editable and portable in YAML.
 await click('[data-view=score]');await click('[data-aggregate=english_category]');await change('[data-english-weight="Reading"]','0.7');
 await click('[data-view=config]');
 await evaluate(`window.originalCreate=URL.createObjectURL;window.originalClick=HTMLAnchorElement.prototype.click;URL.createObjectURL=blob=>{window.exportBlob=blob;return 'blob:test'};HTMLAnchorElement.prototype.click=function(){};`);
-await click('#exportConfig');
-const englishExport=await evaluate(`exportBlob.text().then(parseConfig)`);
+await click('#exportWeights');
+const englishExport=await evaluate(`exportBlob.text().then(parseWeightProfile)`);
 assert.equal(englishExport.english_weights.Reading,.7);assert.equal(englishExport.aggregate,'english_category');
 await evaluate(`URL.createObjectURL=originalCreate;HTMLAnchorElement.prototype.click=originalClick;loadTestConfig(DATA.scheme)`);
 assert.equal(await evaluate("document.querySelector('[data-aggregate][aria-pressed=true]').dataset.aggregate"),'standard');
@@ -254,19 +254,20 @@ await click('[data-view=score]');
 await change('[data-weight="Code"]','.16');await change('[data-weight="Math"]','.14');
 await click('[data-view=config]');
 await evaluate(`window.originalCreate=URL.createObjectURL;window.originalClick=HTMLAnchorElement.prototype.click;URL.createObjectURL=blob=>{window.exportBlob=blob;return 'blob:test'};HTMLAnchorElement.prototype.click=function(){};`);
-await click('#exportConfig');
-const exported=await evaluate(`exportBlob.text().then(parseConfig)`);
+await click('#exportWeights');
+const exported=await evaluate(`exportBlob.text().then(parseWeightProfile)`);
 assert.equal(exported.weights.Code,.16);assert.equal(exported.weights.Math,.14);
-assert.equal(exported.languages.flatMap(g=>g.tasks).length,1556);
+assert.equal(exported.languages,undefined);
+await click('#exportConfig');assert.equal(await evaluate('exportBlob.text().then(parseCatalogue).then(c=>c.languages.flatMap(g=>g.tasks).length)'),1556);
 await evaluate(`URL.createObjectURL=originalCreate;HTMLAnchorElement.prototype.click=originalClick;loadTestConfig(DATA.scheme)`);
 // Missing configuration is a warning and exclusion, not a failed import.
 await evaluate(`(async()=>{const c=structuredClone(DATA.scheme);c.evals.find(e=>e.name==='HumanEval').match={name:'absent_eval_task'};await loadTestConfig(c);})()`);
 assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
-assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'8');
+assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'7');
 assert.equal(await evaluate("document.querySelector('#warningCount').classList.contains('has-warnings')"),true);
 await click('[data-view=warnings]');
 assert.match(await evaluate("document.querySelector('#view').textContent"),/No config.*HumanEval/);
-assert.match(await evaluate("document.querySelector('#view').textContent"),/No eval data.*HumanEval/);
+assert.doesNotMatch(await evaluate("document.querySelector('#view').textContent"),/No eval data/);
 assert.equal(await evaluate("document.querySelector('#filters').hidden"),true);
 await screenshot('warnings-preview');
 await click('[data-view=config]');await evaluate(`loadTestConfig(DATA.scheme)`);

@@ -1,29 +1,79 @@
-# Eval config reference
+# Configuration reference
 
-Edit `configs/oellm.yaml`, then load it in **Eval configuration → Load config**, or rebuild with `python3 -m app.build DATA.csv --config CONFIG.yaml`. Browser imports apply to every loaded real model and regenerate the synthetic comparison. If validation fails, the active config and scores remain unchanged. **Export config YAML** includes current category weights, English shares, and the selected aggregate; use that exported file when building to persist the choices.
+Quickdash separates four inputs: model results, a weighting profile, an optional named eval set, and the global eval catalogue. You can compare new result files with existing interpretation rules without writing a new list of required evals.
 
-## Shared config choices and results
+| Input | Purpose | Default |
+| --- | --- | --- |
+| CSV results | Raw measurements for models A and B | Shared files in `results/`, or browser imports |
+| Weighting profile | Category weights, English shares, default calculation | `configs/weights/oellm.yaml` |
+| Eval set | Optional expected evals and variants | `configs/sets/any-available.yaml` |
+| Global catalogue | Match tasks to evals, categories, metrics, normalization and languages | `configs/catalogue.yaml` |
 
-By default, the builder embeds all `.yaml` and `.yml` files directly in `configs/`. The single filename in `configs/default.txt` chooses the startup config, currently `oellm.yaml`. To choose another default, edit that line; no application code changes are needed. A missing selection file, invalid filename, or missing selected config stops the build before replacing output.
+## Choose weights and expected coverage
 
-`--configs-dir PATH` uses another directory and its `default.txt`. `--config PATH` overrides the startup selection; used alone it embeds only that config, or combined with `--configs-dir` it also embeds the directory’s other choices. Every config’s `name` must be unique. See [adding shared configs](../configs/README.md).
+The **Weighting profile** and **Eval set** selectors operate independently. Switching a profile resets category weights, English shares, and the calculation to that profile's values, leaving the eval set unchanged. Switching eval sets preserves your current weights and calculation. Export edits before switching profiles if you want to keep them.
 
-The page’s **Eval configuration** selector applies one config to every loaded model. Switching resets scoring weights, English shares, and the aggregate to that config’s values. Export edits before switching if you want to keep them. A temporary YAML upload appears as an uploaded choice for the current session; switching to a shared config replaces it. Reload restores the published defaults.
+**Any available** uses recognized selected measurements shared by A and B. Measurements present on only one side generate comparison warnings and are excluded from both scores. Catalogue entries absent from both models do not generate warnings.
 
-`--results-dir results` embeds all CSVs directly in that directory. Each checkpoint label must occur in only one file, although one file may contain multiple models. Every config is validated against all shared inputs before a build replaces output. Missing coverage is permitted with warnings; invalid selected scores, duplicate config names, or invalid config schemas stop the build. Browser config changes are also validated against all loaded models and roll back on failure.
+**flagship-1** names the expected 45 evals and 403 task/shot requirements for the flagship comparison. A required measurement missing from either or both models generates a warning. Extra selected measurements are excluded with warnings, but remain inspectable in **Eval configuration**. The dashboard labels the score **INCOMPLETE**, shows shared/required coverage, and redistributes weights across the shared subset. Do not interpret an incomplete score as covering the full named set. Exact comparison identity still includes metric, filter, shots, harness, and backend; incompatible protocols cannot satisfy shared coverage just by sharing a task name.
 
-An empty results directory, or a build without a CSV or results directory, starts with no models. Users can select a config and import CSVs afterward. **Clear models** clears the current comparison without removing config choices. Build metadata in `analysis.json` records input filenames and SHA-256 hashes under `sources`, and available config choices under `configurations`.
+A named set can require a whole eval, or exact tasks with optional shot counts:
+
+```yaml
+version: 1
+name: Example required set
+mode: fixed
+evals:
+  - name: Example eval
+    variants:
+      - {task: example_en, n_shot: 0}
+      - {task: example_fr, n_shot: 0}
+```
+
+Omitting `variants` requires at least one shared selected measurement for that eval and permits all its variants. Omitting `n_shot` accepts any shot count, but A and B must still match each other's protocol. Required tasks must match the named catalogue eval and its `select`/`shots` restrictions. Duplicate or overlapping requirements, unknown eval names, and unknown fields are errors. Metric and normalization choices belong only in the catalogue. Eval sets never contain weights.
+
+The default needs no required-eval list:
+
+```yaml
+version: 1
+name: Any available
+mode: available
+```
+
+A weighting profile works with either mode:
+
+```yaml
+version: 1
+name: Reasoning weights
+weights: {Reasoning: 1}
+aggregate: standard
+english_weights: {Reasoning: 0.5}
+```
+
+Weights must be nonnegative and sum to 1. Empty categories have their weight redistributed. A catalogue category omitted from the profile receives zero weight and produces a warning when shared measurements use it. The editor exposes that zero so it can be assigned weight. Weight profiles never list evals. All three YAML types accept optional `notes` (a list of strings), require `version: 1` and a nonempty `name`, and reject unknown fields.
+
+## Build defaults and browser imports
+
+The builder embeds YAML profiles directly in `configs/weights/` and sets directly in `configs/sets/`. Each directory's `default.txt` contains one YAML filename selected on startup. Missing or invalid defaults stop the build before replacing output. Names must be unique within each selector.
+
+- `--catalogue PATH` chooses the global interpretation file.
+- `--weights PATH` chooses a profile; used alone, it embeds only that profile. `--weights-dir DIR` offers the profiles in another directory and uses its `default.txt` unless an explicit profile is supplied.
+- `--eval-set PATH` and `--sets-dir DIR` work the same way for eval sets.
+- `--results-dir DIR` embeds CSVs directly in that directory. A checkpoint label may occur in only one file; one file can contain multiple models.
+
+Every offered set is validated against the catalogue and every profile before writing output. Raw results are classified once by the global catalogue; changing sets only changes comparison membership. An empty results directory, or no CSV input, starts without models.
+
+Under **Eval configuration**, load or export the catalogue, weights, and eval set separately. Uploaded choices are temporary; reload restores published defaults. Catalogue imports reinterpret all loaded real models and regenerate the synthetic comparison. Invalid imports preserve the previous models and settings. If a new catalogue does not contain the active named set's evals, switch to Any available before loading it. **Clear models** retains settings.
+
+`analysis.json` records the catalogue, selected profile and set, available `profiles` and `suites`, and source filenames/hashes. It also contains the resolved internal `scheme` used for arithmetic; that combined object is not a YAML input format. Generated `catalogue.yaml`, `weights.yaml`, and `eval-set.yaml` record the build inputs.
 
 ## Complete small example
 
-This config selects `acc_norm` for two explicit language variants of a four-choice eval. Additional categories and evals follow the same structure.
+This catalogue selects `acc_norm` for two explicit language variants of a four-choice eval. Additional categories and evals follow the same structure.
 
 ```yaml
 version: 1
 name: Example scoring
-weights:
-  Reasoning: 1.0
-
 evals:
   - name: Example eval
     category: Reasoning
@@ -56,19 +106,19 @@ For an input row with `value=0.625`, the raw score is 62.5 and the normalized sc
 | Field | Meaning |
 |---|---|
 | `name` | Unique display name of the eval, grouping its variants. |
-| `category` | A key in `weights`. Every weighted category must have at least one eval. |
+| `category` | Category label used by weighting profiles and breakdowns. |
 | `match` | Exactly one of `{name: exact task name}` or `{regex: 'full-match pattern'}`. Unmatched tasks are excluded and listed in Warnings; overlapping matches are an error. |
 | `metric` | Exact CSV scoring field, such as `acc`, `acc_norm`, or `python_pass@1`. |
 | `filter` | Exact CSV filter string, including `""` if empty. |
 | `shots` | Optional nonnegative integer selecting the CSV `n_shot`. Omit to include all shot settings. |
 | `select` | Optional name/regex rule restricting which matched tasks contribute. Useful for selecting summaries while retaining child-task audits. |
 | `score.scale` | Raw metric's upper scale: 1 for fractional accuracy; 100 for percentage or chrF scores. Selected values must be finite and within 0..scale. |
-| `warning` | Optional nonempty text describing an unresolved scoring assumption. Appears once for all models in Warnings and in this eval’s configuration details; it does not change scores. |
+| `warning` | Optional nonempty text describing an unresolved scoring assumption. Appears once in Warnings when present in the selected comparison and in this eval’s configuration details; it does not change scores. |
 | `normalize` | Optional object with `min`, `max`, and optional `clip`, `basis`, `note`, and `sources`. Thresholds are fractions after division by `score.scale`. |
 
 Use the common Python/JavaScript regex subset: literal text, character classes, alternatives, groups, and ordinary quantifiers. Patterns match the entire task name. Named groups and lookbehind are rejected. Language extraction does not use these patterns.
 
-The supplied OELLM config gives Code, Math, Reasoning, Knowledge, Commonsense, and Reading a weight of 0.15 each; Translation, Language, and Instruction following each receive 0.1/3. Category weights must be nonnegative and sum to 1. Names, metrics, and task strings are case-sensitive. Unknown config fields are rejected to catch typos. `version` must be 1; `name` labels the active config. Optional top-level `notes` is a list of strings.
+The supplied OELLM weighting profile gives Code, Math, Reasoning, Knowledge, Commonsense, and Reading a weight of 0.15 each; Translation, Language, and Instruction following each receive 0.1/3. Category weights must be nonnegative and sum to 1. Names, metrics, and task strings are case-sensitive. Unknown config fields are rejected to catch typos. `version` must be 1; `name` labels the active config. Optional top-level `notes` is a list of strings.
 
 ## Normalization and contributions
 
@@ -152,7 +202,7 @@ The final `eng_Latn → spa_Latn` is a single pair label. Each pair expands into
 
 The supplied config prefers `acc_norm` over `acc` when both exist for the selected protocol. The metric remains explicit in `metric`; missing fields never silently fall back to another metric. SIB-200 explicitly uses `acc`. A YAML comment explains that `acc_norm` is not reliable/useful in this export: 34 of its 36 values are exactly 0.25. This selection does not generate a config warning. Length-normalized option scoring and chance normalization are separate operations.
 
-For each real model, the dashboard compares the sets of selected settings per task within each eval: `n_shot`, `metric`, `filter`, `harness`, and `backend`. Different sets generate one warning naming the settings, with expandable lists of affected tasks and their explicit language assignments (source → target for translation). Identical sets across tasks are consistent even if each task has multiple settings. Excluded alternate metrics, summary children, and protocols do not trigger this check. The current data has mismatches for MGSM (0/5 shots), ARC Challenge (0/10), and PIQA (0/10). These warnings do not exclude scores; use the YAML selection rules to choose comparable protocols after reviewing coverage. Fields absent from the CSV, such as prompt templates or dataset revisions, cannot be compared.
+For each selected real model, the dashboard compares the sets of selected settings per task within each eval: `n_shot`, `metric`, `filter`, `harness`, and `backend`. Different sets generate one warning naming the settings, with expandable lists of affected tasks and their explicit language assignments (source → target for translation). Identical sets across tasks are consistent even if each task has multiple settings. Excluded alternate metrics, summary children, and protocols do not trigger this check. The current data has mismatches for MGSM (0/5 shots), ARC Challenge (0/10), and PIQA (0/10). These warnings do not exclude scores; use the YAML selection rules to choose comparable protocols after reviewing coverage. Fields absent from the CSV, such as prompt templates or dataset revisions, cannot be compared.
 
 Both translation evals use chrF, which is bounded by 0 and 100 in [SacreBLEU](https://github.com/mjpost/sacrebleu/blob/master/sacrebleu/metrics/chrf.py). `score.scale: 100` and `normalize: {min: 0, max: 1}` preserve native chrF points. The open question is calibration against accuracy metrics and between language pairs, including a meaningful chance floor; a shared numerical range does not settle those questions. Each translation config carries an editable `warning` while this remains unresolved. The composite continues to include translation at the configured weight.
 
@@ -170,7 +220,7 @@ The prominent **Score calculation** panel offers three modes:
 
 All modes apply the configured category weights last. The selector affects both model score cards, category/eval contributions, effective weights, and weighted delta bars. Raw comparison columns and descriptive language/category breakdowns retain their meanings.
 
-Optional top-level YAML fields persist the choice and shares:
+Optional top-level fields in the **weighting profile** persist the choice and shares:
 
 ```yaml
 aggregate: english_eval
@@ -207,10 +257,10 @@ Per-eval balancing preserves equal eval weights, but does not guarantee English 
 
 ## Missing comparison data
 
-Model comparisons use the intersection of selected measurements, matching task, metric, extraction filter, shot count, harness, and backend. A measurement present only in A or only in B is excluded from **both** score calculations and listed in a comparison-coverage warning. If no measurements remain for an eval, that eval is excluded from both scores and the remaining evals share its category weight equally. An empty category is excluded and remaining category weights are rescaled proportionally to sum to 1. No shared scores leaves the composite unavailable. Config coverage warnings remain visible for every loaded model.
+Model comparisons use the intersection of selected measurements, matching task, metric, extraction filter, shot count, harness, and backend. A measurement present only in A or only in B is excluded from **both** score calculations and listed in a comparison-coverage warning. If no measurements remain for an eval, that eval is excluded from both scores and the remaining evals share its category weight equally. An empty category is excluded and remaining category weights are rescaled proportionally to sum to 1. No shared scores leaves the composite unavailable. Data warnings apply to the selected models; the configuration audit retains all loaded real exports.
 
 
-The weights table shows effective weights after exclusions; the editor preserves the configured weights. Configured-but-missing evals and unconfigured tasks remain visible in Warnings. The build's model summaries are per-model summaries of available data; the interactive dashboard applies the common comparison coverage when two models are selected.
+The weights table shows effective weights after exclusions; the editor preserves the configured weights. Missing named-set requirements and unconfigured tasks remain visible in Warnings. Unused global catalogue rules are allowed. The build's model summaries are per-model summaries of available data; the interactive dashboard applies the common comparison coverage when two models are selected.
 
 ## Data validation and failure behavior
 
@@ -223,12 +273,16 @@ Builds and browser imports use the same CSV parser. Required columns are `checkp
 | Selected score is blank, nonnumeric, nonfinite, or outside `0..score.scale` | Reject with CSV row, model, task, and metric in the error. Decimal and scientific notation are accepted; booleans and hexadecimal values are not scores. |
 | New model uses an already loaded checkpoint name or the reserved synthetic-demo name | Reject the import. Give the model a distinct checkpoint label. |
 | Task has no eval config, or lacks the configured metric/filter/shots | Warn and exclude from scoring. Alternate metrics remain inspectable and never silently substitute for the configured metric. |
-| Eval is absent, or measurements match only one of the compared models | Warn; use only shared measurements and redistribute weights as described above. |
+| Measurements match only one of the compared models | Warn; use only shared measurements and redistribute weights. |
+| Named set requirement is missing from either or both models | Warn and mark the set incomplete; compare the shared subset. |
+| Selected measurement is outside a named set | Warn and exclude it from that set; keep it in the audit. |
+| Catalogue rule has no results in either model | No warning unless required by the selected named set. |
+| Shared category has no profile weight | Warn; zero contribution until a weight is assigned. |
 | Selected task has no explicit language assignment | Warn and retain the score. Language views show Unknown; English-balance modes use the English fallback. Known mixed-language pools use the documented fallback without claiming a resolved single language. |
 | Selected variants use inconsistent scoring settings | Warn and retain scores so the reviewer can inspect the protocols. |
 | Matched A/B measurements report different positive `n_samples` | Warn and retain scores; sample count does not determine score weights. Review whether dataset coverage is comparable. |
 | Supplied `n_samples` is not a positive integer | Warn and retain scores; omit it from sample-count comparisons. Absent/blank sample counts are allowed. |
-| Eval has a YAML `warning` | Show the caveat once for all models and alongside that eval's configuration. |
+| Eval has a YAML `warning` | Show the caveat for selected real models containing the eval, and alongside its configuration. |
 | No shared data with positive category weight | Show an unavailable composite (`—`), never an invented zero. |
 
 Invalid model/config imports leave the active models, settings, and scores unchanged, including multi-model files where a later model is invalid. Build input validation completes before existing output files are replaced. Warnings are calculated from the current config and loaded results; fixing or removing the underlying issue removes its warning. Fields not used for scoring, such as source paths and standard errors, remain audit information; their presence is not a guarantee that dataset revisions or prompts match. Invalid values in excluded alternate metrics remain visible but are not normalized using the selected metric's scale.

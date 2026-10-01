@@ -123,9 +123,9 @@ const unknown=auditRows([{...data.rows[0],task:'new_task_without_config'}],schem
 assert.equal(unknown.selected,false);assert.equal(unknown.eval,'');assert.equal(unknown.score_100,null);
 const warningRows=audited.filter(r=>r.eval!=='HumanEval').concat(unknown);
 const warnings=collectWarnings(new Map([['real',warningRows]]),scheme);
-assert.equal(warnings.length,baselineWarnings.length+2);
+assert.equal(warnings.length,baselineWarnings.length+1);
 assert.ok(warnings.some(w=>w.type==='No config'&&w.name==='new_task_without_config'));
-assert.ok(warnings.some(w=>w.type==='No eval data'&&w.name==='HumanEval'));
+assert.ok(!warnings.some(w=>w.type==='No eval data'));
 const alternate=structuredClone(scheme);alternate.evals.find(e=>e.name==='HumanEval').metric='nonexistent';
 assert.ok(collectWarnings(new Map([['real',auditRows(data.rows,alternate)]]),alternate).some(w=>w.type==='No selected score'));
 console.log('Warning checks passed: unconfigured exclusion, absent evals, selected metric gaps.');

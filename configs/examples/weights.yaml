@@ -1,0 +1,9 @@
+version: 1
+name: Fictional example weights
+aggregate: standard
+weights:
+  Reasoning: 0.5
+  Math: 0.5
+english_weights:
+  Reasoning: 0.5
+  Math: 0.5

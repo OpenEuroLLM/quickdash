@@ -8,7 +8,7 @@ Run commands from the repository root. Python 3.8+ and Node.js 18+ build the das
 | --- | --- |
 | `app/` | Python builder, browser application, HTML template, and bundled YAML parser. |
 | `tests/` | Public contract tests, browser checks, and optional private-export regressions. |
-| `configs/` | Selectable scoring YAML files and `default.txt`. |
+| `configs/` | Global catalogue, weighting profiles, optional named sets, and fictional examples. |
 | `results/` | Public CSV exports contributed to the shared dashboard. |
 | `examples/` | Fictional input data for the demo and tests. |
 | `docs/` | Configuration and contributor documentation. |
@@ -18,10 +18,11 @@ Run commands from the repository root. Python 3.8+ and Node.js 18+ build the das
 
 ```sh
 python3 -m app.build --results-dir results --output output/shared
-python3 -m app.build examples/scores.csv --config configs/example.yaml --output output/demo
+python3 -m app.build examples/scores.csv --catalogue configs/examples/catalogue.yaml \
+  --weights configs/examples/weights.yaml --eval-set configs/sets/any-available.yaml --output output/demo
 ```
 
-Open each generated `index.html` in a browser. The shared build embeds every YAML in `configs/` and selects the filename in `configs/default.txt`. To try another directory, pass `--configs-dir PATH`. To build with just one scoring config, pass `--config PATH`. Supplying both selects that explicit config and also includes choices from the directory.
+Open each generated `index.html` in a browser. The shared build embeds the global catalogue, profiles from `configs/weights/`, and sets from `configs/sets/`. Each selector uses its directory's `default.txt`. See the [build flags](configuration.md#build-defaults-and-browser-imports) to supply other inputs.
 
 Check the views affected by your change, including their warnings and failed-input behavior. Generated output is self-contained; do not commit it. Private exports belong in `data/`, never in the public `results/` directory.
 
@@ -31,12 +32,12 @@ These tests use small fixtures and run from a fresh checkout without private eva
 
 ```sh
 python3 -m unittest tests.test_data
-node --test tests/test_data.cjs tests/test_yaml.cjs
+node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs
 ```
 
 They cover input validation, normalization, warning/exclusion behavior, failed-build preservation, Python/JavaScript parity, hierarchy sorting, and deterministic randomized scoring comparisons against an independent calculation.
 
-The public browser suite also checks empty startup, shared models, config selection, temporary uploads, rollback, and that file imports make no network requests. It requires Node.js 22+ and Chrome. Start an isolated browser session, then run the suite in another terminal:
+The public browser suite also checks empty startup, shared models, independent profile/set selection, missing requirements, temporary uploads, rollback, and that file imports make no network requests. It requires Node.js 22+ and Chrome. Start an isolated browser session, then run the suite in another terminal:
 
 ```sh
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
@@ -55,9 +56,9 @@ Adjust the Chrome executable path for your platform. Stop that isolated Chrome p
 The full-export regression tests require the original private CSV at `data/v2zloss_86k.flag-evals-436.tasks.csv` and its freshly built output:
 
 ```sh
-python3 -m app.build data/v2zloss_86k.flag-evals-436.tasks.csv --config configs/oellm.yaml
+python3 -m app.build data/v2zloss_86k.flag-evals-436.tasks.csv
 python3 -m unittest tests.test_analysis tests.test_data
-node --test tests/test_app.cjs tests/test_english.cjs tests/test_data.cjs tests/test_yaml.cjs
+node --test tests/test_app.cjs tests/test_english.cjs tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs
 ```
 
 With the isolated Chrome session above running, use `node tests/test_browser.mjs` for the full-export browser checks: filtering, sortable hierarchies, scroll preservation, warnings, model swapping, header alignment, and mobile layouts. Screenshots go into the ignored `output/` directory.

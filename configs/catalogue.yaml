@@ -1,30 +1,5 @@
-# Initial chance baselines. Bounds are fractions after value / score.scale.
-# Set min: 0, max: 1 to disable a correction; clip: true clips below chance to zero.
-# Per-eval rationale and sources are also shown in the dashboard.
 version: 1
-name: OELLM draft · initial chance normalization
-weights:
-  Code: 0.15
-  Math: 0.15
-  Reasoning: 0.15
-  Knowledge: 0.15
-  Commonsense: 0.15
-  Reading: 0.15
-  Translation: 0.03333333333333333
-  Language: 0.03333333333333333
-  Instruction following: 0.03333333333333333
-# The selector starts on the original aggregate; these shares configure the alternative.
-aggregate: standard
-english_weights:
-  Code: 0.5
-  Math: 0.5
-  Reasoning: 0.5
-  Knowledge: 0.5
-  Commonsense: 0.5
-  Reading: 0.5
-  Translation: 0.5
-  Language: 0.5 # Unknown/mixed scores use the English side; the Croatian/Serbian pool assigned to srp_Latn uses the other side.
-  Instruction following: 0.5
+name: OELLM eval catalogue
 evals:
   - category: Code
     name: CS Algorithms
@@ -860,52 +835,6 @@ evals:
         baseline.
       sources:
         - https://github.com/google-research/google-research/tree/master/instruction_following_eval
-notes:
-  - >-
-    This is a provisional composite index, not an overall accuracy or a training-method recommendation. Only
-    one model has been supplied.
-  - >-
-    The category assignments follow the supplied screenshot, including its questionable placements of CS
-    Algorithms, Dyck languages, Operators and Repeat Copy Logic. ARC Challenge and ARC Easy are separate
-    equally weighted evals.
-  - >-
-    Average selected measurements equally within each eval, evals equally within each category, and categories
-    with the specified weights. No sample-count weighting. Language variants and difficulty slices remain
-    visible. Existing MMLU and INCLUDE top-level summaries replace their children in the composite; those
-    supplied summaries may internally use different weighting.
-  - >-
-    Multiply fractional accuracy, exact match, pass@1 and CoQA F1 by 100. SQuAD v2 F1 and translation chrF
-    retain their supplied 0–100 scale. Sharing a scale does not make these metrics equally difficult,
-    calibrated or interchangeable.
-  - >-
-    Prefer acc_norm when both acc and acc_norm are exported for the selected protocol; SIB-200 uses acc.
-    Other metrics: flexible-extract for GSM8K/MGSM; Python pass@1 for HumanEval; overall LiveCodeBench accuracy; F1
-    for CoQA/SQuAD v2; chrF for translation; strict prompt-level accuracy for IFEval. Other metrics stay in
-    the audit.
-  - >-
-    HellaSwag uses 0-shot results throughout; its English 10-shot result is excluded. PIQA uses completion
-    scoring; prompted exact-match variants are excluded. Other evals retain the available protocols, including
-    differing shot counts.
-  - >-
-    MGSM combines native-CoT and global variants. MMLU and Global MMLU are separate evals, each with its own
-    equal share of the Knowledge category. MMLU uses its original English summary; Global MMLU averages
-    its language summaries. They have related content and should not be treated as independent evidence.
-    Agree language/protocol balance before using the composite for a decision.
-  - >-
-    No aggregate confidence interval is reported: the CSV cannot establish cross-task or cross-model
-    covariance. A future comparison must align task, metric, filter, shot count, harness, backend, benchmark
-    versions and coverage before reporting deltas.
-  - >-
-    Comparisons use shared measurements. Missing evals are excluded from both scores and remaining evals
-    share their category weight. Empty categories are excluded and other category weights are rescaled.
-    Unmatched measurements and unconfigured tasks are listed in Warnings. Duplicate selected measurements
-    stop the build.
-  - >-
-    Initial normalization uses benchmark-defined uniform valid-choice baselines. AIME24 and AIME25 use
-    a zero minimum with no random-integer correction. These are research-based starting assumptions, not empirical random-model scores. acc_norm
-    length-normalizes option likelihoods; it is not chance correction. ARC Challenge uses an explicitly
-    approximate 25% floor; JEEBench uses the paper's approximate 10.5% overall random baseline. Values below chance
-    clip to zero at the selected-variant aggregate level, so correction does not reproduce per-item clipping.
 languages:
   - tasks:
       - AIME24

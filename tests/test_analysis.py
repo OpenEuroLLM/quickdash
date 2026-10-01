@@ -2,12 +2,12 @@ import json
 import unittest
 from pathlib import Path
 from app.build import classify, summarize
-from app.config_engine import task_language, validate_config, normalize_score, match_task, load_config
+from app.config_engine import task_language, validate_config, normalize_score, match_task, shared_config, load_catalogue
 from copy import deepcopy
 import subprocess
 import tempfile
 ROOT=Path(__file__).resolve().parent.parent
-CONFIG=load_config(ROOT/'configs/oellm.yaml')
+CONFIG=shared_config('resolve',value=[load_catalogue(ROOT/'configs/catalogue.yaml'),shared_config('suite',ROOT/'configs/sets/any-available.yaml'),shared_config('weights',ROOT/'configs/weights/oellm.yaml')])
 def resolve_languages(tasks):return [task_language(t,CONFIG) for t in tasks]
 DATA=json.loads((ROOT/'output/analysis.json').read_text())
 class AnalysisTests(unittest.TestCase):
@@ -103,8 +103,9 @@ class AnalysisTests(unittest.TestCase):
  def test_alternate_config_build_and_javascript_parity(self):
   c=deepcopy(CONFIG);c['evals'][0]['normalize']={'min':.25,'max':1};c['aggregate']='english_category'
   with tempfile.TemporaryDirectory() as tmp:
-   path=Path(tmp);yaml=subprocess.check_output(['node','-e',"process.stdout.write(require('./app/eval_config.js').serializeConfig(JSON.parse(require('fs').readFileSync(0,'utf8'))))"],input=json.dumps(c),text=True,cwd=ROOT);(path/'config.yaml').write_text(yaml)
-   subprocess.run(['python3','-m','app.build',str(ROOT/'data/v2zloss_86k.flag-evals-436.tasks.csv'),'--config',str(path/'config.yaml'),'--output',str(path/'result')],check=True,capture_output=True)
+   from tests.test_data import inputs
+   path=Path(tmp);kw=inputs(path,c)
+   subprocess.run(['python3','-m','app.build',str(ROOT/'data/v2zloss_86k.flag-evals-436.tasks.csv'),'--catalogue',str(kw['catalogue_path']),'--weights',str(kw['weights_path']),'--eval-set',str(kw['suite_path']),'--output',str(path/'result')],check=True,capture_output=True)
    data=json.loads((path/'result/analysis.json').read_text())
    self.assertNotEqual(data['models'][0]['score'],DATA['models'][0]['score'])
    script="const fs=require('fs'),e=require('./app/eval_config.js');const d=JSON.parse(fs.readFileSync(process.argv[1]));console.log(JSON.stringify({rows:e.auditRows(d.rows,d.scheme),metadata:d.metadata.map(m=>e.taskLanguage(m.task,d.scheme))}));"

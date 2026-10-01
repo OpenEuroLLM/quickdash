@@ -11,13 +11,13 @@ checkpoint,task,metric,filter,n_shot,harness,backend,value
 method-a-100k,my_eval_en,acc_norm,none,0,lm-eval,vllm,0.72
 ```
 
-The row above illustrates the format; `my_eval_en` needs a matching eval entry and an explicit language assignment in the chosen YAML config. See [CSV requirements](../docs/configuration.md#data-validation-and-failure-behavior) and [adding configurations](../configs/README.md).
+The row above illustrates the format; `my_eval_en` needs a matching eval entry and an explicit language assignment in the global catalogue. See [CSV requirements](../docs/configuration.md#data-validation-and-failure-behavior) and [adding configurations](../configs/README.md).
 
 - Use a distinct `checkpoint` label for each model/run. A file may contain several models, but a label cannot occur in two files. Replace a model’s existing file when updating it, or give a new run a new label.
 - Keep raw metric values in their original scale. The config chooses the metric and applies normalization.
 - Only CSV files directly in this directory are loaded; subdirectories are not scanned.
-- Malformed files, duplicate labels, and invalid selected scores stop the build. Missing eval coverage or an unconfigured task appears as a warning in the dashboard; it is excluded from the relevant score.
-- Review each configuration’s warnings when comparing results. Different configs can select different metrics, evals, and normalizations from the same CSVs.
+- Malformed files, duplicate labels, and invalid selected scores stop the build. One-sided coverage, missing named-set requirements, or an unconfigured task appears as a warning in the dashboard; it is excluded from the relevant score.
+- Review the selected comparison’s warnings. Any available needs no expected-eval list; a named set checks missing and extra measurements. Weights can be changed independently of that choice.
 
 To check a contribution locally:
 
