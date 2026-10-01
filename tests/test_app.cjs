@@ -118,7 +118,7 @@ console.log('Hierarchy checks passed: category/eval/language and language/catego
 const {collectWarnings}=require('../app/app.js');
 const baselineWarnings=collectWarnings(new Map([['real',audited]]),scheme);
 assert.deepEqual(baselineWarnings.filter(w=>w.type==='Inconsistent scoring settings').map(w=>w.name).sort(),['ARC Challenge','MGSM','PIQA']);
-assert.deepEqual(baselineWarnings.filter(w=>w.type==='Config caveat').map(w=>w.name).sort(),['FLORES200','MultiBlimp','OpenSubtitles','SIB-200']);
+assert.deepEqual(baselineWarnings.filter(w=>w.type==='Config caveat').map(w=>w.name).sort(),['FLORES200','MultiBlimp','OpenSubtitles']);
 const unknown=auditRows([{...data.rows[0],task:'new_task_without_config'}],scheme)[0];
 assert.equal(unknown.selected,false);assert.equal(unknown.eval,'');assert.equal(unknown.score_100,null);
 const warningRows=audited.filter(r=>r.eval!=='HumanEval').concat(unknown);
@@ -176,4 +176,4 @@ console.log('Protocol consistency and editable normalization warning checks pass
 
 for(const name of ['LSAT AR','X-CSQA','Belebele','MultiBlimp'])assert.equal(scheme.evals.find(e=>e.name===name).metric,'acc_norm');
 assert.equal(scheme.evals.find(e=>e.name==='SIB-200').metric,'acc');
-assert.match(scheme.evals.find(e=>e.name==='SIB-200').warning,/34 of 36/);
+assert.equal(scheme.evals.find(e=>e.name==='SIB-200').warning,undefined);

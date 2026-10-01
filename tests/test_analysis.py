@@ -131,14 +131,14 @@ class AnalysisTests(unittest.TestCase):
   self.assertIsNone(result['score_100']);self.assertIn('No eval config',result['decision'])
  def test_chance_baselines_and_raw_score_preservation(self):
   evals={e['name']:e for e in CONFIG['evals']}
-  expected={'SIB-200':1/7,'Language ID':1/11,'Social IQa':1/3,'HellaSwag':.25,'PIQA':.5,'CommonsenseQA':.2,'AIME24':0,'AIME25':0,'ARC Easy':(2365/4+7/3+4/5)/2376}
+  expected={'SIB-200':1/7,'Language ID':1/11,'Social IQa':1/3,'HellaSwag':.25,'PIQA':.5,'CommonsenseQA':.2,'AIME24':0,'AIME25':0,'JEEBench':.105,'ARC Easy':(2365/4+7/3+4/5)/2376}
   for name,chance in expected.items():
    e=evals[name];self.assertEqual(e['normalize']['min'],chance)
    self.assertAlmostEqual(normalize_score(chance*e['score']['scale'],e)[1],0)
    self.assertTrue(e['normalize']['sources'])
   self.assertEqual(evals['ARC Challenge']['normalize']['min'],.25)
   self.assertIn('approximation',evals['ARC Challenge']['normalize']['note'])
-  self.assertEqual(evals['JEEBench']['normalize']['basis'],'unresolved')
+  self.assertNotEqual(evals['JEEBench']['normalize'].get('basis'),'unresolved')
   self.assertEqual(evals['AMC23']['normalize']['min'],0)
   c=deepcopy(CONFIG)
   for e in c['evals']:e['normalize']={'min':0,'max':1}

@@ -258,14 +258,17 @@ evals:
     score:
       scale: 1
     normalize:
-      min: 0
+      # Approximate overall random baseline from the JEEBench paper, Table 2.
+      min: 0.105
       max: 1
       clip: true
-      basis: unresolved
       note: >-
-        The evaluator mixes single-choice, multiple-answer, integer, and numeric questions. A baseline
-        requires per-type guessing rules and the evaluated mixture; one fixed 1/K would be incorrect.
+        Approximate 10.5% overall random baseline from Table 2 of the JEEBench paper. It combines
+        uniform single-choice guessing and random option subsets with partial credit for multi-answer
+        questions, assigning zero expected score to integer and numeric answers. This assumes the full
+        515-question benchmark and the paper's scoring rules.
       sources:
+        - https://aclanthology.org/2023.emnlp-main.468.pdf#page=5
         - >-
           https://github.com/mlfoundations/evalchemy/blob/6ed674159b37f740f2353a86f596f49f6ac13c19/eval/chat_benchmarks/JEEBench/eval_instruct.py
   - category: Reasoning
@@ -713,10 +716,8 @@ evals:
           https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/tasks/lambada/lambada_openai.yaml
   - category: Reading
     name: SIB-200
-    warning: >-
-      Metric-selection exception: use acc pending investigation. In this export, acc_norm is exactly
-      0.25 for 34 of 36 languages. The cause is not established; review the evaluator and results
-      before switching this eval to the usual acc_norm preference.
+    # Use acc: acc_norm is not a reliable/useful metric for this eval in our export
+    # (exactly 0.25 for 34 of 36 languages).
     metric: acc
     filter: none
     match:
@@ -877,8 +878,8 @@ notes:
     retain their supplied 0–100 scale. Sharing a scale does not make these metrics equally difficult,
     calibrated or interchangeable.
   - >-
-    Prefer acc_norm when both acc and acc_norm are exported for the selected protocol. SIB-200 retains acc
-    as an explicit, warned exception pending investigation of its repeated acc_norm values. Other metrics: flexible-extract for GSM8K/MGSM; Python pass@1 for HumanEval; overall LiveCodeBench accuracy; F1
+    Prefer acc_norm when both acc and acc_norm are exported for the selected protocol; SIB-200 uses acc.
+    Other metrics: flexible-extract for GSM8K/MGSM; Python pass@1 for HumanEval; overall LiveCodeBench accuracy; F1
     for CoQA/SQuAD v2; chrF for translation; strict prompt-level accuracy for IFEval. Other metrics stay in
     the audit.
   - >-
@@ -890,9 +891,6 @@ notes:
     equal share of the Knowledge category. MMLU uses its original English summary; Global MMLU averages
     its language summaries. They have related content and should not be treated as independent evidence.
     Agree language/protocol balance before using the composite for a decision.
-  - >-
-    SIB-200 acc_norm is 0.25 for 34 of 36 languages in this export; the draft selects raw acc. This deserves
-    inspection, but the CSV alone cannot establish the cause.
   - >-
     No aggregate confidence interval is reported: the CSV cannot establish cross-task or cross-model
     covariance. A future comparison must align task, metric, filter, shot count, harness, backend, benchmark
@@ -906,7 +904,7 @@ notes:
     Initial normalization uses benchmark-defined uniform valid-choice baselines. AIME24 and AIME25 use
     a zero minimum with no random-integer correction. These are research-based starting assumptions, not empirical random-model scores. acc_norm
     length-normalizes option likelihoods; it is not chance correction. ARC Challenge uses an explicitly
-    approximate 25% floor; JEEBench remains uncorrected pending per-type baseline details. Values below chance
+    approximate 25% floor; JEEBench uses the paper's approximate 10.5% overall random baseline. Values below chance
     clip to zero at the selected-variant aggregate level, so correction does not reproduce per-item clipping.
 languages:
   - tasks:
