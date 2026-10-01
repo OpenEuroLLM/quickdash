@@ -5,7 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 from statistics import mean
-from .config_engine import classify, task_language, load_config, load_csv
+from .config_engine import classify, task_language, load_catalogue, shared_config, load_csv
 
 APP = Path(__file__).resolve().parent
 ROOT = APP.parent
@@ -101,36 +101,52 @@ def default_config(directory):
     return path
 
 
-def build(source, output, config_path=None, results_dir=None, configs_dir=None):
-    if source is not None and results_dir is not None:raise ValueError('Choose a CSV or --results-dir, not both')
-    if config_path is None:
-        configs_dir = configs_dir if configs_dir is not None else ROOT/'configs'
-        config_path = default_config(configs_dir)
-    config = load_config(config_path)
-    configurations=[dict(file=config_path.name,config=config)]
-    if configs_dir is not None:
-        for path in directory_files(configs_dir,{'.yaml','.yml'}):
-            if path.resolve()==config_path.resolve():continue
-            try:alternative=load_config(path)
-            except ValueError as error:raise ValueError(f'{path.name}: {error}') from error
-            if any(c['config']['name']==alternative['name'] for c in configurations):raise ValueError(f'{path.name}: duplicate config name {alternative["name"]!r}; use distinct names')
-            configurations.append(dict(file=path.name,config=alternative))
+def config_choices(path, directory, kind, default_directory):
+    if path is None:
+        directory = directory or default_directory
+        path = default_config(directory)
+    choices = [dict(file=path.name, config=shared_config(kind, path))]
+    if directory is not None:
+        for candidate in directory_files(directory, {'.yaml', '.yml'}):
+            if candidate.resolve() == path.resolve(): continue
+            try: config = shared_config(kind, candidate)
+            except ValueError as error: raise ValueError(f'{candidate.name}: {error}') from error
+            if any(p['config']['name'] == config['name'] for p in choices):
+                raise ValueError(f'{candidate.name}: duplicate config name {config["name"]!r}; use distinct names')
+            choices.append(dict(file=candidate.name, config=config))
+    return path, choices
+
+
+def build(source, output, catalogue_path=None, results_dir=None, *, weights_path=None, weights_dir=None, suite_path=None, sets_dir=None):
+    if source is not None and results_dir is not None: raise ValueError('Choose a CSV or --results-dir, not both')
+    catalogue_path = catalogue_path or ROOT/'configs/catalogue.yaml'
+    catalogue = load_catalogue(catalogue_path)
+    weights_path, profiles = config_choices(weights_path, weights_dir, 'weights', ROOT/'configs/weights')
+    suite_path, suites = config_choices(suite_path, sets_dir, 'suite', ROOT/'configs/sets')
+    # Every offered combination must resolve before any output is replaced.
+    for profile in profiles:
+        for entry in suites:
+            try: shared_config('resolve', value=[catalogue, entry['config'], profile['config']])
+            except ValueError as error: raise ValueError(f'{entry["file"]} / {profile["file"]}: {error}') from error
+    suite, profile = suites[0]['config'], profiles[0]['config']
+    config = shared_config('resolve', value=[catalogue, suite, profile])
     paths=[source] if source is not None else directory_files(results_dir,{'.csv'}) if results_dir is not None else []
     rows=[];audit=[];sources=[];owners={}
     for path in paths:
         try:
             rr=load_csv(path)
-            classified=classify(rr,config)
+            classified=classify(rr,catalogue)
         except ValueError as error:raise ValueError(f'{path.name}: {error}') from error
         for model in {r['checkpoint'] for r in rr}:
             if model in owners:raise ValueError(f'Duplicate model name {model!r} in {owners[model]} and {path.name}; combine its results in one file or rename the checkpoint')
             owners[model]=path.name
         rows.extend(rr);audit.extend(classified)
         sources.append(dict(file=path.name,sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
-    for alternative in configurations[1:]:
-        try:classify(rows,alternative['config'])
-        except ValueError as error:raise ValueError(f'{alternative["file"]}: {error}') from error
-    aggregates = {mode: summarize(audit, config, mode) for mode in ['standard', 'english_eval', 'english_category']}
+    scoped = shared_config('scope', value=[audit, suite])['rows']
+    identities = {tuple(r[k] for k in ['checkpoint','task','metric','filter','n_shot','harness','backend']) for r in scoped}
+    included = {id(r) for r in audit if tuple(r[k] for k in ['checkpoint','task','metric','filter','n_shot','harness','backend']) in identities}
+    scoped_audit = [dict(r, selected=r['selected'] and id(r) in included) for r in audit]
+    aggregates = {mode: summarize(scoped_audit, config, mode) for mode in ['standard', 'english_eval', 'english_category']}
     summary = aggregates[config.get('aggregate', 'standard')]
     output.mkdir(parents=True, exist_ok=True)
     if audit:
@@ -140,23 +156,31 @@ def build(source, output, config_path=None, results_dir=None, configs_dir=None):
     else:
         for name in ['row-audit.csv', 'eval-scores.csv', 'category-scores.csv', 'language-metadata.csv']:
             (output/name).unlink(missing_ok=True)
-    metadata = [task_language(task, config) for task in sorted({r['task'] for r in rows})]
+    metadata = [task_language(task, catalogue) for task in sorted({r['task'] for r in rows})]
     if metadata:write_csv(output/'language-metadata.csv', metadata)
-    payload = dict(config_file=config_path.name, configurations=configurations, metadata=metadata, scheme=config, models=summary, aggregates=aggregates, rows=audit, sources=sources, source=source.name if source else results_dir.name if results_dir else '', sha256=sources[0]['sha256'] if len(sources)==1 else None)
-    (output/'eval-config.yaml').write_text(config_path.read_text())
+    payload = dict(catalogue=catalogue, catalogue_file=catalogue_path.name, suite=suite, suite_file=suite_path.name,
+                   profile=profile, profile_file=weights_path.name, suites=suites, profiles=profiles,
+                   metadata=metadata, scheme=config, models=summary, aggregates=aggregates, rows=audit, sources=sources,
+                   source=source.name if source else results_dir.name if results_dir else '', sha256=sources[0]['sha256'] if len(sources)==1 else None)
+    (output/'catalogue.yaml').write_text(catalogue_path.read_text())
+    (output/'weights.yaml').write_text(weights_path.read_text())
+    (output/'eval-set.yaml').write_text(suite_path.read_text())
     (output/'analysis.json').write_text(json.dumps(payload, indent=2))
     template = (APP/'template.html').read_text()
-    (output/'index.html').write_text(template.replace('__APP__', (APP/'vendor/js-yaml.js').read_text()+'\n'+(APP/'eval_config.js').read_text()+'\n'+(APP/'app.js').read_text()).replace('__PAYLOAD__', json.dumps(payload).replace('<', '\\u003c')))
-    print(json.dumps(dict(models=summary, rows=len(audit), selected=sum(r['selected'] for r in audit)), indent=2))
+    (output/'index.html').write_text(template.replace('__APP__', (APP/'vendor/js-yaml.js').read_text()+'\n'+(APP/'eval_config.js').read_text()+'\n'+(APP/'suite_config.js').read_text()+'\n'+(APP/'app.js').read_text()).replace('__PAYLOAD__', json.dumps(payload).replace('<', '\\u003c')))
+    print(json.dumps(dict(models=summary, rows=len(audit), selected=sum(r['selected'] for r in scoped_audit)), indent=2))
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('csv', type=Path, nargs='?', help='CSV to embed; omit to start without results')
     parser.add_argument('--results-dir', type=Path, help='Embed all CSV files directly inside this directory')
-    parser.add_argument('--configs-dir', type=Path, help='Offer YAML configs from this directory; default: repository configs/ when --config is omitted')
+    parser.add_argument('--catalogue', type=Path, help='Global eval interpretation YAML; default: configs/catalogue.yaml')
+    parser.add_argument('--weights', type=Path, help='Default weighting profile YAML; used alone, embed only this profile')
+    parser.add_argument('--weights-dir', type=Path, help='Offer weighting profiles from this directory (default: configs/weights)')
+    parser.add_argument('--eval-set', type=Path, help='Default named eval set YAML; used alone, embed only this set')
+    parser.add_argument('--sets-dir', type=Path, help='Offer eval sets from this directory (default: configs/sets)')
     parser.add_argument('--output', type=Path, default=ROOT/'output')
-    parser.add_argument('--config', type=Path, help='Use this config instead of the filename in configs/default.txt; used alone, embed only this config')
     args = parser.parse_args()
-    if args.csv is not None and args.results_dir is not None:parser.error('Choose a CSV or --results-dir, not both')
-    build(args.csv, args.output, args.config, args.results_dir, args.configs_dir)
+    if args.csv is not None and args.results_dir is not None: parser.error('Choose a CSV or --results-dir, not both')
+    build(args.csv, args.output, args.catalogue, args.results_dir, weights_path=args.weights, weights_dir=args.weights_dir, suite_path=args.eval_set, sets_dir=args.sets_dir)

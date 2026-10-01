@@ -1,0 +1,24 @@
+version: 1
+name: Original
+weights:
+  Code: 0.15
+  Math: 0.15
+  Reasoning: 0.15
+  Knowledge: 0.15
+  Commonsense: 0.15
+  Reading: 0.15
+  Translation: 0.03333333333333333
+  Language: 0.03333333333333333
+  Instruction following: 0.03333333333333333
+# The selector starts on the original aggregate; these shares configure the alternative.
+aggregate: standard
+english_weights:
+  Code: 0.5
+  Math: 0.5
+  Reasoning: 0.5
+  Knowledge: 0.5
+  Commonsense: 0.5
+  Reading: 0.5
+  Translation: 0.5
+  Language: 0.5 # Unknown/mixed scores use the English side; the Croatian/Serbian pool assigned to srp_Latn uses the other side.
+  Instruction following: 0.5

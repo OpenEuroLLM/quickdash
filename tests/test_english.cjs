@@ -40,13 +40,13 @@ close(totals(rows,scheme,scheme.weights,'english_category',scheme.english_weight
 const translation=new Map(rows.map(r=>[r.task,{scope:'translation',source_language:metadata.get(r.task).language==='eng_Latn'?'fra_Latn':'eng_Latn',target_language:metadata.get(r.task).language}]));
 close(totals(rows,scheme,scheme.weights,'english_category',scheme.english_weights,translation).score,60);
 for(const invalid of [-.1,1.1,NaN])assert.equal(totals(rows,scheme,scheme.weights,'english_category',{C:invalid},metadata).score,null);
-const config=require('../app/eval_config.js').parseConfig(require('node:fs').readFileSync('configs/oellm.yaml','utf8'));
+const config=JSON.parse(require('node:fs').readFileSync('output/analysis.json','utf8')).scheme;
 for(const english_weights of [{Code:-1},{Code:1.1},{Missing:.5},{Code:'0.5'}])assert.throws(()=>validateConfig({...config,english_weights}));
 assert.throws(()=>validateConfig({...config,aggregate:'oops'}));
 console.log('English-share arithmetic, coverage, translation, contribution reconciliation, filters, and validation passed.');
 const data=require('../output/analysis.json');
 for(const mode of ['standard','english_eval','english_category']){
- const actual=totals(data.rows.filter(r=>r.selected),data.scheme,data.scheme.weights,mode),expected=data.aggregates[mode][0];
+ const actual=totals(require('../app/suite_config.js').scopeRows(data.rows,data.suite).rows,data.scheme,data.scheme.weights,mode),expected=data.aggregates[mode][0];
  close(actual.score,expected.score);
  for(const c of actual.categories)close(c.score,expected.categories.find(x=>x.name===c.name).score);
  for(const e of actual.evals){const x=expected.evals.find(x=>x.name===e.name);close(e.weight,x.weight);close(e.contribution,x.contribution);}

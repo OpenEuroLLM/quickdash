@@ -32,111 +32,130 @@ def javascript(cases, expression):
     return json.loads(subprocess.check_output(['node', '-e', script], input=json.dumps(cases), text=True, cwd=ROOT))
 
 
+def inputs(folder, c=None):
+    c = c or config()
+    catalogue = {k:v for k,v in c.items() if k not in ['weights','english_weights','aggregate']}
+    profile = {k:v for k,v in c.items() if k in ['version','name','weights','english_weights','aggregate']}
+    (folder/'catalogue.yaml').write_text(json.dumps(catalogue))
+    (folder/'weights.yaml').write_text(json.dumps(profile))
+    return dict(catalogue_path=folder/'catalogue.yaml', weights_path=folder/'weights.yaml', suite_path=ROOT/'configs/sets/any-available.yaml')
+
+
 class DataContracts(unittest.TestCase):
-    def test_directory_default_controls_selection_and_explicit_config_overrides_it(self):
+    def test_independent_directory_defaults_and_explicit_overrides(self):
         with tempfile.TemporaryDirectory() as tmp:
-            folder=Path(tmp);configs=folder/'configs';configs.mkdir()
-            first=config();first['name']='First'
-            second=config();second['name']='Second'
-            (configs/'first.yaml').write_text(json.dumps(first))
-            (configs/'second.yml').write_text(json.dumps(second))
-            (configs/'default.txt').write_text('second.yml\n')
-            with contextlib.redirect_stdout(io.StringIO()):build(None,folder/'out',configs_dir=configs)
+            folder=Path(tmp);kw=inputs(folder);profiles=folder/'profiles';profiles.mkdir()
+            p=dict(version=1,name='First',weights={'C':1})
+            (profiles/'first.yaml').write_text(json.dumps(p));p['name']='Second'
+            (profiles/'second.yml').write_text(json.dumps(p));(profiles/'default.txt').write_text('second.yml\n')
+            kw.pop('weights_path')
+            with contextlib.redirect_stdout(io.StringIO()):build(None,folder/'out',**kw,weights_dir=profiles)
             data=json.loads((folder/'out/analysis.json').read_text())
-            self.assertEqual(data['config_file'],'second.yml')
-            self.assertEqual([p['config']['name'] for p in data['configurations']],['Second','First'])
-            with contextlib.redirect_stdout(io.StringIO()):build(None,folder/'out',configs/'first.yaml',configs_dir=configs)
-            self.assertEqual(json.loads((folder/'out/analysis.json').read_text())['scheme']['name'],'First')
+            self.assertEqual(data['profile_file'],'second.yml')
+            self.assertEqual([p['config']['name'] for p in data['profiles']],['Second','First'])
+            self.assertEqual(data['suite']['mode'],'available')
+            with contextlib.redirect_stdout(io.StringIO()):build(None,folder/'out',**kw,weights_path=profiles/'first.yaml',weights_dir=profiles)
+            self.assertEqual(json.loads((folder/'out/analysis.json').read_text())['profile']['name'],'First')
 
     def test_invalid_directory_defaults_preserve_existing_output(self):
         with tempfile.TemporaryDirectory() as tmp:
-            folder=Path(tmp);configs=folder/'configs';configs.mkdir();out=folder/'out';out.mkdir()
+            folder=Path(tmp);kw=inputs(folder);kw.pop('weights_path');profiles=folder/'profiles';profiles.mkdir();out=folder/'out';out.mkdir()
             (out/'index.html').write_text('keep')
-            (configs/'valid.yaml').write_text(json.dumps(config()))
             for value in [None,'','valid.yaml\nother.yaml','../valid.yaml','/valid.yaml','sub/valid.yaml','sub\\valid.yaml','default.txt','missing.yaml']:
                 with self.subTest(default=value):
-                    if value is not None:(configs/'default.txt').write_text(value)
-                    with self.assertRaisesRegex(ValueError,'default.txt'):build(None,out,configs_dir=configs)
+                    if value is not None:(profiles/'default.txt').write_text(value)
+                    with self.assertRaisesRegex(ValueError,'default.txt'):build(None,out,**kw,weights_dir=profiles)
                     self.assertEqual((out/'index.html').read_text(),'keep')
 
-    def test_cli_uses_repository_default_without_config_flags(self):
+    def test_cli_defaults_to_any_available_and_separate_weight_profile(self):
         with tempfile.TemporaryDirectory() as tmp:
             subprocess.run(['python3','-m','app.build','--output',tmp],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
             data=json.loads((Path(tmp)/'analysis.json').read_text())
-            self.assertEqual(data['config_file'],(ROOT/'configs/default.txt').read_text().strip())
-            self.assertEqual(set(p['file'] for p in data['configurations']),{'oellm.yaml','example.yaml'})
-
-    def test_empty_dashboard_contains_config_but_no_models(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            folder=Path(tmp);cfg=folder/'config.yaml';cfg.write_text(json.dumps(config()))
-            with contextlib.redirect_stdout(io.StringIO()):build(None,folder/'out',cfg)
-            data=json.loads((folder/'out/analysis.json').read_text())
-            self.assertEqual(data['rows'],[]);self.assertEqual(data['models'],[])
-            self.assertEqual(data['scheme'],config());self.assertTrue((folder/'out/index.html').is_file())
+            self.assertEqual(data['suite']['mode'],'available')
+            self.assertEqual(data['profile']['name'],'Original')
+            self.assertEqual([p['config']['name'] for p in data['profiles']],['Original','Code & math emphasis'])
+            self.assertEqual(data['profiles'][1]['config']['weights'],{'Code':.2,'Math':.2,'Reasoning':.1,'Knowledge':.125,'Commonsense':.125,'Reading':.15,'Translation':.1/3,'Language':.1/3,'Instruction following':.1/3})
+            self.assertEqual({p['file'] for p in data['suites']},{'any-available.yaml','flagship-1.yaml'})
+            self.assertNotIn('weights',data['catalogue']);self.assertNotIn('weights',data['suite']);self.assertNotIn('evals',data['profile'])
 
     def test_empty_rebuild_removes_stale_generated_scores(self):
         with tempfile.TemporaryDirectory() as tmp:
-            folder=Path(tmp);cfg=folder/'config.yaml';cfg.write_text(json.dumps(config()))
+            folder=Path(tmp);kw=inputs(folder);out=folder/'out'
             source=folder/'scores.csv';r=row();source.write_text(','.join(r)+'\n'+','.join(r.values()))
-            out=folder/'out'
-            with contextlib.redirect_stdout(io.StringIO()):build(source,out,cfg)
+            with contextlib.redirect_stdout(io.StringIO()):build(source,out,**kw)
             self.assertEqual(len(list(out.glob('*.csv'))),4)
             (out/'personal-note.txt').write_text('keep')
-            with contextlib.redirect_stdout(io.StringIO()):build(None,out,cfg)
+            with contextlib.redirect_stdout(io.StringIO()):build(None,out,**kw)
             self.assertEqual(list(out.glob('*.csv')),[])
             self.assertEqual((out/'personal-note.txt').read_text(),'keep')
+            data=json.loads((out/'analysis.json').read_text());self.assertEqual(data['rows'],[]);self.assertEqual(data['models'],[])
 
-    def test_config_choices_are_embedded_and_validated_before_writing(self):
+    def test_all_choices_validated_before_output_is_replaced(self):
         with tempfile.TemporaryDirectory() as tmp:
-            folder=Path(tmp);cfg=folder/'default.yaml';cfg.write_text(json.dumps(config()));configs=folder/'configs';configs.mkdir()
-            alternate=config();alternate['name']='Alternate';alternate['english_weights']={'C':.5};alternate['aggregate']='english_eval'
-            (configs/'alternate.yml').write_text(json.dumps(alternate))
-            with contextlib.redirect_stdout(io.StringIO()):build(None,folder/'out',cfg,configs_dir=configs)
+            folder=Path(tmp);kw=inputs(folder);sets=folder/'sets';sets.mkdir();out=folder/'out'
+            s=dict(version=1,name='Named',mode='fixed',evals=[dict(name='Eval')])
+            (sets/'named.yaml').write_text(json.dumps(s))
+            with contextlib.redirect_stdout(io.StringIO()):build(None,out,**kw,sets_dir=sets)
+            data=json.loads((out/'analysis.json').read_text());self.assertEqual(len(data['suites']),2)
+            previous=(out/'index.html').read_bytes()
+            (sets/'duplicate.yaml').write_text(json.dumps(s))
+            with self.assertRaisesRegex(ValueError,'duplicate config name'):build(None,out,**kw,sets_dir=sets)
+            self.assertEqual((out/'index.html').read_bytes(),previous)
+            (sets/'duplicate.yaml').unlink();s['evals'][0]['name']='Unknown';(sets/'named.yaml').write_text(json.dumps(s))
+            with self.assertRaisesRegex(ValueError,'no catalogue rule'):build(None,out,**kw,sets_dir=sets)
+            self.assertEqual((out/'index.html').read_bytes(),previous)
+
+    def test_available_set_exclusions_apply_in_build_summaries(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);kw=inputs(folder)
+            excluded=dict(version=1,name='Excluded',mode='available',exclude=['Eval'])
+            (folder/'set.yaml').write_text(json.dumps(excluded));kw['suite_path']=folder/'set.yaml'
+            source=folder/'scores.csv';r=row();source.write_text(','.join(r)+'\n'+','.join(r.values()))
+            with contextlib.redirect_stdout(io.StringIO()):build(source,folder/'out',**kw)
             data=json.loads((folder/'out/analysis.json').read_text())
-            self.assertEqual([p['config']['name'] for p in data['configurations']],['Fixture','Alternate'])
-            self.assertEqual(data['configurations'][1]['config']['aggregate'],'english_eval')
-            (configs/'duplicate.yaml').write_text(json.dumps(alternate))
-            previous=(folder/'out/index.html').read_bytes()
-            with self.assertRaisesRegex(ValueError,'duplicate config name'):build(None,folder/'out',cfg,configs_dir=configs)
-            self.assertEqual((folder/'out/index.html').read_bytes(),previous)
-            (configs/'duplicate.yaml').unlink();alternate['evals'][0]['score']['scale']=.1
-            (configs/'alternate.yml').write_text(json.dumps(alternate));r=row();source=folder/'scores.csv';source.write_text(','.join(r)+'\n'+','.join(r.values()))
-            with self.assertRaisesRegex(ValueError,'alternate.yml.*Invalid score'):build(source,folder/'out',cfg,configs_dir=configs)
-            self.assertEqual((folder/'out/index.html').read_bytes(),previous)
+            self.assertEqual(len(data['rows']),1);self.assertTrue(data['rows'][0]['selected'])
+            self.assertIsNone(data['models'][0]['score']);self.assertEqual(data['models'][0]['evals'][0]['count'],0)
+
+    def test_named_set_scopes_score_but_keeps_full_audit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);kw=inputs(folder)
+            s=dict(version=1,name='Named',mode='fixed',evals=[dict(name='Eval',variants=[dict(task='task_en',n_shot=0)])])
+            (folder/'set.yaml').write_text(json.dumps(s));kw['suite_path']=folder/'set.yaml'
+            rows=[row(),row(task='task_fr',value='.25')];source=folder/'scores.csv'
+            source.write_text(','.join(rows[0])+'\n'+'\n'.join(','.join(r.values()) for r in rows))
+            with contextlib.redirect_stdout(io.StringIO()):build(source,folder/'out',**kw)
+            data=json.loads((folder/'out/analysis.json').read_text())
+            self.assertEqual(len(data['rows']),2);self.assertEqual(data['models'][0]['score'],50)
+            self.assertEqual(data['models'][0]['evals'][0]['count'],1)
 
     def test_cli_rejects_both_csv_and_results_directory(self):
         result=subprocess.run(['python3','-m','app.build','unused.csv','--results-dir','unused'],capture_output=True,text=True)
         self.assertEqual(result.returncode,2);self.assertIn('not both',result.stderr)
 
-    def test_shared_results_directory_combines_models(self):
+    def test_shared_results_directory_combines_models_and_rejects_duplicates(self):
         with tempfile.TemporaryDirectory() as tmp:
-            folder=Path(tmp);results=folder/'results';results.mkdir();cfg=folder/'config.yaml';cfg.write_text(json.dumps(config()))
+            folder=Path(tmp);kw=inputs(folder);results=folder/'results';results.mkdir();out=folder/'out'
             (results/'README.md').write_text('Not a CSV')
             for name in ['B','A']:
                 r=row(checkpoint=name);(results/(name+'.csv')).write_text(','.join(r)+'\n'+','.join(r.values()))
-            with contextlib.redirect_stdout(io.StringIO()):build(None,folder/'out',cfg,results_dir=results)
-            data=json.loads((folder/'out/analysis.json').read_text())
+            with contextlib.redirect_stdout(io.StringIO()):build(None,out,**kw,results_dir=results)
+            data=json.loads((out/'analysis.json').read_text())
             self.assertEqual([m['model'] for m in data['models']],['A','B'])
             self.assertEqual([s['file'] for s in data['sources']],['A.csv','B.csv'])
             self.assertTrue(all(len(s['sha256'])==64 for s in data['sources']))
-
-    def test_shared_results_reject_duplicate_model_names_without_replacing_output(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            folder=Path(tmp);results=folder/'results';results.mkdir();out=folder/'out';out.mkdir();(out/'index.html').write_text('keep')
-            cfg=folder/'config.yaml';cfg.write_text(json.dumps(config()))
-            for name in ['one','two']:
-                r=row(task='task_'+name);(results/(name+'.csv')).write_text(','.join(r)+'\n'+','.join(r.values()))
-            with self.assertRaisesRegex(ValueError,'Model A.*one.csv.*two.csv'):build(None,out,cfg,results_dir=results)
-            self.assertEqual((out/'index.html').read_text(),'keep')
+            previous=(out/'index.html').read_bytes()
+            (results/'duplicate.csv').write_text((results/'A.csv').read_text())
+            with self.assertRaisesRegex(ValueError,'Duplicate model'):build(None,out,**kw,results_dir=results)
+            self.assertEqual((out/'index.html').read_bytes(),previous)
 
     def test_shared_results_report_bad_filename_and_reject_missing_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
-            folder=Path(tmp);cfg=folder/'config.yaml';cfg.write_text(json.dumps(config()))
-            with self.assertRaisesRegex(ValueError,'directory'):build(None,folder/'out',cfg,results_dir=folder/'missing')
+            folder=Path(tmp);kw=inputs(folder)
+            with self.assertRaisesRegex(ValueError,'directory'):build(None,folder/'out',**kw,results_dir=folder/'missing')
             results=folder/'results';results.mkdir();r=row(value='NaN');(results/'bad.csv').write_text(','.join(r)+'\n'+','.join(r.values()))
-            with self.assertRaisesRegex(ValueError,'bad.csv.*Model A.*task_en'):build(None,folder/'out',cfg,results_dir=results)
+            with self.assertRaisesRegex(ValueError,'bad.csv.*Model A.*task_en'):build(None,folder/'out',**kw,results_dir=results)
             (results/'bad.csv').unlink()
-            with contextlib.redirect_stdout(io.StringIO()):build(None,folder/'out',cfg,results_dir=results)
+            with contextlib.redirect_stdout(io.StringIO()):build(None,folder/'out',**kw,results_dir=results)
             self.assertEqual(json.loads((folder/'out/analysis.json').read_text())['models'],[])
 
     def assert_nested_close(self, a, b):
@@ -234,20 +253,20 @@ class DataContracts(unittest.TestCase):
     def test_invalid_builds_do_not_replace_existing_output(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder=Path(tmp);target=folder/'out';target.mkdir();(target/'index.html').write_text('keep me')
-            cfg=folder/'config.yaml';cfg.write_text(json.dumps(config()))
+            kw=inputs(folder)
             header=','.join(row())+'\n'
             for source in ['', header, 'a,a\n1,2', header+'too,few', header+','.join(row(value='NaN').values())]:
                 path=folder/'input.csv';path.write_text(source)
-                with self.subTest(source=source), self.assertRaises(ValueError):build(path,target,cfg)
+                with self.subTest(source=source), self.assertRaises(ValueError):build(path,target,**kw)
                 self.assertEqual((target/'index.html').read_text(),'keep me')
                 self.assertEqual(len(list(target.iterdir())),1)
 
     def test_build_embeds_data_safely_and_uses_custom_categories(self):
         with tempfile.TemporaryDirectory() as tmp:
-            folder=Path(tmp);cfg=folder/'config.yaml';c=config();c['name']='</script><script>bad()</script>';cfg.write_text(json.dumps(c))
+            folder=Path(tmp);c=config();c['name']='</script><script>bad()</script>';kw=inputs(folder,c)
             path=folder/'input.csv';path.write_text('\ufeff'+','.join(row())+'\r\n'+','.join(row().values()))
             self.assertEqual(load_csv(path),[row()])
-            with contextlib.redirect_stdout(io.StringIO()):build(path,folder/'out',cfg)
+            with contextlib.redirect_stdout(io.StringIO()):build(path,folder/'out',**kw)
             html=(folder/'out/index.html').read_text();self.assertNotIn(c['name'],html)
             self.assertIn('\\u003c/script>',html)
             payload=json.loads((folder/'out/analysis.json').read_text())

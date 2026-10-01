@@ -1,30 +1,5 @@
-# Initial chance baselines. Bounds are fractions after value / score.scale.
-# Set min: 0, max: 1 to disable a correction; clip: true clips below chance to zero.
-# Per-eval rationale and sources are also shown in the dashboard.
 version: 1
-name: OELLM draft · initial chance normalization
-weights:
-  Code: 0.15
-  Math: 0.15
-  Reasoning: 0.15
-  Knowledge: 0.15
-  Commonsense: 0.15
-  Reading: 0.15
-  Translation: 0.03333333333333333
-  Language: 0.03333333333333333
-  Instruction following: 0.03333333333333333
-# The selector starts on the original aggregate; these shares configure the alternative.
-aggregate: standard
-english_weights:
-  Code: 0.5
-  Math: 0.5
-  Reasoning: 0.5
-  Knowledge: 0.5
-  Commonsense: 0.5
-  Reading: 0.5
-  Translation: 0.5
-  Language: 0.5 # Unknown/mixed scores use the English side; the Croatian/Serbian pool assigned to srp_Latn uses the other side.
-  Instruction following: 0.5
+name: OELLM eval catalogue
 evals:
   - category: Code
     name: CS Algorithms
@@ -258,14 +233,18 @@ evals:
     score:
       scale: 1
     normalize:
-      min: 0
+      # Shared 10.55% baseline; Table 2 reports approximately 10.5%.
+      min: 0.1055
       max: 1
       clip: true
-      basis: unresolved
       note: >-
-        The evaluator mixes single-choice, multiple-answer, integer, and numeric questions. A baseline
-        requires per-type guessing rules and the evaluated mixture; one fixed 1/K would be incorrect.
+        Configured 10.55% overall random baseline, aligned with the shared scoring policy. Table 2 of the
+        JEEBench paper reports an approximate 10.5% baseline. It combines
+        uniform single-choice guessing and random option subsets with partial credit for multi-answer
+        questions, assigning zero expected score to integer and numeric answers. This assumes the full
+        515-question benchmark and the paper's scoring rules.
       sources:
+        - https://aclanthology.org/2023.emnlp-main.468.pdf#page=5
         - >-
           https://github.com/mlfoundations/evalchemy/blob/6ed674159b37f740f2353a86f596f49f6ac13c19/eval/chat_benchmarks/JEEBench/eval_instruct.py
   - category: Reasoning
@@ -336,15 +315,14 @@ evals:
     score:
       scale: 1
     normalize:
-      min: 0.25016133557800224
+      min: 0.25
       max: 1
       clip: true
       basis: uniform_choice
       note: >-
-        The published ARC-V1-Feb2018 Easy test split has 2,376 questions: 2,365 with four choices, seven with
-        three, and four with five. Mean uniform-guess accuracy is (2365/4 + 7/3 + 4/5)/2376. The CSV reports
-        the same sample count; this initial baseline assumes the full published test split, not a modified
-        subset.
+        Use the conventional four-choice approximation of 0.25. The published test split includes a few
+        three- and five-choice questions (mean guessing accuracy approximately 0.2501613); this small
+        difference is intentionally ignored for consistency.
       sources:
         - https://ai2-public-datasets.s3.amazonaws.com/arc/ARC-V1-Feb2018.zip
         - https://huggingface.co/datasets/allenai/ai2_arc
@@ -538,24 +516,39 @@ evals:
     metric: acc_norm
     filter: none
     match:
-      regex: (?:piqa|global_piqa_.+)
+      regex: (?:piqa|global_piqa_completions_.+)
     score:
       scale: 1
-    select:
-      regex: (?:piqa|global_piqa_completions_.+)
     normalize:
       min: 0.5
       max: 1
       clip: true
       basis: uniform_choice
       note: >-
-        The selected completion tasks compare two solutions. Uniform guessing gives 1/2; prompted protocols
-        are excluded by the selection rule.
+        The completion tasks compare two solutions. Uniform guessing gives 1/2. Prompted Global PIQA is
+        configured separately and excluded from the supplied comparison sets.
       sources:
         - >-
           https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/tasks/piqa/piqa.yaml
         - >-
           https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/custom_lm_eval_tasks/global_piqa/completions/_template
+  - category: Commonsense
+    name: Global PIQA (prompted)
+    match:
+      regex: global_piqa_prompted_.+
+    metric: exact_match
+    filter: strict_match
+    score:
+      scale: 1
+    normalize:
+      min: 0
+      max: 1
+      clip: true
+      basis: unresolved
+      note: Provisional scale conversion only; no validated chance correction for the prompted protocol.
+    warning: >-
+      Normalization and metric selection have not been validated for prompted Global PIQA.
+      The supplied comparison sets exclude this eval. Review the protocol before including its scores.
   - category: Commonsense
     name: Social IQa
     metric: acc
@@ -713,10 +706,8 @@ evals:
           https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/tasks/lambada/lambada_openai.yaml
   - category: Reading
     name: SIB-200
-    warning: >-
-      Metric-selection exception: use acc pending investigation. In this export, acc_norm is exactly
-      0.25 for 34 of 36 languages. The cause is not established; review the evaluator and results
-      before switching this eval to the usual acc_norm preference.
+    # Use acc: acc_norm is not a reliable/useful metric for this eval in our export
+    # (exactly 0.25 for 34 of 36 languages).
     metric: acc
     filter: none
     match:
@@ -754,7 +745,7 @@ evals:
         - https://rajpurkar.github.io/SQuAD-explorer/
   - category: Translation
     name: FLORES200
-    metric: chrf
+    metric: chrf++
     filter: rescored
     match:
       regex: flores200:.+
@@ -766,16 +757,12 @@ evals:
       clip: true
       basis: not_applicable
       note: >-
-        chrF has a defined 0–100 range. Retain its native scale with no chance correction;
-        dividing by score.scale=100 yields the fraction used by the composite.
+        Select the explicit chrf++ field from the rescored export (preferred over chrf, then bleu).
+        Retain native 0–100 points with no chance correction. The CSV does not record the rescoring
+        implementation signature; the separate chrf++ label identifies the intended metric.
       sources:
         - https://github.com/mjpost/sacrebleu/blob/master/sacrebleu/metrics/chrf.py
         - https://github.com/facebookresearch/flores
-    warning: >-
-      Translation calibration is unresolved. chrF is bounded by 0 and 100, but is not accuracy.
-      Its chance floor and comparable performance levels across language pairs are not established here.
-      The composite currently uses native chrF points with no chance correction. Review this treatment
-      before using the composite to choose a training method.
   - category: Translation
     name: OpenSubtitles
     metric: chrf
@@ -789,16 +776,15 @@ evals:
       max: 1
       clip: true
       basis: not_applicable
-      note: Translation chrF is bounded by 0 and 100; retain its native scale with no chance correction.
+      note: >-
+        Select chrf: the referenced harness uses SacreBLEU defaults (char_order=6, word_order=0, beta=2),
+        so this is plain chrF, not chrF++. Prefer an explicitly identified chrF++ result when available,
+        then chrF, then BLEU. Retain native 0–100 points with no chance correction.
       sources:
         - >-
           https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/custom_lm_eval_tasks/opensubtitles_multi40/utils.py
         - https://github.com/mjpost/sacrebleu/blob/master/sacrebleu/metrics/chrf.py
-    warning: >-
-      Translation calibration is unresolved. chrF is bounded by 0 and 100, but is not accuracy.
-      Its chance floor and comparable performance levels across language pairs are not established here.
-      The composite currently uses native chrF points with no chance correction. Review this treatment
-      before using the composite to choose a training method.
+        - https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/api/metrics.py
   - category: Language
     name: Language ID
     metric: acc
@@ -859,55 +845,6 @@ evals:
         baseline.
       sources:
         - https://github.com/google-research/google-research/tree/master/instruction_following_eval
-notes:
-  - >-
-    This is a provisional composite index, not an overall accuracy or a training-method recommendation. Only
-    one model has been supplied.
-  - >-
-    The category assignments follow the supplied screenshot, including its questionable placements of CS
-    Algorithms, Dyck languages, Operators and Repeat Copy Logic. ARC Challenge and ARC Easy are separate
-    equally weighted evals.
-  - >-
-    Average selected measurements equally within each eval, evals equally within each category, and categories
-    with the specified weights. No sample-count weighting. Language variants and difficulty slices remain
-    visible. Existing MMLU and INCLUDE top-level summaries replace their children in the composite; those
-    supplied summaries may internally use different weighting.
-  - >-
-    Multiply fractional accuracy, exact match, pass@1 and CoQA F1 by 100. SQuAD v2 F1 and translation chrF
-    retain their supplied 0–100 scale. Sharing a scale does not make these metrics equally difficult,
-    calibrated or interchangeable.
-  - >-
-    Prefer acc_norm when both acc and acc_norm are exported for the selected protocol. SIB-200 retains acc
-    as an explicit, warned exception pending investigation of its repeated acc_norm values. Other metrics: flexible-extract for GSM8K/MGSM; Python pass@1 for HumanEval; overall LiveCodeBench accuracy; F1
-    for CoQA/SQuAD v2; chrF for translation; strict prompt-level accuracy for IFEval. Other metrics stay in
-    the audit.
-  - >-
-    HellaSwag uses 0-shot results throughout; its English 10-shot result is excluded. PIQA uses completion
-    scoring; prompted exact-match variants are excluded. Other evals retain the available protocols, including
-    differing shot counts.
-  - >-
-    MGSM combines native-CoT and global variants. MMLU and Global MMLU are separate evals, each with its own
-    equal share of the Knowledge category. MMLU uses its original English summary; Global MMLU averages
-    its language summaries. They have related content and should not be treated as independent evidence.
-    Agree language/protocol balance before using the composite for a decision.
-  - >-
-    SIB-200 acc_norm is 0.25 for 34 of 36 languages in this export; the draft selects raw acc. This deserves
-    inspection, but the CSV alone cannot establish the cause.
-  - >-
-    No aggregate confidence interval is reported: the CSV cannot establish cross-task or cross-model
-    covariance. A future comparison must align task, metric, filter, shot count, harness, backend, benchmark
-    versions and coverage before reporting deltas.
-  - >-
-    Comparisons use shared measurements. Missing evals are excluded from both scores and remaining evals
-    share their category weight. Empty categories are excluded and other category weights are rescaled.
-    Unmatched measurements and unconfigured tasks are listed in Warnings. Duplicate selected measurements
-    stop the build.
-  - >-
-    Initial normalization uses benchmark-defined uniform valid-choice baselines. AIME24 and AIME25 use
-    a zero minimum with no random-integer correction. These are research-based starting assumptions, not empirical random-model scores. acc_norm
-    length-normalizes option likelihoods; it is not chance correction. ARC Challenge uses an explicitly
-    approximate 25% floor; JEEBench remains uncorrected pending per-type baseline details. Values below chance
-    clip to zero at the selected-variant aggregate level, so correction does not reproduce per-item clipping.
 languages:
   - tasks:
       - AIME24

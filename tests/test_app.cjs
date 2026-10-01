@@ -1,7 +1,8 @@
 const assert=require('node:assert/strict'),fs=require('node:fs');
 const {parseCSV,selectRows,totals,pairRows,synthetic}=require('../app/app.js');
 const data=JSON.parse(fs.readFileSync(__dirname+'/../output/analysis.json')),scheme=data.scheme;
-const selected=selectRows(data.rows,scheme);
+const {scopeRows,inSuite}=require('../app/suite_config.js');
+const selected=scopeRows(selectRows(data.rows,scheme),data.suite).rows;
 assert.equal(selected.length,403);
 assert.ok(Math.abs(totals(selected,scheme,scheme.weights).score-data.models[0].score)<1e-10);
 const withoutIF=totals(selected.filter(r=>r.eval!=='IFEval'),scheme,scheme.weights);
@@ -25,9 +26,10 @@ console.log('JS checks passed: scoring, missing data, protocol matching, CSV par
 const {auditRows,buildCatalogue}=require('../app/app.js');
 const audited=auditRows(data.rows,scheme);
 assert.equal(audited.length,2124);
-assert.equal(audited.filter(r=>r.selected).length,403);
+assert.equal(scopeRows(audited,data.suite).rows.length,403);
+assert.equal(audited.filter(r=>r.selected).length,435);
 const catalogue=buildCatalogue(audited,scheme);
-assert.equal(catalogue.length,45);
+assert.equal(catalogue.length,46);
 assert.equal(catalogue.reduce((n,f)=>n+f.tasks.length,0),1556);
 assert.equal(catalogue.flatMap(f=>f.tasks).reduce((n,t)=>n+t.rows.length,0),2124);
 const he=catalogue.find(f=>f.name==='HumanEval').tasks[0];
@@ -75,7 +77,7 @@ assert.deepEqual(languageRoles({task:'not-a-known-task'},metadata),[{language:'U
 // Raw deltas stay independent of chance normalization; weighted deltas reconcile.
 const {normalizeScore,validateConfig,taskLanguage,matchTask}=require('../app/eval_config.js');
 const adjusted=structuredClone(scheme);adjusted.evals[0].normalize={min:.25,max:1};
-const ar=selectRows(data.rows,adjusted),br=synthetic(ar,adjusted),pp=pairRows(ar,br);
+const ar=scopeRows(selectRows(data.rows,adjusted),data.suite).rows,br=synthetic(ar,adjusted),pp=pairRows(ar,br);
 const rawPairs=pairRows(selected,fake);
 assert.deepEqual(pp.map(r=>r.delta),rawPairs.map(r=>r.delta));
 const contributions=comparisonRows(pp,ar,adjusted,adjusted.weights,'variant','weighted','descending');
@@ -116,16 +118,16 @@ assert.equal(breakdownAggregate([...pairs,pairs[0]]).a,breakdownAggregate(pairs)
 console.log('Hierarchy checks passed: category/eval/language and language/category/eval ordering, translation directions/pairs, filtered branches, unique aggregates.');
 
 const {collectWarnings}=require('../app/app.js');
-const baselineWarnings=collectWarnings(new Map([['real',audited]]),scheme);
+const baselineWarnings=collectWarnings(new Map([['real',audited]]),scheme,'standard',{},data.suite);
 assert.deepEqual(baselineWarnings.filter(w=>w.type==='Inconsistent scoring settings').map(w=>w.name).sort(),['ARC Challenge','MGSM','PIQA']);
-assert.deepEqual(baselineWarnings.filter(w=>w.type==='Config caveat').map(w=>w.name).sort(),['FLORES200','MultiBlimp','OpenSubtitles','SIB-200']);
+assert.deepEqual(baselineWarnings.filter(w=>w.type==='Config caveat').map(w=>w.name).sort(),['MultiBlimp']);
 const unknown=auditRows([{...data.rows[0],task:'new_task_without_config'}],scheme)[0];
 assert.equal(unknown.selected,false);assert.equal(unknown.eval,'');assert.equal(unknown.score_100,null);
 const warningRows=audited.filter(r=>r.eval!=='HumanEval').concat(unknown);
-const warnings=collectWarnings(new Map([['real',warningRows]]),scheme);
-assert.equal(warnings.length,baselineWarnings.length+2);
+const warnings=collectWarnings(new Map([['real',warningRows]]),scheme,'standard',{},data.suite);
+assert.equal(warnings.length,baselineWarnings.length+1);
 assert.ok(warnings.some(w=>w.type==='No config'&&w.name==='new_task_without_config'));
-assert.ok(warnings.some(w=>w.type==='No eval data'&&w.name==='HumanEval'));
+assert.ok(!warnings.some(w=>w.type==='No eval data'));
 const alternate=structuredClone(scheme);alternate.evals.find(e=>e.name==='HumanEval').metric='nonexistent';
 assert.ok(collectWarnings(new Map([['real',auditRows(data.rows,alternate)]]),alternate).some(w=>w.type==='No selected score'));
 console.log('Warning checks passed: unconfigured exclusion, absent evals, selected metric gaps.');
@@ -156,7 +158,7 @@ console.log('Column sort and per-task missing metric/setting checks passed.');
 // Grouped multilingual scores must expose differences in the selected protocol.
 const protocolConfig=structuredClone(scheme);
 for(const e of protocolConfig.evals)delete e.warning;
-const consistent=audited.map(r=>({...r,n_shot:'0'}));
+const consistent=audited.filter(r=>inSuite(r,data.suite)).map(r=>({...r,n_shot:'0'}));
 assert.deepEqual(collectWarnings(new Map([['real',consistent]]),protocolConfig),[]);
 for(const field of ['n_shot','filter','metric','harness','backend']){
  const changed=consistent.map(r=>r.task==='arc_challenge_mt_cs'&&r.selected?{...r,[field]:field==='n_shot'?'5':'different'}:r);
@@ -176,4 +178,4 @@ console.log('Protocol consistency and editable normalization warning checks pass
 
 for(const name of ['LSAT AR','X-CSQA','Belebele','MultiBlimp'])assert.equal(scheme.evals.find(e=>e.name===name).metric,'acc_norm');
 assert.equal(scheme.evals.find(e=>e.name==='SIB-200').metric,'acc');
-assert.match(scheme.evals.find(e=>e.name==='SIB-200').warning,/34 of 36/);
+assert.equal(scheme.evals.find(e=>e.name==='SIB-200').warning,undefined);

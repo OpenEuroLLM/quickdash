@@ -6,18 +6,21 @@ import subprocess
 from pathlib import Path
 
 
-def load_config(path):
-    """Use the same bundled YAML parser and validation as browser imports."""
-    result=subprocess.run(["node",str(Path(__file__).with_name("config_io.cjs")),str(path)],capture_output=True,text=True)
-    if result.returncode:raise ValueError(result.stderr.strip())
-    return validate_config(json.loads(result.stdout))
+def shared_config(mode, path=None, value=None):
+    """Use bundled browser parsers and set validation during builds."""
+    result = subprocess.run(["node", str(Path(__file__).with_name("config_io.cjs")), str(path) if path else "-", mode],
+                            input=json.dumps(value) if path is None else None, capture_output=True, text=True)
+    if result.returncode: raise ValueError(result.stderr.strip())
+    return json.loads(result.stdout)
+
+
+def load_catalogue(path):
+    return validate_catalogue(shared_config('catalogue', path))
 
 
 def load_csv(path):
-    """Use the browser's strict CSV parser so builds and imports accept the same files."""
-    result=subprocess.run(["node",str(Path(__file__).with_name("config_io.cjs")),str(path),'csv'],capture_output=True,text=True)
-    if result.returncode:raise ValueError(result.stderr.strip())
-    return json.loads(result.stdout)
+    return shared_config('csv', path)
+
 
 LANGUAGE_CODE = re.compile(r'(?:[a-z]{3}_[A-Z][a-z]{3}|mul)')
 DECIMAL = re.compile(r'[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?')
@@ -60,6 +63,19 @@ def validate_config(config):
     if 'english_weights' in config:
         object_keys(config['english_weights'],set(weights))
         if any(not number(v) or v<0 or v>1 for v in config['english_weights'].values()):raise ValueError('English weights must be between 0 and 1')
+    validate_rules(config)
+    if any(e['category'] not in weights for e in config['evals']):raise ValueError('Eval category has no weight')
+    return config
+
+
+def validate_catalogue(config):
+    object_keys(config, {'version','name','evals','languages','notes'}, {'version','name','evals','languages'})
+    return validate_rules(config)
+
+
+def validate_rules(config):
+    if config['version'] != 1 or isinstance(config['version'], bool):raise ValueError('Unsupported config version')
+    if not isinstance(config['name'], str) or not config['name'].strip():raise ValueError('Config name is required')
     if not isinstance(config.get('notes',[]),list) or any(not isinstance(n,str) for n in config.get('notes',[])):raise ValueError('Notes must be strings')
     if not isinstance(config['evals'],list) or not config['evals']:raise ValueError('At least one eval is required')
     names=set();categories=set()
@@ -67,7 +83,7 @@ def validate_config(config):
         object_keys(e,{'name','category','match','metric','filter','shots','select','score','normalize','warning'}, {'name','category','match','metric','filter','score'})
         if not isinstance(e['name'],str) or not e['name'] or e['name'] in names:raise ValueError('Eval names must be unique and nonempty')
         names.add(e['name'])
-        if not isinstance(e['category'],str) or e['category'] not in weights:raise ValueError('Eval category has no weight: '+str(e['category']))
+        if not isinstance(e['category'],str) or not e['category'].strip():raise ValueError('Eval category must be text')
         categories.add(e['category'])
         if not isinstance(e['metric'],str) or not e['metric'] or not isinstance(e['filter'],str):raise ValueError('Metric and filter must be strings')
         validate_match(e['match'])
@@ -83,7 +99,6 @@ def validate_config(config):
             if 'basis' in n and n['basis'] not in ['uniform_choice','uniform_integer','not_applicable','unresolved']:raise ValueError('Invalid normalization basis')
             if 'note' in n and not isinstance(n['note'],str):raise ValueError('Normalization note must be text')
             if 'sources' in n and (not isinstance(n['sources'],list) or any(not isinstance(u,str) or not re.match(r'^https?://',u) for u in n['sources'])):raise ValueError('Normalization sources must be HTTP(S) URLs')
-    if categories!=set(weights):raise ValueError('Each weighted category needs at least one eval')
     seen=set()
     if not isinstance(config['languages'],list):raise ValueError('languages must be a list')
     for group in config['languages']:
@@ -136,7 +151,7 @@ def task_language(task,config):
 
 
 def classify(rows,config):
-    validate_config(config);audit=[];seen=set()
+    (validate_config if 'weights' in config else validate_catalogue)(config);audit=[];seen=set()
     for index,source in enumerate(rows):
         r=dict(source)
         for field in ['checkpoint','task','metric','filter','n_shot','harness','backend','value']:
