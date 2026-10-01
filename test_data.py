@@ -33,6 +33,79 @@ def javascript(cases, expression):
 
 
 class DataContracts(unittest.TestCase):
+    def test_empty_dashboard_contains_config_but_no_models(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);cfg=folder/'config.yaml';cfg.write_text(json.dumps(config()))
+            with contextlib.redirect_stdout(io.StringIO()):build(None,folder/'out',cfg)
+            data=json.loads((folder/'out/analysis.json').read_text())
+            self.assertEqual(data['rows'],[]);self.assertEqual(data['models'],[])
+            self.assertEqual(data['scheme'],config());self.assertTrue((folder/'out/index.html').is_file())
+
+    def test_empty_rebuild_removes_stale_generated_scores(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);cfg=folder/'config.yaml';cfg.write_text(json.dumps(config()))
+            source=folder/'scores.csv';r=row();source.write_text(','.join(r)+'\n'+','.join(r.values()))
+            out=folder/'out'
+            with contextlib.redirect_stdout(io.StringIO()):build(source,out,cfg)
+            self.assertEqual(len(list(out.glob('*.csv'))),4)
+            (out/'personal-note.txt').write_text('keep')
+            with contextlib.redirect_stdout(io.StringIO()):build(None,out,cfg)
+            self.assertEqual(list(out.glob('*.csv')),[])
+            self.assertEqual((out/'personal-note.txt').read_text(),'keep')
+
+    def test_config_choices_are_embedded_and_validated_before_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);cfg=folder/'default.yaml';cfg.write_text(json.dumps(config()));configs=folder/'configs';configs.mkdir()
+            alternate=config();alternate['name']='Alternate';alternate['english_weights']={'C':.5};alternate['aggregate']='english_eval'
+            (configs/'alternate.yml').write_text(json.dumps(alternate))
+            with contextlib.redirect_stdout(io.StringIO()):build(None,folder/'out',cfg,configs_dir=configs)
+            data=json.loads((folder/'out/analysis.json').read_text())
+            self.assertEqual([p['config']['name'] for p in data['configurations']],['Fixture','Alternate'])
+            self.assertEqual(data['configurations'][1]['config']['aggregate'],'english_eval')
+            (configs/'duplicate.yaml').write_text(json.dumps(alternate))
+            previous=(folder/'out/index.html').read_bytes()
+            with self.assertRaisesRegex(ValueError,'duplicate config name'):build(None,folder/'out',cfg,configs_dir=configs)
+            self.assertEqual((folder/'out/index.html').read_bytes(),previous)
+            (configs/'duplicate.yaml').unlink();alternate['evals'][0]['score']['scale']=.1
+            (configs/'alternate.yml').write_text(json.dumps(alternate));r=row();source=folder/'scores.csv';source.write_text(','.join(r)+'\n'+','.join(r.values()))
+            with self.assertRaisesRegex(ValueError,'alternate.yml.*Invalid score'):build(source,folder/'out',cfg,configs_dir=configs)
+            self.assertEqual((folder/'out/index.html').read_bytes(),previous)
+
+    def test_cli_rejects_both_csv_and_results_directory(self):
+        result=subprocess.run(['python3',str(ROOT/'build.py'),'unused.csv','--results-dir','unused'],capture_output=True,text=True)
+        self.assertEqual(result.returncode,2);self.assertIn('not both',result.stderr)
+
+    def test_shared_results_directory_combines_models(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);results=folder/'results';results.mkdir();cfg=folder/'config.yaml';cfg.write_text(json.dumps(config()))
+            (results/'README.md').write_text('Not a CSV')
+            for name in ['B','A']:
+                r=row(checkpoint=name);(results/(name+'.csv')).write_text(','.join(r)+'\n'+','.join(r.values()))
+            with contextlib.redirect_stdout(io.StringIO()):build(None,folder/'out',cfg,results_dir=results)
+            data=json.loads((folder/'out/analysis.json').read_text())
+            self.assertEqual([m['model'] for m in data['models']],['A','B'])
+            self.assertEqual([s['file'] for s in data['sources']],['A.csv','B.csv'])
+            self.assertTrue(all(len(s['sha256'])==64 for s in data['sources']))
+
+    def test_shared_results_reject_duplicate_model_names_without_replacing_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);results=folder/'results';results.mkdir();out=folder/'out';out.mkdir();(out/'index.html').write_text('keep')
+            cfg=folder/'config.yaml';cfg.write_text(json.dumps(config()))
+            for name in ['one','two']:
+                r=row(task='task_'+name);(results/(name+'.csv')).write_text(','.join(r)+'\n'+','.join(r.values()))
+            with self.assertRaisesRegex(ValueError,'Model A.*one.csv.*two.csv'):build(None,out,cfg,results_dir=results)
+            self.assertEqual((out/'index.html').read_text(),'keep')
+
+    def test_shared_results_report_bad_filename_and_reject_missing_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);cfg=folder/'config.yaml';cfg.write_text(json.dumps(config()))
+            with self.assertRaisesRegex(ValueError,'directory'):build(None,folder/'out',cfg,results_dir=folder/'missing')
+            results=folder/'results';results.mkdir();r=row(value='NaN');(results/'bad.csv').write_text(','.join(r)+'\n'+','.join(r.values()))
+            with self.assertRaisesRegex(ValueError,'bad.csv.*Model A.*task_en'):build(None,folder/'out',cfg,results_dir=results)
+            (results/'bad.csv').unlink()
+            with contextlib.redirect_stdout(io.StringIO()):build(None,folder/'out',cfg,results_dir=results)
+            self.assertEqual(json.loads((folder/'out/analysis.json').read_text())['models'],[])
+
     def assert_nested_close(self, a, b):
         if isinstance(a, dict):
             self.assertEqual(a.keys(), b.keys())

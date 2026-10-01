@@ -1,0 +1,28 @@
+# Share evaluation results
+
+Add a CSV directly to this directory to make its models available on the [shared dashboard](https://openeurollm.github.io/quickdash/). You can use GitHub’s **Add file → Upload files** or submit a pull request. After the change reaches `main`, the Pages workflow validates the inputs and rebuilds the site.
+
+**This repository and its dashboard are public.** Commit only results you intend to share publicly, including any source paths or metadata in the CSV. For private comparisons, use the dashboard’s **Add model CSV** button instead; those files stay in your browser. The ignored `data/` directory is for local exports.
+
+Use a descriptive filename such as `method-a-100k.csv`. Each row needs these columns:
+
+```csv
+checkpoint,task,metric,filter,n_shot,harness,backend,value
+method-a-100k,my_eval_en,acc_norm,none,0,lm-eval,vllm,0.72
+```
+
+The row above illustrates the format; `my_eval_en` needs a matching eval entry and an explicit language assignment in the chosen YAML config. See [CSV requirements](../CONFIG.md#data-validation-and-failure-behavior) and [adding configurations](../configs/README.md).
+
+- Use a distinct `checkpoint` label for each model/run. A file may contain several models, but a label cannot occur in two files. Replace a model’s existing file when updating it, or give a new run a new label.
+- Keep raw metric values in their original scale. The config chooses the metric and applies normalization.
+- Only CSV files directly in this directory are loaded; subdirectories are not scanned.
+- Malformed files, duplicate labels, and invalid selected scores stop the build. Missing eval coverage or an unconfigured task appears as a warning in the dashboard; it is excluded from the relevant score.
+- Review each configuration’s warnings when comparing results. Different configs can select different metrics, evals, and normalizations from the same CSVs.
+
+To check a contribution locally:
+
+```sh
+python3 build.py --results-dir results --configs-dir configs --output output/shared
+```
+
+Open `output/shared/index.html`, select your model, and inspect **Warnings** and **Eval configuration**. Removing a CSV and rebuilding removes its models from the published page. A failed build leaves the last successful site online.

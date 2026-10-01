@@ -2,6 +2,16 @@
 
 Edit `eval-config.yaml`, then load it in **Eval configuration → Load config**, or rebuild with `python3 build.py DATA.csv --config CONFIG.yaml`. Browser imports apply to every loaded real model and regenerate the synthetic comparison. If validation fails, the active config and scores remain unchanged. **Export config YAML** includes current category weights, English shares, and the selected aggregate; use that exported file when building to persist the choices.
 
+## Shared config choices and results
+
+The default config is selected with `--config` (the root `eval-config.yaml` when omitted). Add `--configs-dir configs` to embed the YAML files directly in that directory as additional choices. Each config’s `name` must be unique. See [adding shared configs](configs/README.md).
+
+The page’s **Eval configuration** selector applies one config to every loaded model. Switching resets scoring weights, English shares, and the aggregate to that config’s values. Export edits before switching if you want to keep them. A temporary YAML upload appears as an uploaded choice for the current session; switching to a shared config replaces it. Reload restores the published defaults.
+
+`--results-dir results` embeds all CSVs directly in that directory. Each checkpoint label must occur in only one file, although one file may contain multiple models. Every config is validated against all shared inputs before a build replaces output. Missing coverage is permitted with warnings; invalid selected scores, duplicate config names, or invalid config schemas stop the build. Browser config changes are also validated against all loaded models and roll back on failure.
+
+An empty results directory, or a build without a CSV or results directory, starts with no models. Users can select a config and import CSVs afterward. **Clear models** clears the current comparison without removing config choices. Build metadata in `analysis.json` records input filenames and SHA-256 hashes under `sources`, and available config choices under `configurations`.
+
 ## Complete small example
 
 This config selects `acc_norm` for two explicit language variants of a four-choice eval. Additional categories and evals follow the same structure.
