@@ -37,7 +37,7 @@ jobs:
             > "$RUNNER_TEMP/quickdash-chrome.log" 2>&1 &
           quickdash_chrome_pid=$!
           trap 'kill "$quickdash_chrome_pid" 2>/dev/null || true' EXIT
-          node test_public_browser.mjs
+          node test_public_browser.mjs || { cat "$RUNNER_TEMP/quickdash-chrome.log"; exit 1; }
       - name: Build shared results and the fictional demo
         run: |
           python3 build.py --results-dir results --configs-dir configs \
