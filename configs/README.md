@@ -4,7 +4,7 @@ Choose the file to edit based on what you want to change:
 
 - **Interpret a new eval:** add its task matching, category, scoring metric, normalization, and explicit language assignments to [catalogue.yaml](catalogue.yaml). Adding a rule does not require every model to run it.
 - **Try different weighting:** add a YAML profile to [weights/](weights/). It can be used with any eval set. Category weights, English shares, and the default calculation live here.
-- **Require a standard comparison set:** add a YAML file to [sets/](sets/). [flagship-1.yaml](sets/flagship-1.yaml) pins expected tasks and shot counts; [any-available.yaml](sets/any-available.yaml) needs no list and compares shared data.
+- **Require a standard comparison set:** add a YAML file to [sets/](sets/). [flagship-1.yaml](sets/flagship-1.yaml) pins expected tasks and shot counts; [any-available.yaml](sets/any-available.yaml) needs no required-eval list and compares shared data, with an explicit exclusion for unvalidated prompted Global PIQA.
 
 Each profile or set needs a distinct `name` within its directory. To change a selector's startup choice, edit that directory's `default.txt` to name one YAML file. The catalogue is selected at build time with `--catalogue`, or temporarily loaded in the browser.
 

@@ -25,7 +25,7 @@ class AnalysisTests(unittest.TestCase):
  def test_complete_source_coverage(self):
   self.assertEqual(len(DATA['rows']),2124)
   self.assertTrue(all(r['eval'] for r in DATA['rows']))
-  self.assertEqual(len(DATA['models'][0]['evals']),45)
+  self.assertEqual(len([e for e in DATA['models'][0]['evals'] if not e['excluded']]),45)
  def test_selected_measurements_unique(self):
   rr=[r for r in DATA['rows'] if r['selected']]
   keys=[tuple(r[k] for k in ['task','metric','filter','n_shot','harness','backend']) for r in rr]
@@ -132,7 +132,7 @@ class AnalysisTests(unittest.TestCase):
   self.assertIsNone(result['score_100']);self.assertIn('No eval config',result['decision'])
  def test_chance_baselines_and_raw_score_preservation(self):
   evals={e['name']:e for e in CONFIG['evals']}
-  expected={'SIB-200':1/7,'Language ID':1/11,'Social IQa':1/3,'HellaSwag':.25,'PIQA':.5,'CommonsenseQA':.2,'AIME24':0,'AIME25':0,'JEEBench':.105,'ARC Easy':(2365/4+7/3+4/5)/2376}
+  expected={'SIB-200':1/7,'Language ID':1/11,'Social IQa':1/3,'HellaSwag':.25,'PIQA':.5,'CommonsenseQA':.2,'AIME24':0,'AIME25':0,'JEEBench':.105,'ARC Easy':.25}
   for name,chance in expected.items():
    e=evals[name];self.assertEqual(e['normalize']['min'],chance)
    self.assertAlmostEqual(normalize_score(chance*e['score']['scale'],e)[1],0)
@@ -144,7 +144,10 @@ class AnalysisTests(unittest.TestCase):
   c=deepcopy(CONFIG)
   for e in c['evals']:e['normalize']={'min':0,'max':1}
   raw=classify(DATA['rows'],c)
-  self.assertAlmostEqual(summarize(raw,c)[0]['score'],50.04555748071083)
-  self.assertLess(DATA['models'][0]['score'],50.04555748071083)
+  scoped=shared_config('scope',value=[raw,DATA['suite']])['rows']
+  from statistics import mean
+  expected_raw=sum(weight*mean(mean(r['raw_score_100'] for r in scoped if r['eval']==e) for e in {r['eval'] for r in scoped if r['category']==category}) for category,weight in c['weights'].items())
+  self.assertAlmostEqual(summarize(scoped,c)[0]['score'],expected_raw)
+  self.assertLess(DATA['models'][0]['score'],expected_raw)
   self.assertEqual([r['raw_score_100'] for r in raw],[r['raw_score_100'] for r in DATA['rows']])
 if __name__=='__main__': unittest.main()

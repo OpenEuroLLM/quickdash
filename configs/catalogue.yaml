@@ -314,15 +314,14 @@ evals:
     score:
       scale: 1
     normalize:
-      min: 0.25016133557800224
+      min: 0.25
       max: 1
       clip: true
       basis: uniform_choice
       note: >-
-        The published ARC-V1-Feb2018 Easy test split has 2,376 questions: 2,365 with four choices, seven with
-        three, and four with five. Mean uniform-guess accuracy is (2365/4 + 7/3 + 4/5)/2376. The CSV reports
-        the same sample count; this initial baseline assumes the full published test split, not a modified
-        subset.
+        Use the conventional four-choice approximation of 0.25. The published test split includes a few
+        three- and five-choice questions (mean guessing accuracy approximately 0.2501613); this small
+        difference is intentionally ignored for consistency.
       sources:
         - https://ai2-public-datasets.s3.amazonaws.com/arc/ARC-V1-Feb2018.zip
         - https://huggingface.co/datasets/allenai/ai2_arc
@@ -516,24 +515,39 @@ evals:
     metric: acc_norm
     filter: none
     match:
-      regex: (?:piqa|global_piqa_.+)
+      regex: (?:piqa|global_piqa_completions_.+)
     score:
       scale: 1
-    select:
-      regex: (?:piqa|global_piqa_completions_.+)
     normalize:
       min: 0.5
       max: 1
       clip: true
       basis: uniform_choice
       note: >-
-        The selected completion tasks compare two solutions. Uniform guessing gives 1/2; prompted protocols
-        are excluded by the selection rule.
+        The completion tasks compare two solutions. Uniform guessing gives 1/2. Prompted Global PIQA is
+        configured separately and excluded from the supplied comparison sets.
       sources:
         - >-
           https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/tasks/piqa/piqa.yaml
         - >-
           https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/custom_lm_eval_tasks/global_piqa/completions/_template
+  - category: Commonsense
+    name: Global PIQA (prompted)
+    match:
+      regex: global_piqa_prompted_.+
+    metric: exact_match
+    filter: strict_match
+    score:
+      scale: 1
+    normalize:
+      min: 0
+      max: 1
+      clip: true
+      basis: unresolved
+      note: Provisional scale conversion only; no validated chance correction for the prompted protocol.
+    warning: >-
+      Normalization and metric selection have not been validated for prompted Global PIQA.
+      The supplied comparison sets exclude this eval. Review the protocol before including its scores.
   - category: Commonsense
     name: Social IQa
     metric: acc
@@ -730,7 +744,7 @@ evals:
         - https://rajpurkar.github.io/SQuAD-explorer/
   - category: Translation
     name: FLORES200
-    metric: chrf
+    metric: chrf++
     filter: rescored
     match:
       regex: flores200:.+
@@ -742,16 +756,12 @@ evals:
       clip: true
       basis: not_applicable
       note: >-
-        chrF has a defined 0–100 range. Retain its native scale with no chance correction;
-        dividing by score.scale=100 yields the fraction used by the composite.
+        Select the explicit chrf++ field from the rescored export (preferred over chrf, then bleu).
+        Retain native 0–100 points with no chance correction. The CSV does not record the rescoring
+        implementation signature; the separate chrf++ label identifies the intended metric.
       sources:
         - https://github.com/mjpost/sacrebleu/blob/master/sacrebleu/metrics/chrf.py
         - https://github.com/facebookresearch/flores
-    warning: >-
-      Translation calibration is unresolved. chrF is bounded by 0 and 100, but is not accuracy.
-      Its chance floor and comparable performance levels across language pairs are not established here.
-      The composite currently uses native chrF points with no chance correction. Review this treatment
-      before using the composite to choose a training method.
   - category: Translation
     name: OpenSubtitles
     metric: chrf
@@ -765,16 +775,15 @@ evals:
       max: 1
       clip: true
       basis: not_applicable
-      note: Translation chrF is bounded by 0 and 100; retain its native scale with no chance correction.
+      note: >-
+        Select chrf: the referenced harness uses SacreBLEU defaults (char_order=6, word_order=0, beta=2),
+        so this is plain chrF, not chrF++. Prefer an explicitly identified chrF++ result when available,
+        then chrF, then BLEU. Retain native 0–100 points with no chance correction.
       sources:
         - >-
           https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/custom_lm_eval_tasks/opensubtitles_multi40/utils.py
         - https://github.com/mjpost/sacrebleu/blob/master/sacrebleu/metrics/chrf.py
-    warning: >-
-      Translation calibration is unresolved. chrF is bounded by 0 and 100, but is not accuracy.
-      Its chance floor and comparable performance levels across language pairs are not established here.
-      The composite currently uses native chrF points with no chance correction. Review this treatment
-      before using the composite to choose a training method.
+        - https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/api/metrics.py
   - category: Language
     name: Language ID
     metric: acc

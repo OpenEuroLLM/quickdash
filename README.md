@@ -7,7 +7,7 @@ A standalone, offline dashboard for comparing model evaluation scores. Explore c
 ## Compare models
 
 1. Select shared models as A and B, or use **Add model CSV** to open your exports. With one real model, a labelled synthetic comparison is supplied for exploring the interface.
-2. Choose a **Weighting profile**. Leave **Eval set** on **Any available** to compare the measurements both models have, or select **flagship-1** to check an expected set. Weights and eval sets are independent.
+2. Choose a **Weighting profile**. Leave **Eval set** on **Any available** to compare the measurements both models have, or select **flagship-1** to check an expected set. Weights and eval sets are independent. The supplied sets exclude prompted Global PIQA pending scoring validation.
 3. Review **Warnings**, then explore the scores and breakdowns. The global catalogue determines how to interpret each eval: category, scoring field, normalization, and language assignments.
 
 Files opened here stay in your browser; they are not uploaded. Changes last until reload. **Clear models** removes the loaded models while keeping settings. Under **Eval configuration**, load or export the catalogue, weights, and eval set as separate YAML files. Weight exports include your edits and active score calculation.
@@ -73,7 +73,7 @@ Application code lives in `app/`, tests in `tests/`, and contributor documentati
 
 ```sh
 python3 -m unittest tests.test_data
-node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs
+node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs
 ```
 
 See [development and publishing](docs/development.md) for the source layout, browser tests, and GitHub Pages workflow.

@@ -46,7 +46,7 @@ assert.throws(()=>validateConfig({...config,aggregate:'oops'}));
 console.log('English-share arithmetic, coverage, translation, contribution reconciliation, filters, and validation passed.');
 const data=require('../output/analysis.json');
 for(const mode of ['standard','english_eval','english_category']){
- const actual=totals(data.rows.filter(r=>r.selected),data.scheme,data.scheme.weights,mode),expected=data.aggregates[mode][0];
+ const actual=totals(require('../app/suite_config.js').scopeRows(data.rows,data.suite).rows,data.scheme,data.scheme.weights,mode),expected=data.aggregates[mode][0];
  close(actual.score,expected.score);
  for(const c of actual.categories)close(c.score,expected.categories.find(x=>x.name===c.name).score);
  for(const e of actual.evals){const x=expected.evals.find(x=>x.name===e.name);close(e.weight,x.weight);close(e.contribution,x.contribution);}

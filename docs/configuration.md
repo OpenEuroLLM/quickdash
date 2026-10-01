@@ -13,7 +13,7 @@ Quickdash separates four inputs: model results, a weighting profile, an optional
 
 The **Weighting profile** and **Eval set** selectors operate independently. Switching a profile resets category weights, English shares, and the calculation to that profile's values, leaving the eval set unchanged. Switching eval sets preserves your current weights and calculation. Export edits before switching profiles if you want to keep them.
 
-**Any available** uses recognized selected measurements shared by A and B. Measurements present on only one side generate comparison warnings and are excluded from both scores. Catalogue entries absent from both models do not generate warnings.
+**Any available** uses recognized selected measurements shared by A and B. Measurements present on only one side generate comparison warnings and are excluded from both scores. Catalogue entries absent from both models do not generate warnings. The supplied freeform set explicitly excludes prompted Global PIQA pending validation; present data for it generates a **Not used** warning.
 
 **flagship-1** names the expected 45 evals and 403 task/shot requirements for the flagship comparison. A required measurement missing from either or both models generates a warning. Extra selected measurements are excluded with warnings, but remain inspectable in **Eval configuration**. The dashboard labels the score **INCOMPLETE**, shows shared/required coverage, and redistributes weights across the shared subset. Do not interpret an incomplete score as covering the full named set. Exact comparison identity still includes metric, filter, shots, harness, and backend; incompatible protocols cannot satisfy shared coverage just by sharing a task name.
 
@@ -32,13 +32,17 @@ evals:
 
 Omitting `variants` requires at least one shared selected measurement for that eval and permits all its variants. Omitting `n_shot` accepts any shot count, but A and B must still match each other's protocol. Required tasks must match the named catalogue eval and its `select`/`shots` restrictions. Duplicate or overlapping requirements, unknown eval names, and unknown fields are errors. Metric and normalization choices belong only in the catalogue. Eval sets never contain weights.
 
-The default needs no required-eval list:
+Freeform mode needs no required-eval list. It can optionally exclude evals by their exact catalogue names:
 
 ```yaml
 version: 1
 name: Any available
 mode: available
+exclude:
+  - Global PIQA (prompted)
 ```
+
+`exclude` is allowed only in available mode and must contain unique names. An excluded name absent from the active catalogue is harmless, so a set can be reused with another catalogue. Fixed sets already exclude everything outside their membership. Exclusions warn whenever matching eval data is present, including rows containing only an alternate metric. Alternate fields or summary children of a selected eval do not generate unused-eval warnings merely because a preferred field or summary is selected.
 
 A weighting profile works with either mode:
 
@@ -149,9 +153,9 @@ The supplied config applies the following baselines. Per-eval `normalize.sources
 | 0 | AIME24 and AIME25: no chance correction |
 | ≈0.105 | JEEBench: overall random baseline from the paper |
 | ≈1/4 | ARC Challenge: initial approximation, including translated variants |
-| ≈0.2501613 | ARC Easy: average 1/choice_count across the published 2,376-question test split |
+| 1/4 | ARC Easy: conventional approximation despite a few questions with different option counts |
 
-The choice-based baselines model uniform *valid* guesses; JEEBench uses the paper's mixed-format guessing policy described below. These are not measured random-language-model or majority-class baselines. AIME24 and AIME25 use a zero floor without a uniform-integer guessing correction. ARC Easy assumes the full published test split, whose size matches this export. Sources describe task definitions, but the CSV does not pin the exact run's dataset revision.
+The choice-based baselines model uniform *valid* guesses; JEEBench uses the paper's mixed-format guessing policy described below. These are not measured random-language-model or majority-class baselines. AIME24 and AIME25 use a zero floor without a uniform-integer guessing correction. ARC Easy uses 0.25 for consistency; the full published split has mean random accuracy approximately 0.2501613. Sources describe task definitions, but the CSV does not pin the exact run's dataset revision.
 
 ARC Challenge uses an approximate 25% baseline. In its published test split, 1,165 of 1,172 questions have four options, four have three, and three have five, giving an exact mean of about 25.0156%. The approximation is also applied to translated variants, whose individual choice counts have not all been audited. JEEBench uses the approximate 10.5% overall random baseline reported in [Table 2 of its paper](https://aclanthology.org/2023.emnlp-main.468.pdf#page=5). This combines single-choice guessing and random option subsets with partial credit, assigning zero expected score to integer and numeric answers. It assumes the full 515-question benchmark with those scoring rules.
 
@@ -204,7 +208,15 @@ The supplied config prefers `acc_norm` over `acc` when both exist for the select
 
 For each selected real model, the dashboard compares the sets of selected settings per task within each eval: `n_shot`, `metric`, `filter`, `harness`, and `backend`. Different sets generate one warning naming the settings, with expandable lists of affected tasks and their explicit language assignments (source → target for translation). Identical sets across tasks are consistent even if each task has multiple settings. Excluded alternate metrics, summary children, and protocols do not trigger this check. The current data has mismatches for MGSM (0/5 shots), ARC Challenge (0/10), and PIQA (0/10). These warnings do not exclude scores; use the YAML selection rules to choose comparable protocols after reviewing coverage. Fields absent from the CSV, such as prompt templates or dataset revisions, cannot be compared.
 
-Both translation evals use chrF, which is bounded by 0 and 100 in [SacreBLEU](https://github.com/mjpost/sacrebleu/blob/master/sacrebleu/metrics/chrf.py). `score.scale: 100` and `normalize: {min: 0, max: 1}` preserve native chrF points. The open question is calibration against accuracy metrics and between language pairs, including a meaningful chance floor; a shared numerical range does not settle those questions. Each translation config carries an editable `warning` while this remains unresolved. The composite continues to include translation at the configured weight.
+Translation metric preference is **chrF++ > chrF > BLEU**. The catalogue records an explicit selection based on the available, identified fields: FLORES200 uses `chrf++` with filter `rescored`; OpenSubtitles uses `chrf` with filter `none`. FLORES200's export has separate `chrf` and `chrf++` rows, but does not record a rescoring signature. Do not infer the variant from a generic “chrF” label alone.
+
+The referenced [OpenSubtitles task](https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/custom_lm_eval_tasks/opensubtitles_multi40/_opensubtitles_multi40_common.yaml) selects the harness's `chrf` aggregation. The [harness implementation](https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/api/metrics.py) uses SacreBLEU defaults: character order 6, word order 0, beta 2. That is plain chrF; chrF++ adds word n-grams through word order 2. Update the catalogue if a better identified metric becomes available. A model missing the configured metric warns and is excluded; the browser does not silently compare different metrics or substitute BLEU.
+
+Both translation evals retain native 0–100 points (`score.scale: 100`, `normalize: {min: 0, max: 1}`), without chance correction. This accepted policy is documented in their notes rather than flagged as an unresolved caveat. A shared numerical range does not imply equal difficulty across metrics or language pairs.
+
+Completion-based PIQA retains `acc_norm` and a 0.5 baseline. **Global PIQA (prompted)** has a separate interpretation rule for `exact_match` / `strict_match`, a provisional zero floor, and a warning that normalization and metric selection have not been validated. It is excluded by the supplied Any available set and omitted from flagship-1. Its data generates a **Not used** notice while excluded. Including it in a custom set surfaces its scoring caveat; configuration inspection always shows the attached warning.
+
+With these defaults, MultiBlimp's Croatian/Serbian pooling is the only configured caveat for included evals. Runtime warnings for coverage, inconsistent settings, missing fields, and unused data still apply.
 
 MMLU and Global MMLU have separate eval configs and aggregates. MMLU selects only `mmlu`; Global MMLU selects `global_mmlu_full_[a-z]+` language summaries. Subject-level rows stay available for inspection but are excluded from both composites. Both evals retain the four-choice 25% floor and each gets one equal share of Knowledge.
 
@@ -275,14 +287,14 @@ Builds and browser imports use the same CSV parser. Required columns are `checkp
 | Task has no eval config, or lacks the configured metric/filter/shots | Warn and exclude from scoring. Alternate metrics remain inspectable and never silently substitute for the configured metric. |
 | Measurements match only one of the compared models | Warn; use only shared measurements and redistribute weights. |
 | Named set requirement is missing from either or both models | Warn and mark the set incomplete; compare the shared subset. |
-| Selected measurement is outside a named set | Warn and exclude it from that set; keep it in the audit. |
+| Eval/task data is not selected by a named set or freeform exclusion | Show **Not used** and exclude it, even if only an alternate metric exists; keep it in the audit. |
 | Catalogue rule has no results in either model | No warning unless required by the selected named set. |
 | Shared category has no profile weight | Warn; zero contribution until a weight is assigned. |
 | Selected task has no explicit language assignment | Warn and retain the score. Language views show Unknown; English-balance modes use the English fallback. Known mixed-language pools use the documented fallback without claiming a resolved single language. |
 | Selected variants use inconsistent scoring settings | Warn and retain scores so the reviewer can inspect the protocols. |
 | Matched A/B measurements report different positive `n_samples` | Warn and retain scores; sample count does not determine score weights. Review whether dataset coverage is comparable. |
 | Supplied `n_samples` is not a positive integer | Warn and retain scores; omit it from sample-count comparisons. Absent/blank sample counts are allowed. |
-| Eval has a YAML `warning` | Show the caveat for selected real models containing the eval, and alongside its configuration. |
+| Eval has a YAML `warning` | Show the caveat in Warnings when the eval has shared comparison data. Always show it in its configuration details. Excluded evals get **Not used**, not an active scoring caveat. |
 | No shared data with positive category weight | Show an unavailable composite (`—`), never an invented zero. |
 
 Invalid model/config imports leave the active models, settings, and scores unchanged, including multi-model files where a later model is invalid. Build input validation completes before existing output files are replaced. Warnings are calculated from the current config and loaded results; fixing or removing the underlying issue removes its warning. Fields not used for scoring, such as source paths and standard errors, remain audit information; their presence is not a guarantee that dataset revisions or prompts match. Invalid values in excluded alternate metrics remain visible but are not normalized using the selected metric's scale.

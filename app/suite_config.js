@@ -5,10 +5,11 @@ const SuiteConfig=(()=>{
  const keys=(o,allowed,required=[])=>{if(!o||typeof o!=='object'||Array.isArray(o)||Object.keys(o).some(k=>!allowed.includes(k))||required.some(k=>!Object.hasOwn(o,k)))throw Error('Invalid config fields; allowed '+allowed.join(', '));};
  const text=v=>typeof v==='string'&&v.trim().length>0;
  function validateSuite(s){
-  keys(s,['version','name','mode','evals','notes'],['version','name','mode']);
+  keys(s,['version','name','mode','evals','exclude','notes'],['version','name','mode']);
   if(s.version!==1||!text(s.name))throw Error('Suite requires version 1 and a name');
   if(!['available','fixed'].includes(s.mode))throw Error('Suite mode must be available or fixed');
   if('notes'in s&&(!Array.isArray(s.notes)||s.notes.some(n=>typeof n!=='string')))throw Error('Suite notes must be strings');
+  if('exclude'in s&&(s.mode!=='available'||!Array.isArray(s.exclude)||s.exclude.some(n=>!text(n))||new Set(s.exclude).size!==s.exclude.length))throw Error('exclude must be a unique list of eval names in available mode');
   if(s.mode==='available'){if('evals'in s)throw Error('Available mode does not declare required evals');return s;}
   if(!Array.isArray(s.evals)||!s.evals.length)throw Error('Fixed suite needs required evals');
   const names=new Set();
@@ -50,7 +51,7 @@ const SuiteConfig=(()=>{
   return api.validateConfig({version:1,name:catalogue.name,evals,languages:catalogue.languages,weights:{...profile.weights,...Object.fromEntries(evals.filter(e=>!Object.hasOwn(profile.weights,e.category)).map(e=>[e.category,0]))},english_weights:{...profile.english_weights},aggregate:profile.aggregate||'standard',notes:[...(catalogue.notes||[]),...(profile.notes||[])]});
  }
  function inSuite(row,suite){
-  if(suite.mode==='available')return true;
+  if(suite.mode==='available')return !(suite.exclude||[]).includes(row.eval);
   const e=suite.evals.find(e=>e.name===row.eval);
   return !!e&&(!e.variants||e.variants.some(v=>v.task===row.task&&(!('n_shot'in v)||String(v.n_shot)===String(row.n_shot))));
  }
@@ -65,8 +66,7 @@ const SuiteConfig=(()=>{
  function suiteCoverage(a,b,suite){
   const left=scopeRows(a,suite),right=scopeRows(b,suite),warnings=[];
   for(const [side,scope] of [['A',left],['B',right]]){
-   for(const name of new Set(scope.missing.map(r=>r.eval))){const rr=scope.missing.filter(r=>r.eval===name);warnings.push({type:'Missing suite data',name,eval:name,model:side,detail:rr.length+' requirement(s) missing from '+suite.name+'. Comparison is incomplete; shared scores are used with redistributed weights.',variants:[{settings:'Required in '+side,tasks:rr.map(r=>r.task?(r.task+('n_shot'in r&&r.n_shot!==undefined?' · '+r.n_shot+' shots':'')):'Any selected measurement for '+r.eval)}]});}
-   for(const name of new Set(scope.extras.map(r=>r.eval))){const rr=scope.extras.filter(r=>r.eval===name);warnings.push({type:'Outside suite',name,eval:name,model:side,detail:rr.length+' selected measurement(s) are outside '+suite.name+' and excluded from its score. Inspect them in Eval configuration.',variants:[{settings:'Extra results in '+side,tasks:rr.map(r=>r.task+' · '+r.n_shot+' shots')}]});}
+   for(const name of new Set(scope.missing.map(r=>r.eval))){const rr=scope.missing.filter(r=>r.eval===name);warnings.push({type:'Missing suite data',name,eval:name,model:side,detail:rr.length+' requirement(s) missing from '+suite.name+'. Missing results are excluded from both calculations. Comparison is incomplete; shared scores are used with redistributed weights.',variants:[{settings:'Required in '+side,tasks:rr.map(r=>r.task?(r.task+('n_shot'in r&&r.n_shot!==undefined?' · '+r.n_shot+' shots':'')):'Any selected measurement for '+r.eval)}]});}
   }
   const identity=r=>JSON.stringify(['task','metric','filter','n_shot','harness','backend'].map(k=>String(r[k]??'')));
   const rightKeys=new Set(right.rows.map(identity)),shared=scopeRows(left.rows.filter(r=>rightKeys.has(identity(r))),suite);

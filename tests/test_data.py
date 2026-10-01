@@ -102,6 +102,17 @@ class DataContracts(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'no catalogue rule'):build(None,out,**kw,sets_dir=sets)
             self.assertEqual((out/'index.html').read_bytes(),previous)
 
+    def test_available_set_exclusions_apply_in_build_summaries(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);kw=inputs(folder)
+            excluded=dict(version=1,name='Excluded',mode='available',exclude=['Eval'])
+            (folder/'set.yaml').write_text(json.dumps(excluded));kw['suite_path']=folder/'set.yaml'
+            source=folder/'scores.csv';r=row();source.write_text(','.join(r)+'\n'+','.join(r.values()))
+            with contextlib.redirect_stdout(io.StringIO()):build(source,folder/'out',**kw)
+            data=json.loads((folder/'out/analysis.json').read_text())
+            self.assertEqual(len(data['rows']),1);self.assertTrue(data['rows'][0]['selected'])
+            self.assertIsNone(data['models'][0]['score']);self.assertEqual(data['models'][0]['evals'][0]['count'],0)
+
     def test_named_set_scopes_score_but_keeps_full_audit(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder=Path(tmp);kw=inputs(folder)

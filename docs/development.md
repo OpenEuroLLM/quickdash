@@ -32,7 +32,7 @@ These tests use small fixtures and run from a fresh checkout without private eva
 
 ```sh
 python3 -m unittest tests.test_data
-node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs
+node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs
 ```
 
 They cover input validation, normalization, warning/exclusion behavior, failed-build preservation, Python/JavaScript parity, hierarchy sorting, and deterministic randomized scoring comparisons against an independent calculation.
@@ -58,7 +58,7 @@ The full-export regression tests require the original private CSV at `data/v2zlo
 ```sh
 python3 -m app.build data/v2zloss_86k.flag-evals-436.tasks.csv
 python3 -m unittest tests.test_analysis tests.test_data
-node --test tests/test_app.cjs tests/test_english.cjs tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs
+node --test tests/test_app.cjs tests/test_english.cjs tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs
 ```
 
 With the isolated Chrome session above running, use `node tests/test_browser.mjs` for the full-export browser checks: filtering, sortable hierarchies, scroll preservation, warnings, model swapping, header alignment, and mobile layouts. Screenshots go into the ignored `output/` directory.

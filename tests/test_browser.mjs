@@ -19,7 +19,7 @@ await send('Page.navigate',{url:new URL('../output/index.html',import.meta.url).
 for(let i=0;i<50;i++){if(await evaluate("!!document.querySelector('#cards strong')"))break;await new Promise(r=>setTimeout(r,100));}
 assert.equal(await evaluate("document.querySelector('#cards strong').textContent"),initialScore);
 assert.equal(await evaluate("document.querySelectorAll('[data-view]').length"),6);
-assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'6');
+assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'5');
 assert.equal(await evaluate("document.querySelector('#filters').hidden"),true);
 assert.match(await evaluate("document.querySelector('#weightEditor .notice').textContent"),/saved but inactive/);
 const englishScore=JSON.parse(fs.readFileSync(root+'output/analysis.json','utf8')).aggregates.english_category[0].score.toFixed(2);
@@ -40,7 +40,7 @@ assert.notEqual(await evaluate("document.querySelector('#cards strong').textCont
 await change('[data-english-weight="Math"]','0.5');
 await change('[data-english-weight="Code"]','0.5');
 assert.equal(await evaluate("document.querySelector('#cards strong').textContent"),englishScore);
-assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'6');
+assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'5');
 assert.match(await evaluate("document.querySelector('#view').textContent"),/English weighting group only · full weight/);
 await click('#weightEditor > summary');
 assert.equal(await evaluate("document.querySelectorAll('#weights tbody tr').length"),9);
@@ -237,7 +237,7 @@ assert.match(await evaluate("document.querySelector('#view').textContent"),/Comp
 for(const mode of ['standard','english_eval','english_category']){await click('[data-aggregate='+mode+']');assert.equal(await evaluate("document.querySelector('#cards .score-card:last-child strong').textContent"),'0.00');}
 // Reload restores the original export before the remaining import checks.
 await send('Page.reload');
-for(let i=0;i<50;i++){await new Promise(r=>setTimeout(r,100));if(await evaluate("document.querySelector('#warningCount')?.textContent==='6'"))break;}
+for(let i=0;i<50;i++){await new Promise(r=>setTimeout(r,100));if(await evaluate("document.querySelector('#warningCount')?.textContent==='5'"))break;}
 await click('[data-view=config]');
 await evaluate(`window.loadTestConfig=async config=>{for(const [selector,object] of [['#weightsFile',Object.fromEntries(Object.entries(config).filter(([k])=>['version','name','weights','english_weights','aggregate'].includes(k)))],['#configFile',Object.fromEntries(Object.entries(config).filter(([k])=>!['weights','english_weights','aggregate'].includes(k)))]]){const dt=new DataTransfer();dt.items.add(new File([jsyaml.dump(object,{schema:jsyaml.CORE_SCHEMA})],'config.yaml'));const e=document.querySelector(selector);e.files=dt.files;await document.querySelector('#view').onchange({target:e});if(document.querySelector('#error').textContent)break;}};`);
 // English shares and the active aggregate are editable and portable in YAML.
@@ -263,7 +263,7 @@ await evaluate(`URL.createObjectURL=originalCreate;HTMLAnchorElement.prototype.c
 // Missing configuration is a warning and exclusion, not a failed import.
 await evaluate(`(async()=>{const c=structuredClone(DATA.scheme);c.evals.find(e=>e.name==='HumanEval').match={name:'absent_eval_task'};await loadTestConfig(c);})()`);
 assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
-assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'7');
+assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'6');
 assert.equal(await evaluate("document.querySelector('#warningCount').classList.contains('has-warnings')"),true);
 await click('[data-view=warnings]');
 assert.match(await evaluate("document.querySelector('#view').textContent"),/No config.*HumanEval/);
@@ -271,19 +271,19 @@ assert.doesNotMatch(await evaluate("document.querySelector('#view').textContent"
 assert.equal(await evaluate("document.querySelector('#filters').hidden"),true);
 await screenshot('warnings-preview');
 await click('[data-view=config]');await evaluate(`loadTestConfig(DATA.scheme)`);
-assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'6');
+assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'5');
 assert.equal(await evaluate("document.querySelector('#warningCount').classList.contains('has-warnings')"),true);
 // Warnings expose concrete settings and editable config caveats.
 await click('[data-view=warnings]');
 assert.match(await evaluate("document.querySelector('#view').textContent"),/Inconsistent scoring settings.*MGSM.*0 shots.*5 shots/s);
-assert.match(await evaluate("document.querySelector('#view').textContent"),/Translation calibration is unresolved/);
+assert.match(await evaluate("document.querySelector('#view').textContent"),/Not used.*Global PIQA \(prompted\)/s);
 await click('[data-view=config]');
 assert.match(await evaluate(`document.querySelector('[data-eval="ARC Challenge"] > summary').textContent`),/Inconsistent scoring settings/);
 assert.doesNotMatch(await evaluate(`document.querySelector('[data-eval="SIB-200"] .normalization-info').textContent`),/Metric-selection exception/);
 assert.match(await evaluate(`document.querySelector('[data-eval="JEEBench"] > summary').textContent`),/10.50% baseline/);
 assert.match(await evaluate(`document.querySelector('[data-eval="JEEBench"] .normalization-info').textContent`),/Table 2/);
-assert.match(await evaluate(`document.querySelector('[data-eval="FLORES200"] .normalization-info').textContent`),/bounded by 0 and 100/);
-assert.match(await evaluate(`document.querySelector('[data-eval="OpenSubtitles"] .normalization-info').textContent`),/bounded by 0 and 100/);
+assert.match(await evaluate(`document.querySelector('[data-eval="FLORES200"] .normalization-info').textContent`),/0–100 points/g);
+assert.match(await evaluate(`document.querySelector('[data-eval="OpenSubtitles"] .normalization-info').textContent`),/0–100 points/g);
 await click('[data-eval="Language ID"] > summary');
 await click('[data-task="bigbench_language_identification_multiple_choice"] > summary');
 assert.match(await evaluate(`document.querySelector('[data-task="bigbench_language_identification_multiple_choice"] .task-details').textContent`),/English-balance group: English \(fallback/);
@@ -299,8 +299,8 @@ await click('[data-eval="MultiBlimp"] > summary');
 
 for(const name of ['AIME24','AIME25'])assert.match(await evaluate(`document.querySelector('[data-eval="${name}"] .normalization-info').textContent`),/random_score = 0/);
 // Custom caveats survive import/export and can be removed when resolved.
-await evaluate(`(async()=>{const c=structuredClone(DATA.scheme);delete c.evals.find(e=>e.name==='FLORES200').warning;await loadTestConfig(c);})()`);
-assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'5');
+await evaluate(`(async()=>{const c=structuredClone(DATA.scheme);delete c.evals.find(e=>e.name==='MultiBlimp').warning;await loadTestConfig(c);})()`);
+assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'4');
 await evaluate(`loadTestConfig(DATA.scheme)`);
 // Normalization is visible without opening individual language variants.
 assert.match(await evaluate(`document.querySelector('[data-eval="SIB-200"] > summary').textContent`),/14.29% baseline/);

@@ -78,7 +78,7 @@ try{
  assert.equal(await evaluate("document.querySelector('#weightPreset').value"),'1');
  await click('[data-view=warnings]');
  assert.match(await evaluate("document.querySelector('#view').textContent"),/Missing suite data.*example_reasoning_de/s);
- assert.match(await evaluate("document.querySelector('#view').textContent"),/Outside suite/);
+ assert.match(await evaluate("document.querySelector('#view').textContent"),/Not used/);
  await click('[data-view=config]');
  assert.match(await evaluate("document.querySelector('#view').textContent"),/Example math/);
  await click('[data-view=score]');await change('[data-weight=Reasoning]','.8');await change('[data-weight=Math]','.2');
@@ -121,6 +121,17 @@ try{
  await navigate(pathToFileURL(path.join(fixedBuild,'index.html')).href);
  assert.match(await evaluate("document.querySelector('#coverage').textContent"),/Reasoning only.*Complete.*2 extra measurements excluded/);
  await click('[data-view=config]');assert.match(await evaluate("document.querySelector('#view').textContent"),/Example math/);
+ // Caveats follow comparison membership; excluded data remains inspectable with its caveat.
+ const caveated=structuredClone(fixture);caveated.evals[1].warning='Example math requires review.';
+ await upload('#configFile',serializeCatalogue(caveated),'caveat.yaml');
+ await click('[data-view=warnings]');
+ assert.match(await evaluate("document.querySelector('#view').textContent"),/Not used.*Example math/s);
+ assert.doesNotMatch(await evaluate("document.querySelector('#view').textContent"),/Example math requires review/);
+ await click('[data-view=config]');
+ assert.match(await evaluate("document.querySelector('[data-eval=\"Example math\"] .normalization-info').textContent"),/Example math requires review/);
+ await upload('#suiteFile',serializeSuite({version:1,name:'Freeform',mode:'available'}),'freeform.yaml');
+ await click('[data-view=warnings]');
+ assert.match(await evaluate("document.querySelector('#view').textContent"),/Config caveat.*Example math requires review/s);
  assert.deepEqual(errors,[]);assert.deepEqual(network,[],'Loading and comparing local files must not send HTTP requests');
  console.log('Public browser checks passed: empty start, shared models, independent weights and eval sets, required coverage, temporary uploads, rollback, clear models and no uploads.');
 }finally{
