@@ -7,10 +7,10 @@ assert.deepEqual(parseCatalogue(serializeCatalogue(config)),config);
 // approximate JEEBench baseline; neither is an unresolved config caveat.
 const sib=config.evals.find(e=>e.name==='SIB-200'),jee=config.evals.find(e=>e.name==='JEEBench');
 assert.equal(sib.metric,'acc');assert.equal(sib.warning,undefined);
-assert.equal(jee.normalize.min,.105);assert.equal(jee.normalize.max,1);
+assert.equal(jee.normalize.min,.1055);assert.equal(jee.normalize.max,1);
 assert.equal(jee.normalize.clip,true);assert.notEqual(jee.normalize.basis,'unresolved');
 assert.equal(jee.warning,undefined);
-for(const [value,expected] of [[0,0],[.105,0],[.5525,50],[1,100]]){
+for(const [value,expected] of [[0,0],[.105,0],[.1055,0],[.55275,50],[1,100]]){
  const score=normalizeScore(value,jee);
  assert.ok(Math.abs(score.score_100-expected)<1e-10);
  assert.ok(Math.abs(score.raw_score_100-value*100)<1e-10);

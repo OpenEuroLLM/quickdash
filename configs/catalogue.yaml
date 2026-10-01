@@ -233,12 +233,13 @@ evals:
     score:
       scale: 1
     normalize:
-      # Approximate overall random baseline from the JEEBench paper, Table 2.
-      min: 0.105
+      # Shared 10.55% baseline; Table 2 reports approximately 10.5%.
+      min: 0.1055
       max: 1
       clip: true
       note: >-
-        Approximate 10.5% overall random baseline from Table 2 of the JEEBench paper. It combines
+        Configured 10.55% overall random baseline, aligned with the shared scoring policy. Table 2 of the
+        JEEBench paper reports an approximate 10.5% baseline. It combines
         uniform single-choice guessing and random option subsets with partial credit for multi-answer
         questions, assigning zero expected score to integer and numeric answers. This assumes the full
         515-question benchmark and the paper's scoring rules.

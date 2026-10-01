@@ -151,13 +151,13 @@ The supplied config applies the following baselines. Per-eval `normalize.sources
 | 1/7 | SIB-200: seven topic labels |
 | 1/11 | Language ID: 11 candidate names per question, despite 1,000 languages in the corpus |
 | 0 | AIME24 and AIME25: no chance correction |
-| ≈0.105 | JEEBench: overall random baseline from the paper |
+| 0.1055 | JEEBench: shared 10.55% baseline; the paper reports approximately 10.5% |
 | ≈1/4 | ARC Challenge: initial approximation, including translated variants |
 | 1/4 | ARC Easy: conventional approximation despite a few questions with different option counts |
 
 The choice-based baselines model uniform *valid* guesses; JEEBench uses the paper's mixed-format guessing policy described below. These are not measured random-language-model or majority-class baselines. AIME24 and AIME25 use a zero floor without a uniform-integer guessing correction. ARC Easy uses 0.25 for consistency; the full published split has mean random accuracy approximately 0.2501613. Sources describe task definitions, but the CSV does not pin the exact run's dataset revision.
 
-ARC Challenge uses an approximate 25% baseline. In its published test split, 1,165 of 1,172 questions have four options, four have three, and three have five, giving an exact mean of about 25.0156%. The approximation is also applied to translated variants, whose individual choice counts have not all been audited. JEEBench uses the approximate 10.5% overall random baseline reported in [Table 2 of its paper](https://aclanthology.org/2023.emnlp-main.468.pdf#page=5). This combines single-choice guessing and random option subsets with partial credit, assigning zero expected score to integer and numeric answers. It assumes the full 515-question benchmark with those scoring rules.
+ARC Challenge uses an approximate 25% baseline. In its published test split, 1,165 of 1,172 questions have four options, four have three, and three have five, giving an exact mean of about 25.0156%. The approximation is also applied to translated variants, whose individual choice counts have not all been audited. JEEBench uses a 10.55% overall random baseline to match the shared scoring policy; [Table 2 of its paper](https://aclanthology.org/2023.emnlp-main.468.pdf#page=5) reports approximately 10.5%. This combines single-choice guessing and random option subsets with partial credit, assigning zero expected score to integer and numeric answers. It assumes the full 515-question benchmark with those scoring rules.
 
 AMC23 is open-ended in the selected evaluator: the original contest's answer options are removed. Code generation, translation chrF, overlap F1, and other open-ended exact-match tasks do not receive an invented chance baseline.
 

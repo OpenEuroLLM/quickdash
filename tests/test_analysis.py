@@ -132,7 +132,7 @@ class AnalysisTests(unittest.TestCase):
   self.assertIsNone(result['score_100']);self.assertIn('No eval config',result['decision'])
  def test_chance_baselines_and_raw_score_preservation(self):
   evals={e['name']:e for e in CONFIG['evals']}
-  expected={'SIB-200':1/7,'Language ID':1/11,'Social IQa':1/3,'HellaSwag':.25,'PIQA':.5,'CommonsenseQA':.2,'AIME24':0,'AIME25':0,'JEEBench':.105,'ARC Easy':.25}
+  expected={'SIB-200':1/7,'Language ID':1/11,'Social IQa':1/3,'HellaSwag':.25,'PIQA':.5,'CommonsenseQA':.2,'AIME24':0,'AIME25':0,'JEEBench':.1055,'ARC Easy':.25}
   for name,chance in expected.items():
    e=evals[name];self.assertEqual(e['normalize']['min'],chance)
    self.assertAlmostEqual(normalize_score(chance*e['score']['scale'],e)[1],0)

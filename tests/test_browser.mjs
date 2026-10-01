@@ -280,7 +280,7 @@ assert.match(await evaluate("document.querySelector('#view').textContent"),/Not 
 await click('[data-view=config]');
 assert.match(await evaluate(`document.querySelector('[data-eval="ARC Challenge"] > summary').textContent`),/Inconsistent scoring settings/);
 assert.doesNotMatch(await evaluate(`document.querySelector('[data-eval="SIB-200"] .normalization-info').textContent`),/Metric-selection exception/);
-assert.match(await evaluate(`document.querySelector('[data-eval="JEEBench"] > summary').textContent`),/10.50% baseline/);
+assert.match(await evaluate(`document.querySelector('[data-eval="JEEBench"] > summary').textContent`),/10.55% baseline/);
 assert.match(await evaluate(`document.querySelector('[data-eval="JEEBench"] .normalization-info').textContent`),/Table 2/);
 assert.match(await evaluate(`document.querySelector('[data-eval="FLORES200"] .normalization-info').textContent`),/0–100 points/g);
 assert.match(await evaluate(`document.querySelector('[data-eval="OpenSubtitles"] .normalization-info').textContent`),/0–100 points/g);
