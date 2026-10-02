@@ -2,6 +2,8 @@
 
 Add a CSV directly to this directory to make its models available on the [shared dashboard](https://openeurollm.github.io/quickdash/). You can use GitHub’s **Add file → Upload files** or submit a pull request. After the change reaches `main`, the Pages workflow validates the inputs and rebuilds the site.
 
+Until this directory contains a CSV, Pages shows the [sample dataset and synthetic comparisons](../examples/README.md). Adding the first shared CSV replaces the sample; removing all shared CSVs restores it on the next successful build.
+
 **This repository and its dashboard are public.** Commit only results you intend to share publicly, including any source paths or metadata in the CSV. For private comparisons, use the dashboard’s **Add model CSV** button instead; those files stay in your browser. The ignored `data/` directory is for local exports.
 
 Use a descriptive filename such as `method-a-100k.csv`. Each row needs these columns:

@@ -11,14 +11,14 @@ Run commands from the repository root. Install the Python package with `python -
 | `tests/` | Public contract tests, browser checks, and optional private-export regressions. |
 | `configs/` | Global catalogue, weighting profiles, optional named sets, and fictional examples. |
 | `results/` | Public CSV exports contributed to the shared dashboard. |
-| `examples/` | Fictional input data for the demo and tests. |
+| `examples/` | Public sample export for Pages and parity tests, plus small fictional quickstart data. |
 | `docs/` | Configuration and contributor documentation. |
 | `data/`, `output/` | Ignored local inputs and generated files. |
 
 ## Build and inspect a change
 
 ```sh
-python3 -m app.build --results-dir results --output output/shared
+python3 -m app.build --results-dir results --sample-csv examples/sample-evals.csv --output output/shared
 python3 -m app.build examples/scores.csv --catalogue configs/examples/catalogue.yaml \
   --weights configs/examples/weights.yaml --eval-set configs/sets/any-available.yaml --output output/demo
 ```
@@ -88,7 +88,7 @@ This optional check compares included rows, weights, contributions, scores and d
 
 ## Publish through GitHub Pages
 
-The [workflow](../.github/workflows/pages.yml) runs public tests on pull requests and pushes to `main`. After tests pass, it builds the shared dashboard and a separate fictional demo. Only `output/site/` is uploaded as the Pages artifact: `index.html`, `demo.html`, and license files. The repository root and private local output are not published as the site.
+The [workflow](../.github/workflows/pages.yml) runs public tests on pull requests and pushes to `main`. After tests pass, it builds the shared dashboard and a separate fictional demo. When `results/` has no CSVs, the shared page embeds `examples/sample-evals.csv`; real shared CSVs take precedence. The sample also runs through both engines in CI for all shipped weighting profiles, eval sets, and aggregation modes, with complete and mismatched coverage. See [contributor requirements](../AGENTS.md). Only `output/site/` is uploaded as the Pages artifact: `index.html`, `demo.html`, and license files. The repository root and private local output are not published as the site.
 
 In repository **Settings → Pages**, select **GitHub Actions** as the source. Publishing uses the generated artifact rather than a checked-in root or `docs/` folder. A successful push to `main` deploys automatically; a failed build leaves the last successful site available. Review build or deployment failures in the repository’s **Actions** tab.
 

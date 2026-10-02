@@ -69,8 +69,9 @@ def config_choices(path, directory, kind, default_directory):
     return path, choices
 
 
-def build(source, output, catalogue_path=None, results_dir=None, *, weights_path=None, weights_dir=None, suite_path=None, sets_dir=None):
+def build(source, output, catalogue_path=None, results_dir=None, *, weights_path=None, weights_dir=None, suite_path=None, sets_dir=None, sample_csv=None):
     if source is not None and results_dir is not None: raise ValueError('Choose a CSV or --results-dir, not both')
+    if sample_csv is not None and results_dir is None: raise ValueError('--sample-csv requires --results-dir')
     catalogue_path = catalogue_path or ROOT/'configs/catalogue.yaml'
     catalogue = load_catalogue(catalogue_path)
     weights_path, profiles = config_choices(weights_path, weights_dir, 'weights', ROOT/'configs/weights')
@@ -83,6 +84,8 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
     suite, profile = suites[0]['config'], profiles[0]['config']
     config = resolve_config(catalogue, suite, profile)
     paths=[source] if source is not None else directory_files(results_dir,{'.csv'}) if results_dir is not None else []
+    using_sample = not paths and sample_csv is not None
+    if using_sample: paths = [sample_csv]
     rows=[];audit=[];sources=[];owners={}
     for path in paths:
         try:
@@ -113,7 +116,7 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
     if metadata:write_csv(output/'language-metadata.csv', metadata)
     payload = dict(diagnostics=diagnostics,catalogue=catalogue, catalogue_file=catalogue_path.name, suite=suite, suite_file=suite_path.name,
                    profile=profile, profile_file=weights_path.name, suites=suites, profiles=profiles,
-                   metadata=metadata, scheme=config, models=summary, aggregates=aggregates, rows=audit, sources=sources,
+                   sample_models=sorted(owners) if using_sample else [], metadata=metadata, scheme=config, models=summary, aggregates=aggregates, rows=audit, sources=sources,
                    source=source.name if source else results_dir.name if results_dir else '', sha256=sources[0]['sha256'] if len(sources)==1 else None)
     (output/'catalogue.yaml').write_text(catalogue_path.read_text())
     (output/'weights.yaml').write_text(weights_path.read_text())
@@ -128,6 +131,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('csv', type=Path, nargs='?', help='CSV to embed; omit to start without results')
     parser.add_argument('--results-dir', type=Path, help='Embed all CSV files directly inside this directory')
+    parser.add_argument('--sample-csv', type=Path, help='Fallback CSV when --results-dir contains no CSVs')
     parser.add_argument('--catalogue', type=Path, help='Global eval interpretation YAML; default: configs/catalogue.yaml')
     parser.add_argument('--weights', type=Path, help='Default weighting profile YAML; used alone, embed only this profile')
     parser.add_argument('--weights-dir', type=Path, help='Offer weighting profiles from this directory (default: configs/weights)')
@@ -136,4 +140,4 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=Path, default=ROOT/'output')
     args = parser.parse_args()
     if args.csv is not None and args.results_dir is not None: parser.error('Choose a CSV or --results-dir, not both')
-    build(args.csv, args.output, args.catalogue, args.results_dir, weights_path=args.weights, weights_dir=args.weights_dir, suite_path=args.eval_set, sets_dir=args.sets_dir)
+    build(args.csv, args.output, args.catalogue, args.results_dir, weights_path=args.weights, weights_dir=args.weights_dir, suite_path=args.eval_set, sets_dir=args.sets_dir, sample_csv=args.sample_csv)

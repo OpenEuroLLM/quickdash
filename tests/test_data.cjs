@@ -154,3 +154,27 @@ test('300 varied comparisons reconcile all aggregates, row weights, filters and 
   }
  }
 });
+
+
+test('synthetic choices preserve coverage and scale, are deterministic, and never mutate input',()=>{
+ const {synthetic,syntheticOptions,isDemoModel}=require('../app/analysis.js');
+ const c=config();c.evals[0].score.scale=100;
+ const rows=auditRows([row({value:'0'}),row({task:'task_fr',value:'60'}),row({task:'task_de',value:'100'})],c),before=structuredClone(rows);
+ const results=syntheticOptions.map(option=>{
+  assert.ok(isDemoModel(option.name));
+  assert.throws(()=>auditRows([row({checkpoint:option.name})],c),/reserved/i);
+  const actual=synthetic(rows,c,option);
+  assert.deepEqual(actual,synthetic(rows,c,option));
+  assert.deepEqual(actual.map(r=>r.task),rows.map(r=>r.task));
+  for(const r of actual){
+   assert.equal(r.checkpoint,option.name);
+   assert.ok(r.raw_score_100>=0&&r.raw_score_100<=100);
+   close(r.raw_score_100,Number(r.value));
+   close(r.score_100,normalizeScore(r.value,c.evals[0]).score_100);
+   assert.equal(r.stderr,'');
+  }
+  return actual;
+ });
+ assert.equal(new Set(results.map(rows=>JSON.stringify(rows.map(r=>r.value)))).size,syntheticOptions.length);
+ assert.deepEqual(rows,before);
+});

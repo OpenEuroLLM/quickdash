@@ -4,9 +4,11 @@ A standalone, offline dashboard for comparing model evaluation scores. Explore c
 
 **[Open the dashboard](https://openeurollm.github.io/quickdash/)** or **[try the fictional example](https://openeurollm.github.io/quickdash/demo.html)**. No installation is needed to use either page.
 
+While no shared CSVs have been added to `results/`, the main page opens with our [sample eval export](examples/README.md) and synthetic comparison choices. Shared CSVs replace that fallback automatically on the next successful deployment.
+
 ## Compare models
 
-1. Select shared models as A and B, or use **Add model CSV** to open your exports. With one real model, a labelled synthetic comparison is supplied for exploring the interface.
+1. Select shared models as A and B, or use **Add model CSV** to open your exports. Three labelled synthetic comparisons (perturbed, higher, and lower scores) are supplied for exploring the interface.
 2. Choose a **Weighting profile**. Leave **Eval set** on **Any available** to compare the measurements both models have, or select **flagship-1** to check an expected set. Weights and eval sets are independent. The supplied sets exclude prompted Global PIQA pending scoring validation.
 3. Review **Warnings**, then explore the scores and breakdowns. The global catalogue determines how to interpret each eval: category, scoring field, normalization, and language assignments.
 
@@ -44,10 +46,10 @@ The example compares two fictional models with a multilingual reasoning eval and
 To build the shared dashboard, including all shared results and config choices:
 
 ```sh
-python3 -m app.build --results-dir results --output output/shared
+python3 -m app.build --results-dir results --sample-csv examples/sample-evals.csv --output output/shared
 ```
 
-An empty `results/` directory produces a page ready for local CSV imports. To start without embedded models regardless of the directory’s contents, omit `--results-dir`.
+The sample is used only when `results/` contains no CSVs. Omit `--sample-csv` to leave an empty results directory upload-ready; omit both options to start without embedded models regardless of shared data.
 
 For private exports, put your CSV in the ignored `data/` directory:
 

@@ -194,6 +194,30 @@ class DataContracts(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'Duplicate model'):build(None,out,**kw,results_dir=results)
             self.assertEqual((out/'index.html').read_bytes(),previous)
 
+    def test_sample_is_used_only_for_an_empty_results_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);kw=inputs(folder);results=folder/'results';results.mkdir();out=folder/'out'
+            sample=folder/'sample.csv';r=row(checkpoint='Sample')
+            sample.write_text(','.join(r)+'\n'+','.join(r.values()))
+            with contextlib.redirect_stdout(io.StringIO()):
+                build(None,out,**kw,results_dir=results,sample_csv=sample)
+            data=json.loads((out/'analysis.json').read_text())
+            self.assertEqual(data['sample_models'],['Sample'])
+            self.assertEqual([m['model'] for m in data['models']],['Sample'])
+            self.assertEqual(data['sources'][0]['file'],'sample.csv')
+            r=row(checkpoint='Shared');(results/'real.csv').write_text(','.join(r)+'\n'+','.join(r.values()))
+            # A real dataset wins even if the fallback path is unavailable.
+            with contextlib.redirect_stdout(io.StringIO()):
+                build(None,out,**kw,results_dir=results,sample_csv=folder/'absent.csv')
+            data=json.loads((out/'analysis.json').read_text())
+            self.assertEqual(data['sample_models'],[])
+            self.assertEqual([m['model'] for m in data['models']],['Shared'])
+            (results/'real.csv').write_text('invalid')
+            with self.assertRaises(ValueError):build(None,out,**kw,results_dir=results,sample_csv=sample)
+            with self.assertRaisesRegex(ValueError,'sample.*results-dir'):
+                build(None,out,**kw,sample_csv=sample)
+            with self.assertRaises(ValueError):build(None,out,**kw,results_dir=folder/'missing',sample_csv=sample)
+
     def test_shared_results_report_bad_filename_and_reject_missing_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder=Path(tmp);kw=inputs(folder)
@@ -268,7 +292,7 @@ class DataContracts(unittest.TestCase):
         for field in ['checkpoint', 'task', 'metric', 'harness', 'backend']:
             invalid.extend(row(**{field: value}) for value in ['', ' ', None, 1])
         invalid.extend(row(n_shot=value) for value in ['', '-1', '1.5', 'NaN', '00', '1e1', True, None])
-        invalid.extend([row(filter=None), row(value=True), row(checkpoint='SYNTHETIC demo — perturbed')])
+        invalid.extend([row(filter=None), row(value=True), row(checkpoint='SYNTHETIC demo — perturbed'), row(checkpoint='SYNTHETIC demo — higher scores')])
         cases = [dict(rows=[r], config=config()) for r in invalid]
         for c, js in zip(cases, javascript(cases, 'api.auditRows(c.rows,c.config)')):
             with self.subTest(row=c['rows']):

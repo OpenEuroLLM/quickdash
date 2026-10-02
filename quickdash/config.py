@@ -367,7 +367,7 @@ def classify(rows, config):
         for field in ["checkpoint", "task", "metric", "harness", "backend"]:
             if not isinstance(r[field], str) or not r[field].strip():
                 raise ValueError(f"CSV row {index + 2}: {field} must be nonempty text")
-        if r["checkpoint"] == "SYNTHETIC demo — perturbed":
+        if r["checkpoint"].startswith("SYNTHETIC demo — "):
             raise ValueError("Checkpoint name is reserved for the synthetic demo")
         if not isinstance(r["filter"], str):
             raise ValueError(

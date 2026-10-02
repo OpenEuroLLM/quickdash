@@ -80,6 +80,7 @@ The builder embeds YAML profiles directly in `configs/weights/` and sets directl
 - `--weights PATH` chooses a profile; used alone, it embeds only that profile. `--weights-dir DIR` offers the profiles in another directory and uses its `default.txt` unless an explicit profile is supplied.
 - `--eval-set PATH` and `--sets-dir DIR` work the same way for eval sets.
 - `--results-dir DIR` embeds CSVs directly in that directory. A checkpoint label may occur in only one file; one file can contain multiple models.
+- `--sample-csv FILE`, used with `--results-dir`, supplies a fallback only if that directory has no CSVs. Invalid shared files stop the build; they never trigger the fallback. Pages uses `examples/sample-evals.csv` for this option.
 
 Every offered set is validated against the catalogue and every profile before writing output. Raw results are classified once by the global catalogue; changing sets only changes comparison membership. An empty results directory, or no CSV input, starts without models.
 
@@ -355,7 +356,7 @@ Builds and browser imports use the same CSV parser. Required columns are `checkp
 | Empty CSV, missing columns, invalid identity fields, malformed quotes, inconsistent row widths | Reject the file with an error. |
 | Invalid YAML/schema, ambiguous eval matches, duplicate selected measurements within a model | Reject the config or file; never silently pick a rule or duplicate. |
 | Selected score is blank, nonnumeric, nonfinite, or outside `0..score.scale` | Reject with CSV row, model, task, and metric in the error. Decimal and scientific notation are accepted; booleans and hexadecimal values are not scores. |
-| New model uses an already loaded checkpoint name or the reserved synthetic-demo name | Reject the import. Give the model a distinct checkpoint label. |
+| New model uses an already loaded checkpoint name or a name starting with the reserved `SYNTHETIC demo — ` prefix | Reject the import. Give the model a distinct checkpoint label. |
 | Task has no eval config, or lacks the configured metric/filter/shots | Warn and exclude from scoring. Alternate metrics remain inspectable and never silently substitute for the configured metric. |
 | Measurements match only one of the compared models | Warn; use only shared measurements and redistribute weights. |
 | Named set requirement is missing from either or both models | Warn and mark the set incomplete; compare the shared subset. |

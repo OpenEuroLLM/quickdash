@@ -125,6 +125,7 @@ class Engines(unittest.TestCase):
                 cwd=ROOT,
             )
         )
+        self.assertEqual(len(js), len(cases), "Every case must produce a JS result")
         results = []
         for i, (case, other) in enumerate(zip(cases, js)):
             py = native(case)
@@ -134,6 +135,66 @@ class Engines(unittest.TestCase):
                     self.close(semantics(py["value"]), semantics(other["value"]))
             results.append((py, other))
         return results
+
+    def test_published_sample_across_all_shipped_configs(self):
+        # Discover files so adding a profile or set automatically extends parity coverage.
+        rows = parse_csv((ROOT / "examples/sample-evals.csv").read_text())
+        a = rows[0]["checkpoint"]
+        b = "Parity comparison"
+        copy = [{**r, "checkpoint": b} for r in rows]
+        profiles = sorted(
+            p
+            for p in (ROOT / "configs/weights").iterdir()
+            if p.suffix in {".yaml", ".yml"}
+        )
+        suites = sorted(
+            p
+            for p in (ROOT / "configs/sets").iterdir()
+            if p.suffix in {".yaml", ".yml"}
+        )
+        self.assertTrue(profiles)
+        self.assertTrue(suites)
+        for weights in profiles:
+            for suite in suites:
+                config = load_config(
+                    catalogue=ROOT / "configs/catalogue.yaml",
+                    weights=weights,
+                    eval_set=suite,
+                )
+                for mode in ("standard", "english_eval", "english_category"):
+                    config["profile"]["aggregate"] = mode
+                    with self.subTest(
+                        weights=weights.name, suite=suite.name, mode=mode
+                    ):
+                        cases = [
+                            dict(config=config, rows=rows),
+                            dict(
+                                config=config,
+                                rows=rows + copy,
+                                operation="compare",
+                                a=a,
+                                b=b,
+                            ),
+                            dict(
+                                config=config,
+                                rows=rows + [r for i, r in enumerate(copy) if i % 7],
+                                operation="compare",
+                                a=a,
+                                b=b,
+                            ),
+                        ]
+                        for outputs in self.both(cases):
+                            for result in outputs:
+                                self.assertNotIn("error", result)
+                                report = result["value"]
+                                models = report.get(
+                                    "models", [report.get("a"), report.get("b")]
+                                )
+                                for model in models:
+                                    self.assertIsNotNone(model["score"])
+                                    self.check_tree(model["tree"])
+                        # Matching data has identical aggregate scores and contributions.
+                        self.assertEqual(native(cases[1])["value"]["delta"], 0)
 
     def test_hand_calculated_modes_and_tree(self):
         c = fixture()
@@ -324,6 +385,12 @@ class Engines(unittest.TestCase):
             cases.append(dict(config=fixture(), rows=[r]))
         for value in ("NaN", "Infinity", "", "0x1", None, True, -0.1, 1.1):
             cases.append(dict(config=fixture(), rows=[row(value=value)]))
+        for name in (
+            "SYNTHETIC demo — perturbed",
+            "SYNTHETIC demo — higher scores",
+            "SYNTHETIC demo — future option",
+        ):
+            cases.append(dict(config=fixture(), rows=[row(checkpoint=name)]))
         cases.append(dict(config=fixture(), rows=[row(), row()]))
         for outputs in self.both(cases):
             for result in outputs:

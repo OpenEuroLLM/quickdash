@@ -5,7 +5,7 @@ const key = r => JSON.stringify(['task','metric','filter','n_shot','harness','ba
 const avg = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : null;
 const fmt = (x,digits=2) => x === null || !Number.isFinite(x) ? '—' : x.toFixed(digits);
 const esc = x => String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const {parseCSV,parseCatalogue,serializeCatalogue,validateCatalogue,normalizeScore,taskLanguage,auditRows,matchTask,demoModel}=typeof module!=='undefined'?require('./eval_config.js'):EvalConfig;
+const {parseCSV,parseCatalogue,serializeCatalogue,validateCatalogue,normalizeScore,taskLanguage,auditRows,matchTask,demoModel,isDemoModel}=typeof module!=='undefined'?require('./eval_config.js'):EvalConfig;
 const {parseSuite,serializeSuite,parseWeightProfile,serializeWeightProfile,resolveConfig,inSuite,suiteCoverage,scopeRows}=typeof module!=='undefined'?require('./suite_config.js'):SuiteConfig;
 function selectRows(rows,scheme){const selected=auditRows(rows,scheme).filter(r=>r.selected);if(!selected.length)throw Error('No selected measurements');return selected;}
 function buildCatalogue(rows,scheme){
@@ -125,7 +125,21 @@ function comparisonCoverage(a,b,config){
  }
  return {a:aa,b:bb,pairs,warnings,onlyA,onlyB,excludedA,excludedB};
 }
-function synthetic(rows,config){let seed=20260930;const rand=()=>{seed=(Math.imul(1664525,seed)+1013904223)>>>0;return (seed+.5)/4294967296;};return rows.map(r=>{const perturb=2*Math.sqrt(-2*Math.log(rand()))*Math.cos(2*Math.PI*rand());return {...r,checkpoint:'SYNTHETIC demo — perturbed',...normalizeScore(Math.max(0,Math.min(100,r.raw_score_100+perturb))/100*config.evals.find(e=>e.name===r.eval).score.scale,config.evals.find(e=>e.name===r.eval)),stderr:'',result_time:'',results_file:'synthetic: seed 20260930; normal sd 2 score points; clipped to [0,100]'};});}
+const syntheticOptions=Object.freeze([
+ Object.freeze({name:demoModel,offset:0}),
+ Object.freeze({name:'SYNTHETIC demo — higher scores',offset:3}),
+ Object.freeze({name:'SYNTHETIC demo — lower scores',offset:-3})
+]);
+function synthetic(rows,config,option=syntheticOptions[0]){
+ let seed=20260930;
+ const rand=()=>{seed=(Math.imul(1664525,seed)+1013904223)>>>0;return (seed+.5)/4294967296;};
+ const evals=new Map(config.evals.map(e=>[e.name,e]));
+ return rows.map(r=>{
+  const perturb=2*Math.sqrt(-2*Math.log(rand()))*Math.cos(2*Math.PI*rand()),e=evals.get(r.eval);
+  const value=Math.max(0,Math.min(100,r.raw_score_100+option.offset+perturb))/100*e.score.scale;
+  return {...r,checkpoint:option.name,value:String(value),...normalizeScore(value,e),stderr:'',result_time:'',results_file:`synthetic: seed 20260930; mean shift ${option.offset}; normal sd 2 score points; clipped to [0,100]`};
+ });
+}
 function languageRoles(row,metadata){const m=metadata.get(row.task);return m?.scope==='translation'?[{language:m.source_language,role:'from'},{language:m.target_language,role:'to'}]:[{language:m?.language||'Unknown',role:'eval'}];}
 function matchesLanguage(row,metadata,language='',role=''){return languageRoles(row,metadata).some(m=>(!language||m.language===language)&&(!role||m.role===role));}
 function languageCoverage(rows,metadata){
@@ -274,6 +288,6 @@ function compare(rows,config,a,b){
  return compareAudits(audits.get(a),audits.get(b),config,a,b).result;
 }
 
-return {analyze,compare,compareAudits,allocationTree,measurementId,selectRows,buildCatalogue,comparisonRows,weightingLanguage,scoreLanguage,englishAssignment,componentCoverage,evalDistribution,totals,pairRows,sampleCount,comparisonCoverage,synthetic,languageRoles,matchesLanguage,languageCoverage,languageCountLabel,languageLabel,sortBreakdownTree,breakdownAggregate,buildBreakdownTree,protocolWarning,reportDiagnostics,normalizationLabel,sameCoverage,key,avg,fmt,esc,parseCSV,parseCatalogue,serializeCatalogue,validateCatalogue,normalizeScore,taskLanguage,auditRows,matchTask,demoModel,parseSuite,serializeSuite,parseWeightProfile,serializeWeightProfile,resolveConfig,inSuite,suiteCoverage,scopeRows};
+return {analyze,compare,compareAudits,allocationTree,measurementId,selectRows,buildCatalogue,comparisonRows,weightingLanguage,scoreLanguage,englishAssignment,componentCoverage,evalDistribution,totals,pairRows,sampleCount,comparisonCoverage,synthetic,syntheticOptions,isDemoModel,languageRoles,matchesLanguage,languageCoverage,languageCountLabel,languageLabel,sortBreakdownTree,breakdownAggregate,buildBreakdownTree,protocolWarning,reportDiagnostics,normalizationLabel,sameCoverage,key,avg,fmt,esc,parseCSV,parseCatalogue,serializeCatalogue,validateCatalogue,normalizeScore,taskLanguage,auditRows,matchTask,demoModel,parseSuite,serializeSuite,parseWeightProfile,serializeWeightProfile,resolveConfig,inSuite,suiteCoverage,scopeRows};
 })();
 if(typeof module!=='undefined')module.exports=QuickdashAnalysis;

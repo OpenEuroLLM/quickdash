@@ -1,5 +1,5 @@
 'use strict';
-const {compareAudits,selectRows,buildCatalogue,comparisonRows,weightingLanguage,scoreLanguage,englishAssignment,componentCoverage,evalDistribution,totals,pairRows,sampleCount,comparisonCoverage,synthetic,languageRoles,matchesLanguage,languageCoverage,languageCountLabel,languageLabel,sortBreakdownTree,breakdownAggregate,buildBreakdownTree,protocolWarning,normalizationLabel,sameCoverage,key,avg,fmt,esc,parseCSV,parseCatalogue,serializeCatalogue,validateCatalogue,normalizeScore,taskLanguage,auditRows,matchTask,demoModel,parseSuite,serializeSuite,parseWeightProfile,serializeWeightProfile,resolveConfig,inSuite,suiteCoverage}=QuickdashAnalysis;
+const {compareAudits,selectRows,buildCatalogue,comparisonRows,weightingLanguage,scoreLanguage,englishAssignment,componentCoverage,evalDistribution,totals,pairRows,sampleCount,comparisonCoverage,synthetic,syntheticOptions,isDemoModel,languageRoles,matchesLanguage,languageCoverage,languageCountLabel,languageLabel,sortBreakdownTree,breakdownAggregate,buildBreakdownTree,protocolWarning,normalizationLabel,sameCoverage,key,avg,fmt,esc,parseCSV,parseCatalogue,serializeCatalogue,validateCatalogue,normalizeScore,taskLanguage,auditRows,matchTask,demoModel,parseSuite,serializeSuite,parseWeightProfile,serializeWeightProfile,resolveConfig,inSuite,suiteCoverage}=QuickdashAnalysis;
 if(typeof document!=='undefined')start();
 
 function start(){
@@ -8,7 +8,8 @@ function start(){
  let catalogueGroups=new Map();
  let models=new Map(),sourceAudits=new Map(),metadata=new Map(DATA.metadata.map(r=>[r.task,r]));
  for(const m of DATA.models){const audit=auditRows(DATA.rows.filter(r=>r.checkpoint===m.model),catalogue);sourceAudits.set(m.model,audit);models.set(m.model,audit.filter(r=>r.selected));}
- if(models.size)models.set(demoModel,synthetic([...models.values()][0],catalogue));
+ function addSynthetic(target,config){if(!target.size)return;const rows=[...target.values()][0];for(const option of syntheticOptions)target.set(option.name,synthetic(rows,config,option));}
+ addSynthetic(models,catalogue);
  const state={aggregate:scheme.aggregate||'standard',view:'score',scoreCategory:Object.keys(weights)[0],group:'eval',expandedComparisons:new Set(),measure:'raw',sort:'descending',sortBy:'delta',languageSort:'label',languageOrder:'ascending'};
  const languages=r=>languageRoles(r,metadata).map(m=>m.language);
  const td=x=>'<td>'+esc(x)+'</td>';
@@ -36,7 +37,7 @@ function start(){
  }
  function activeWarnings(){
   if(!models.size)return [];
-  const coverage=selected(),warnings=coverage.result.diagnostics.filter(w=>w.model!==demoModel&&(w.code!=='no_category_weight'||weights[w.category]===0));
+  const coverage=selected(),warnings=coverage.result.diagnostics.filter(w=>!isDemoModel(w.model)&&(w.code!=='no_category_weight'||weights[w.category]===0));
   if(state.aggregate!=='standard')for(const c of totals(coverage.a,scheme,weights,state.aggregate,englishWeights,metadata).categories)if(c.issue)warnings.push({type:'English split unavailable',name:c.name,model:'Selected comparison',detail:c.issue});
   return warnings;
  }
@@ -175,9 +176,10 @@ function start(){
   comparisonCache=null;
   const weightOpen=$('weightEditor')?.open,englishOpen=$('englishComponents')?.open;
   const {a,b,pairs,shown,excludedA,excludedB,scope}=selected(),ta=totals(a,scheme,weights,state.aggregate,englishWeights,metadata),tb=totals(b,scheme,weights,state.aggregate,englishWeights,metadata),valid=sameCoverage(a,b)&&ta.score!==null&&tb.score!==null;
-  const demo=[$('modelA').value,$('modelB').value].some(n=>n===demoModel);
+  const demo=[$('modelA').value,$('modelB').value].some(isDemoModel);
   configOptions();$('cards').hidden=!models.size;document.querySelector('.aggregate-controls').hidden=!models.size;
-  $('demo').textContent=!models.size?'Ready for your eval results. Load a CSV to begin.':demo?'Demo comparison: one model has synthetic scores. Replace it with a real eval CSV to compare training methods.':'Real-model comparison · Check evaluation settings and training budgets before drawing a conclusion.';
+  const sample=[$('modelA').value,$('modelB').value].some(n=>(DATA.sample_models||[]).includes(n));
+  $('demo').textContent=!models.size?'Ready for your eval results. Load a CSV to begin.':demo?'Demo comparison: synthetic scores are seeded perturbations of the first loaded model (2-point standard deviation; higher/lower options add/subtract 3 raw score points, clipped to 0–100). For exploration only.':sample?'Sample dataset for exploring Quickdash. Add your own CSVs to compare training methods.':'Real-model comparison · Check evaluation settings and training budgets before drawing a conclusion.';
   document.querySelectorAll('[data-aggregate]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.aggregate===state.aggregate)));
   $('aggregateNote').textContent=state.aggregate!=='standard'?(state.aggregate==='english_eval'?'Balance English and other languages inside each eval, then average evals equally within categories.':'Balance English and other languages across each category. Evals with non-English coverage can receive more weight.')+' Shares are set in the weight editor. Unknown or mixed-language scores count as English for weighting; known non-English pools count as other. Raw views stay unchanged.':'Original aggregate: combine configured components within each language/protocol; average those groups within the eval. Other evals average variants. Then average evals within each category.';
   $('cards').innerHTML=[[$('modelA').value,ta.score,'A · '+(state.aggregate==='english_eval'?'English balance per eval':state.aggregate==='english_category'?'English balance per category':'original weighted score')],[$('modelB').value,tb.score,'B · '+(state.aggregate==='english_eval'?'English balance per eval':state.aggregate==='english_category'?'English balance per category':'original weighted score')],['A − B',valid?ta.score-tb.score:null,'Weighted difference'+(suite.mode==='fixed'&&!scope.complete?' · incomplete set':'')]].map(([name,value,label])=>'<div class="score-card"><small>'+esc(name)+'</small><strong>'+fmt(value)+'</strong><span>'+label+'</span></div>').join('');
@@ -197,7 +199,7 @@ function start(){
   validateCatalogue(config);const nextScheme=resolveConfig(config,suite,profile);
   const audits=new Map(),nextModels=new Map(),nextMetadata=new Map();
   for(const [name,rows] of sourceAudits){const audit=auditRows(rows,config);audits.set(name,audit);nextModels.set(name,audit.filter(r=>r.selected));for(const row of audit)if(!nextMetadata.has(row.task))nextMetadata.set(row.task,taskLanguage(row.task,config));}
-  if(nextModels.size)nextModels.set(demoModel,synthetic([...nextModels.values()][0],config));
+  addSynthetic(nextModels,config);
   catalogue=config;scheme=nextScheme;sourceAudits=audits;models=nextModels;metadata=nextMetadata;
   weights={...nextScheme.weights,...weights};refreshConfig();
  }
@@ -283,7 +285,7 @@ function start(){
   const nextModels=new Map(models),nextAudits=new Map(sourceAudits),nextMetadata=new Map(metadata);
   for(const name of names){nextModels.set(name,rows.filter(r=>r.checkpoint===name));nextAudits.set(name,audit.filter(r=>r.checkpoint===name));}
   for(const r of audit)nextMetadata.set(r.task,taskLanguage(r.task,catalogue));
-  if(!nextModels.has(demoModel))nextModels.set(demoModel,synthetic([...nextModels.values()][0],catalogue));
+  if(!nextModels.has(demoModel))addSynthetic(nextModels,catalogue);
   models=nextModels;sourceAudits=nextAudits;metadata=nextMetadata;
   modelOptions(sourceAudits.size>1?names.at(-1):demoModel);languageOptions();$('error').textContent='';render();
  }catch(err){$('error').textContent=err.message;}finally{e.target.value='';}};

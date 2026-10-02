@@ -6,6 +6,7 @@ const EvalConfig=(()=>{
  const number=v=>typeof v==='number'&&Number.isFinite(v);
  const decimal=/^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/;
  const demoModel='SYNTHETIC demo — perturbed';
+ const isDemoModel=name=>typeof name==='string'&&name.startsWith('SYNTHETIC demo — ');
  function parseCSV(source){
   const text=source.replace(/^\uFEFF/,''),records=[];let row=[],value='',state='start',touched=false;
   const field=()=>{row.push(value);value='';state='start';};
@@ -157,7 +158,7 @@ const EvalConfig=(()=>{
    const r={...source};
    for(const field of ['checkpoint','task','metric','filter','n_shot','harness','backend','value'])if(!Object.hasOwn(r,field))throw Error('Missing CSV column: '+field);
    for(const field of ['checkpoint','task','metric','harness','backend'])if(typeof r[field]!=='string'||!r[field].trim())throw Error('CSV row '+(index+2)+': '+field+' must be nonempty text');
-   if(r.checkpoint===demoModel)throw Error('Checkpoint name is reserved for the synthetic demo: '+demoModel);
+   if(isDemoModel(r.checkpoint))throw Error('Checkpoint name is reserved for the synthetic demo: '+r.checkpoint);
    if(typeof r.filter!=='string')throw Error('CSV row '+(index+2)+': filter must be text (blank is allowed)');
    if(!/^(?:0|[1-9][0-9]*)$(?![\s\S])/.test(String(r.n_shot))||!Number.isSafeInteger(Number(r.n_shot)))throw Error('CSV row '+(index+2)+': n_shot must be a nonnegative integer');
    r.n_shot=String(r.n_shot);
@@ -171,6 +172,6 @@ const EvalConfig=(()=>{
    return {...r,eval:e.name,category:e.category,selected,decision,...scores};
   });
  }
- return {validateAggregationConfig,validateAggregationSelection,parseCatalogue,serializeCatalogue,validateCatalogue,validateWeights,parseCSV,validateConfig,matchTask,normalizeScore,taskLanguage,auditRows,demoModel};
+ return {validateAggregationConfig,validateAggregationSelection,parseCatalogue,serializeCatalogue,validateCatalogue,validateWeights,parseCSV,validateConfig,matchTask,normalizeScore,taskLanguage,auditRows,demoModel,isDemoModel};
 })();
 if(typeof module!=='undefined')module.exports=EvalConfig;

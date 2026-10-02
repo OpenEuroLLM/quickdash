@@ -195,8 +195,28 @@ try{
  await evaluate(`{for(const input of document.querySelectorAll('[data-weight]')){input.value=input.dataset.weight==='Custom'?'1':'0';document.querySelector('#view').onchange({target:input});}}`);
  assert.equal(await evaluate("document.querySelector('#cards').textContent"),beforeCategoryEdit);
  await click('[data-view=warnings]');assert.doesNotMatch(await evaluate("document.querySelector('#view').textContent"),/No category weight/);
+ // Exercise the actual Pages fallback with the full public sample and every synthetic choice.
+ const sample=path.join(temporary,'sample'),resultsDir=path.join(temporary,'empty-results');fs.mkdirSync(resultsDir);
+ execFileSync('python3',['-m','app.build','--results-dir',resultsDir,'--sample-csv','examples/sample-evals.csv','--output',sample],{cwd:root,stdio:'pipe'});
+ await navigate(pathToFileURL(path.join(sample,'index.html')).href);
+ assert.match(await evaluate("document.querySelector('#modelA').value"),/^SAMPLE/);
+ assert.equal(await evaluate("document.querySelector('#cards').hidden"),false);
+ const syntheticNames=await evaluate("syntheticOptions.map(o=>o.name)");
+ const scores=[];
+ for(const name of syntheticNames){
+  await change('#modelB',name);
+  assert.match(await evaluate("document.querySelector('#demo').textContent"),/synthetic scores/);
+  assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+  scores.push(await evaluate("document.querySelector('#cards').textContent"));
+  for(const view of ['categories','languages','comparisons','config','warnings','score'])await click('[data-view='+view+']');
+ }
+ assert.equal(new Set(scores).size,syntheticNames.length);
+ await change('#modelB',await evaluate("document.querySelector('#modelA').value"));
+ assert.match(await evaluate("document.querySelector('#demo').textContent"),/Sample dataset/);
+ await click('#clearModels');
+ assert.equal(await evaluate("document.querySelector('#modelA').options.length"),0);
  assert.deepEqual(errors,[]);assert.deepEqual(network,[],'Loading and comparing local files must not send HTTP requests');
- console.log('Public browser checks passed: empty start, shared models, independent weights and eval sets, required coverage, temporary uploads, rollback, clear models and no uploads.');
+ console.log('Public browser checks passed: empty start, shared models, independent weights and eval sets, required coverage, temporary uploads, rollback, Pages sample, synthetic choices, clear models and no uploads.');
 }finally{
  ws?.close();fs.rmSync(temporary,{recursive:true,force:true});
 }
