@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const {auditRows}=require('../app/eval_config.js');
-const {collectWarnings,comparisonCoverage,totals}=require('../app/app.js');
+const {compare,comparisonCoverage,totals}=require('../app/analysis.js');
 const {resolveConfig,suiteCoverage}=require('../app/suite_config.js');
 const catalogue=()=>({version:1,name:'Rules',evals:['E','F'].map(name=>({name,category:'C',match:{name:name.toLowerCase()},metric:'acc_norm',filter:'none',score:{scale:1},warning:name+' caveat'})),languages:[{tasks:['e','f'],scope:'single',language:'eng_Latn'}]});
 const profile={version:1,name:'Weights',weights:{C:1}};
@@ -11,7 +11,7 @@ const row=(task='e',metric='acc_norm')=>({checkpoint:'A',task,metric,filter:'non
 function run(left,right,suite=available){
  const c=catalogue(),a=auditRows(left,c),b=auditRows(right.map(r=>({...r,checkpoint:'B'})),c),config=resolveConfig(c,suite,profile);
  const scope=suiteCoverage(a,b,suite),coverage=comparisonCoverage(scope.a,scope.b,config);
- const warnings=collectWarnings(new Map([['A',a],['B',b]]),c,'standard',{},suite,coverage.a).concat(scope.warnings,coverage.warnings);
+ const warnings=compare([...a,...b],{catalogue:c,suite,profile},'A','B').diagnostics;
  return {warnings,scope,coverage,score:totals(coverage.a,config,config.weights).score};
 }
 test('displayed evals emit their caveats; unused catalogue rules and excluded evals do not',()=>{
@@ -24,7 +24,7 @@ test('displayed evals emit their caveats; unused catalogue rules and excluded ev
 test('unselected eval data warns even if it only contains the wrong metric',()=>{
  const r=run([row(),row('f','acc')],[row()],{...fixed,evals:[{name:'E'}]});
  assert.ok(r.warnings.some(w=>w.type==='Not used'&&w.name==='F'&&w.model==='A'));
- assert.ok(!r.warnings.some(w=>w.type==='Missing scoring field'&&w.name==='f'));
+ assert.ok(!r.warnings.some(w=>w.type==='Missing scoring field'&&w.tasks.includes('f')));
  assert.equal(r.coverage.pairs.length,1);assert.equal(r.score,80);
 });
 test('required eval absent from one or both models warns and is excluded from both scores',()=>{
@@ -35,7 +35,7 @@ test('required eval absent from one or both models warns and is excluded from bo
 });
 test('missing configured metric warns, excludes, and never substitutes an alternate metric',()=>{
  const r=run([row(),row('f','acc')],[row(),row('f')],fixed);
- assert.ok(r.warnings.some(w=>w.type==='Missing scoring field'&&w.name==='f'&&w.model==='A'));
+ assert.ok(r.warnings.some(w=>w.type==='Missing scoring field'&&w.tasks.includes('f')&&w.model==='A'));
  assert.ok(r.warnings.some(w=>w.type==='Missing suite data'&&w.name==='F'));
  assert.equal(r.coverage.pairs.length,1);assert.equal(r.score,80);
 });

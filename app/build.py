@@ -4,8 +4,9 @@ import csv
 import hashlib
 import json
 from pathlib import Path
-from statistics import mean
-from .config_engine import classify, task_language, load_catalogue, shared_config, load_csv
+from quickdash.io import load_csv
+from quickdash.config import classify, task_language, load_catalogue, load_profile, load_suite, resolve_config, scope_rows
+from quickdash.analysis import totals, component_coverage, diagnostic, analyze
 
 APP = Path(__file__).resolve().parent
 ROOT = APP.parent
@@ -13,64 +14,15 @@ ROOT = APP.parent
 
 
 def summarize(audit, config, aggregate=None):
-    aggregate = aggregate or config.get('aggregate', 'standard')
-    metadata = {task: group for group in config['languages'] for task in group['tasks']}
-    def side(row):
-        language = metadata.get(row['task'], {})
-        code = language.get('target_language') if language.get('scope') == 'translation' else language.get('language') if language.get('scope') in ['single', 'pooled'] else None
-        return 'english' if not code or code in ['eng_Latn', 'mul'] else 'other'
-    result = []
+    """Summarize each model independently using the native Python engine."""
+    config={**config,'aggregate':aggregate or config.get('aggregate','standard')}
+    result=[]
     for model in sorted({r['checkpoint'] for r in audit}):
-        selected = [r for r in audit if r['checkpoint'] == model and r['selected']]
-        eval_rows = {e['name']: [r for r in selected if r['eval'] == e['name']] for e in config['evals']}
-        evals = [dict(name=e['name'], category=e['category'], metric=e['metric'], count=len(eval_rows[e['name']]),
-                      score=mean(r['score_100'] for r in eval_rows[e['name']]) if eval_rows[e['name']] else None,
-                      weight=0, contribution=None if eval_rows[e['name']] else 0, aggregateScore=None, excluded=not eval_rows[e['name']], englishShare=0, effectiveEnglishShare=None, englishScore=None, otherScore=None, issue='') for e in config['evals']]
-        available_weight = sum(weight for category, weight in config['weights'].items() if any(e['category'] == category and e['count'] for e in evals))
-        categories = []
-        for category, weight in config['weights'].items():
-            configured = [e for e in evals if e['category'] == category]
-            ff = [e for e in configured if e['count']]
-            effective_weight = weight/available_weight if ff and available_weight else 0
-            share = config.get('english_weights', {}).get(category, 0) if aggregate != 'standard' else 0
-            c = dict(name=category, weight=effective_weight, excluded=not ff, excludedEvals=[e['name'] for e in configured if not e['count']], score=None, evals=len(ff), englishShare=share, effectiveEnglishShare=None, englishScore=None, otherScore=None, issue='')
-            coefficients = {}
-            if not ff:
-                categories.append(c)
-                continue
-            if not share:
-                c['score'] = mean(e['score'] for e in ff)
-                for e in ff:
-                    for r in eval_rows[e['name']]: coefficients[id(r)] = effective_weight / len(ff) / len(eval_rows[e['name']])
-            elif aggregate == 'english_eval':
-                for e in ff:
-                    rr = eval_rows[e['name']]
-                    e['englishShare'] = share
-                    groups = [[r for r in rr if side(r) == group] for group in ['english', 'other']]
-                    e['englishScore'], e['otherScore'] = [mean(r['score_100'] for r in group) if group else None for group in groups]
-                    e['effectiveEnglishShare'] = 0 if e['englishScore'] is None else 1 if e['otherScore'] is None else share
-                    parts = [e['effectiveEnglishShare'], 1-e['effectiveEnglishShare']]
-                    e['aggregateScore'] = parts[0]*(e['englishScore'] or 0)+parts[1]*(e['otherScore'] or 0)
-                    for part, group in zip(parts, groups):
-                        for r in group: coefficients[id(r)] = effective_weight/len(ff)*part/len(group)
-                if not c['issue']: c['score'] = mean(e['aggregateScore'] for e in ff)
-            else:
-                groups = [[variants for e in ff if (variants := [r for r in eval_rows[e['name']] if side(r) == group])] for group in ['english', 'other']]
-                c['englishScore'], c['otherScore'] = [mean(mean(r['score_100'] for r in variants) for variants in group) if group else None for group in groups]
-                if not c['issue']:
-                    c['effectiveEnglishShare'] = 0 if c['englishScore'] is None else 1 if c['otherScore'] is None else share
-                    parts = [c['effectiveEnglishShare'], 1-c['effectiveEnglishShare']]
-                    c['score'] = parts[0]*(c['englishScore'] or 0) + parts[1]*(c['otherScore'] or 0)
-                    for part, group in zip(parts, groups):
-                        for variants in group:
-                            for r in variants: coefficients[id(r)] = effective_weight * part / len(group) / len(variants)
-            for e in ff:
-                e['weight'] = sum(coefficients.get(id(r), 0) for r in eval_rows[e['name']])
-                e['contribution'] = sum(r['score_100']*coefficients.get(id(r), 0) for r in eval_rows[e['name']]) if c['score'] is not None else None
-                e['aggregateScore'] = e['contribution']/e['weight'] if c['score'] is not None and e['weight'] else None
-            categories.append(c)
-        complete = available_weight > 0 and all(c['score'] is not None for c in categories if not c['excluded'])
-        result.append(dict(model=model, evals=evals, categories=categories, score=sum(c['score']*c['weight'] for c in categories if not c['excluded']) if complete else None))
+        rows=[r for r in audit if r['checkpoint']==model and r['selected']]
+        t=totals(rows,config)
+        excluded=component_coverage(rows,config)['excluded']
+        diagnostics=[diagnostic('incomplete_components',model,name,[r for r in excluded if r['eval']==name],'Incomplete component group; excluded from scoring.','excluded') for name in dict.fromkeys(r['eval'] for r in excluded)]
+        result.append(dict(model=model,score=t['score'],warnings=diagnostics,evals=t['evals'],categories=[{**c,'evals':sum(e['category']==c['name'] and not e['excluded'] for e in t['evals'])} for c in t['categories']]))
     return result
 
 
@@ -105,11 +57,11 @@ def config_choices(path, directory, kind, default_directory):
     if path is None:
         directory = directory or default_directory
         path = default_config(directory)
-    choices = [dict(file=path.name, config=shared_config(kind, path))]
+    choices = [dict(file=path.name, config={"weights":load_profile,"suite":load_suite}[kind](path))]
     if directory is not None:
         for candidate in directory_files(directory, {'.yaml', '.yml'}):
             if candidate.resolve() == path.resolve(): continue
-            try: config = shared_config(kind, candidate)
+            try: config = {"weights":load_profile,"suite":load_suite}[kind](candidate)
             except ValueError as error: raise ValueError(f'{candidate.name}: {error}') from error
             if any(p['config']['name'] == config['name'] for p in choices):
                 raise ValueError(f'{candidate.name}: duplicate config name {config["name"]!r}; use distinct names')
@@ -117,8 +69,9 @@ def config_choices(path, directory, kind, default_directory):
     return path, choices
 
 
-def build(source, output, catalogue_path=None, results_dir=None, *, weights_path=None, weights_dir=None, suite_path=None, sets_dir=None):
+def build(source, output, catalogue_path=None, results_dir=None, *, weights_path=None, weights_dir=None, suite_path=None, sets_dir=None, sample_csv=None):
     if source is not None and results_dir is not None: raise ValueError('Choose a CSV or --results-dir, not both')
+    if sample_csv is not None and results_dir is None: raise ValueError('--sample-csv requires --results-dir')
     catalogue_path = catalogue_path or ROOT/'configs/catalogue.yaml'
     catalogue = load_catalogue(catalogue_path)
     weights_path, profiles = config_choices(weights_path, weights_dir, 'weights', ROOT/'configs/weights')
@@ -126,11 +79,13 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
     # Every offered combination must resolve before any output is replaced.
     for profile in profiles:
         for entry in suites:
-            try: shared_config('resolve', value=[catalogue, entry['config'], profile['config']])
+            try: resolve_config(catalogue, entry['config'], profile['config'])
             except ValueError as error: raise ValueError(f'{entry["file"]} / {profile["file"]}: {error}') from error
     suite, profile = suites[0]['config'], profiles[0]['config']
-    config = shared_config('resolve', value=[catalogue, suite, profile])
+    config = resolve_config(catalogue, suite, profile)
     paths=[source] if source is not None else directory_files(results_dir,{'.csv'}) if results_dir is not None else []
+    using_sample = not paths and sample_csv is not None
+    if using_sample: paths = [sample_csv]
     rows=[];audit=[];sources=[];owners={}
     for path in paths:
         try:
@@ -142,12 +97,13 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
             owners[model]=path.name
         rows.extend(rr);audit.extend(classified)
         sources.append(dict(file=path.name,sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
-    scoped = shared_config('scope', value=[audit, suite])['rows']
+    scoped = scope_rows(audit, suite)['rows']
     identities = {tuple(r[k] for k in ['checkpoint','task','metric','filter','n_shot','harness','backend']) for r in scoped}
     included = {id(r) for r in audit if tuple(r[k] for k in ['checkpoint','task','metric','filter','n_shot','harness','backend']) in identities}
     scoped_audit = [dict(r, selected=r['selected'] and id(r) in included) for r in audit]
     aggregates = {mode: summarize(scoped_audit, config, mode) for mode in ['standard', 'english_eval', 'english_category']}
     summary = aggregates[config.get('aggregate', 'standard')]
+    diagnostics = analyze(rows,dict(catalogue=catalogue,suite=suite,profile=profile)).diagnostics
     output.mkdir(parents=True, exist_ok=True)
     if audit:
         write_csv(output/'row-audit.csv', audit)
@@ -158,16 +114,16 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
             (output/name).unlink(missing_ok=True)
     metadata = [task_language(task, catalogue) for task in sorted({r['task'] for r in rows})]
     if metadata:write_csv(output/'language-metadata.csv', metadata)
-    payload = dict(catalogue=catalogue, catalogue_file=catalogue_path.name, suite=suite, suite_file=suite_path.name,
+    payload = dict(diagnostics=diagnostics,catalogue=catalogue, catalogue_file=catalogue_path.name, suite=suite, suite_file=suite_path.name,
                    profile=profile, profile_file=weights_path.name, suites=suites, profiles=profiles,
-                   metadata=metadata, scheme=config, models=summary, aggregates=aggregates, rows=audit, sources=sources,
+                   sample_models=sorted(owners) if using_sample else [], metadata=metadata, scheme=config, models=summary, aggregates=aggregates, rows=audit, sources=sources,
                    source=source.name if source else results_dir.name if results_dir else '', sha256=sources[0]['sha256'] if len(sources)==1 else None)
     (output/'catalogue.yaml').write_text(catalogue_path.read_text())
     (output/'weights.yaml').write_text(weights_path.read_text())
     (output/'eval-set.yaml').write_text(suite_path.read_text())
     (output/'analysis.json').write_text(json.dumps(payload, indent=2))
     template = (APP/'template.html').read_text()
-    (output/'index.html').write_text(template.replace('__APP__', (APP/'vendor/js-yaml.js').read_text()+'\n'+(APP/'eval_config.js').read_text()+'\n'+(APP/'suite_config.js').read_text()+'\n'+(APP/'app.js').read_text()).replace('__PAYLOAD__', json.dumps(payload).replace('<', '\\u003c')))
+    (output/'index.html').write_text(template.replace('__APP__', (APP/'vendor/js-yaml.js').read_text()+'\n'+(APP/'eval_config.js').read_text()+'\n'+(APP/'suite_config.js').read_text()+'\n'+(APP/'analysis.js').read_text()+'\n'+(APP/'app.js').read_text()).replace('__PAYLOAD__', json.dumps(payload).replace('<', '\\u003c')))
     print(json.dumps(dict(models=summary, rows=len(audit), selected=sum(r['selected'] for r in scoped_audit)), indent=2))
 
 
@@ -175,6 +131,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('csv', type=Path, nargs='?', help='CSV to embed; omit to start without results')
     parser.add_argument('--results-dir', type=Path, help='Embed all CSV files directly inside this directory')
+    parser.add_argument('--sample-csv', type=Path, help='Fallback CSV when --results-dir contains no CSVs')
     parser.add_argument('--catalogue', type=Path, help='Global eval interpretation YAML; default: configs/catalogue.yaml')
     parser.add_argument('--weights', type=Path, help='Default weighting profile YAML; used alone, embed only this profile')
     parser.add_argument('--weights-dir', type=Path, help='Offer weighting profiles from this directory (default: configs/weights)')
@@ -183,4 +140,4 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=Path, default=ROOT/'output')
     args = parser.parse_args()
     if args.csv is not None and args.results_dir is not None: parser.error('Choose a CSV or --results-dir, not both')
-    build(args.csv, args.output, args.catalogue, args.results_dir, weights_path=args.weights, weights_dir=args.weights_dir, suite_path=args.eval_set, sets_dir=args.sets_dir)
+    build(args.csv, args.output, args.catalogue, args.results_dir, weights_path=args.weights, weights_dir=args.weights_dir, suite_path=args.eval_set, sets_dir=args.sets_dir, sample_csv=args.sample_csv)

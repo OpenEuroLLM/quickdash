@@ -273,6 +273,27 @@ evals:
     filter: none
     match:
       regex: polymath_.+
+    aggregation:
+      components:
+        - name: low
+          match: {regex: 'polymath_.+_low'}
+          relative_weight: 1
+        - name: medium
+          match: {regex: 'polymath_.+_medium'}
+          relative_weight: 2
+        - name: high
+          match: {regex: 'polymath_.+_high'}
+          relative_weight: 4
+        - name: top
+          match: {regex: 'polymath_.+_top'}
+          relative_weight: 8
+      note: >-
+        PolyMath difficulty-weighted accuracy combines all four levels within each language:
+        (low + 2 × medium + 4 × high + 8 × top) / 15. Exported exact_match values are
+        unweighted per-level accuracies. Each level is required; incomplete groups are excluded.
+      sources:
+        - https://qwen-polymath.github.io/#benchmark-score
+        - https://github.com/QwenLM/PolyMath/blob/main/eval/run_eval.py
     score:
       scale: 1
     normalize:

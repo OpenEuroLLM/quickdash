@@ -24,10 +24,24 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
+      - name: Install the native Python library
+        run: python3 -m pip install -e .
       - name: Check scoring, imports, and configuration
         run: |
-          python3 -m unittest tests.test_data
-          node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs
+          python3 -m unittest tests.test_data tests.test_engines
+          node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs
+      - name: Check the installed package without Node on PATH
+        run: |
+          python3 -m pip wheel . --wheel-dir "$RUNNER_TEMP/quickdash-wheels"
+          python3 -m venv "$RUNNER_TEMP/quickdash-package"
+          "$RUNNER_TEMP/quickdash-package/bin/python" -m pip install --no-index \
+            --find-links "$RUNNER_TEMP/quickdash-wheels" oellm-quickdash
+          cd "$RUNNER_TEMP"
+          PATH="$RUNNER_TEMP/quickdash-package/bin" \
+            "$RUNNER_TEMP/quickdash-package/bin/quickdash" "$GITHUB_WORKSPACE/examples/scores.csv" \
+            --catalogue "$GITHUB_WORKSPACE/configs/examples/catalogue.yaml" \
+            --weights "$GITHUB_WORKSPACE/configs/examples/weights.yaml" \
+            --compare 'Example A' 'Example B' --format json > quickdash-installed.json
       - name: Check the browser with public fixtures
         run: |
           google-chrome --headless --no-sandbox --disable-gpu \
@@ -40,7 +54,7 @@ jobs:
           node tests/test_public_browser.mjs || { cat "$RUNNER_TEMP/quickdash-chrome.log"; exit 1; }
       - name: Build shared results and the fictional demo
         run: |
-          python3 -m app.build --results-dir results \
+          python3 -m app.build --results-dir results --sample-csv examples/sample-evals.csv \
             --output output/shared > "$RUNNER_TEMP/quickdash-shared.json"
           python3 -m app.build examples/scores.csv --catalogue configs/examples/catalogue.yaml \
             --weights configs/examples/weights.yaml --eval-set configs/sets/any-available.yaml \

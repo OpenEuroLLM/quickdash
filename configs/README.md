@@ -3,6 +3,7 @@
 Choose the file to edit based on what you want to change:
 
 - **Interpret a new eval:** add its task matching, category, scoring metric, normalization, and explicit language assignments to [catalogue.yaml](catalogue.yaml). Adding a rule does not require every model to run it.
+- **Combine component results:** add an `aggregation` rule to the eval in the catalogue. Each component stores a `relative_weight`; PolyMath uses 1, 2, 4, and 8, divided by their sum when scoring. Named sets must select complete component groups with compatible shot settings; incompatible configurations are errors. Missing results within a valid selection warn and exclude the group; see [component aggregation](../docs/configuration.md#weighted-components-within-an-eval).
 - **Try different weighting:** add a YAML profile to [weights/](weights/). It can be used with any eval set. Category weights, English shares, and the default calculation live here.
 - **Require a standard comparison set:** add a YAML file to [sets/](sets/). [flagship-1.yaml](sets/flagship-1.yaml) pins expected tasks and shot counts; [any-available.yaml](sets/any-available.yaml) needs no required-eval list and compares shared data, with an explicit exclusion for unvalidated prompted Global PIQA.
 

@@ -4,13 +4,15 @@ import io
 import json
 import random
 import subprocess
+import sys
 import tempfile
 import unittest
 from copy import deepcopy
 from pathlib import Path
 
 from app.build import build, summarize
-from app.config_engine import classify, load_csv, normalize_score, validate_config
+from quickdash.io import load_csv
+from quickdash.config import classify, normalize_score, validate_config
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -28,7 +30,7 @@ def row(**patch):
 
 
 def javascript(cases, expression):
-    script = "const api=require('./app/eval_config.js'),app=require('./app/app.js');const cases=JSON.parse(require('fs').readFileSync(0,'utf8'));process.stdout.write(JSON.stringify(cases.map(c=>{try{return {value:" + expression + "}}catch(e){return {error:e.message}}})));"
+    script = "const api=require('./app/eval_config.js'),app=require('./app/analysis.js');const cases=JSON.parse(require('fs').readFileSync(0,'utf8'));process.stdout.write(JSON.stringify(cases.map(c=>{try{return {value:" + expression + "}}catch(e){return {error:e.message}}})));"
     return json.loads(subprocess.check_output(['node', '-e', script], input=json.dumps(cases), text=True, cwd=ROOT))
 
 
@@ -42,6 +44,50 @@ def inputs(folder, c=None):
 
 
 class DataContracts(unittest.TestCase):
+    def test_component_config_validation_and_standalone_build(self):
+        c=config();e=c['evals'][0];e.pop('normalize')
+        levels=['low','medium','high','top']
+        e['aggregation']={'components':[dict(name=name,match={'regex':'task_.+_'+name},relative_weight=2**i) for i,name in enumerate(levels)]}
+        c['languages']=[dict(tasks=['task_en_'+name for name in levels],scope='single',language='eng_Latn')]
+        validate_config(c)
+        bad_values=[{'components':[dict(name='low',match={'name':'x'},weight=1)]},None,{}, {'components':[]}, {'components':[dict(name='low',match={'name':'x'},relative_weight=True)]}]
+        for value in bad_values:
+            bad=deepcopy(c);bad['evals'][0]['aggregation']=value
+            with self.assertRaises(ValueError):validate_config(bad)
+            self.assertIn('error',javascript([bad],'api.validateConfig(c)')[0])
+        for mutation in [lambda c:c['languages'][0]['tasks'].pop(),
+                         lambda c:c['evals'][0].update(select={'regex':'task_.+_(low|medium|high)'}),
+                         lambda c:c['evals'][0]['aggregation']['components'][0].update(match={'regex':'task_.+'}),
+                         lambda c:c['evals'][0]['aggregation']['components'][0].update(metric='other')]:
+            bad=deepcopy(c);mutation(bad)
+            with self.assertRaises(ValueError):validate_config(bad)
+            self.assertIn('error',javascript([bad],'api.validateConfig(c)')[0])
+        rr=[row(task='task_en_'+name,value=str(value)) for name,value in zip(levels,[.6,.3,.15,0])]
+        for mode in ['standard','english_eval','english_category']:
+            c['english_weights']={'C':.5}
+            self.assertAlmostEqual(summarize(classify(rr,c),c,mode)[0]['score'],12)
+            result=summarize(classify(rr[:-1],c),c,mode)[0]
+            self.assertIsNone(result['score']);self.assertTrue(result['warnings'])
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);kw=inputs(folder,c);source=folder/'scores.csv'
+            source.write_text(','.join(rr[0])+'\n'+'\n'.join(','.join(r.values()) for r in rr))
+            with contextlib.redirect_stdout(io.StringIO()):build(source,folder/'out',**kw)
+            data=json.loads((folder/'out/analysis.json').read_text())
+            self.assertAlmostEqual(data['models'][0]['score'],12)
+            self.assertEqual(data['models'][0]['evals'][0]['count'],4)
+            self.assertIn('Component aggregation',(folder/'out/index.html').read_text())
+            self.assertTrue((folder/'out/eval-scores.csv').exists())
+            previous=(folder/'out/index.html').read_bytes()
+            suite=dict(version=1,name='Partial components',mode='fixed',evals=[dict(name='Eval',variants=[dict(task=r['task'],n_shot=0) for r in rr[:-1]])])
+            (folder/'set.yaml').write_text(json.dumps(suite));kw['suite_path']=folder/'set.yaml'
+            with self.assertRaisesRegex(ValueError,'Incompatible aggregation config.*top'):build(source,folder/'out',**kw)
+            self.assertEqual((folder/'out/index.html').read_bytes(),previous)
+            suite['evals'][0]['variants'].append(dict(task=rr[-1]['task'],n_shot=5))
+            (folder/'set.yaml').write_text(json.dumps(suite))
+            with self.assertRaisesRegex(ValueError,'Incompatible aggregation config'):build(source,folder/'out',**kw)
+            self.assertEqual((folder/'out/index.html').read_bytes(),previous)
+
+
     def test_independent_directory_defaults_and_explicit_overrides(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder=Path(tmp);kw=inputs(folder);profiles=folder/'profiles';profiles.mkdir()
@@ -69,7 +115,7 @@ class DataContracts(unittest.TestCase):
 
     def test_cli_defaults_to_any_available_and_separate_weight_profile(self):
         with tempfile.TemporaryDirectory() as tmp:
-            subprocess.run(['python3','-m','app.build','--output',tmp],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
+            subprocess.run([sys.executable,'-m','app.build','--output',tmp],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
             data=json.loads((Path(tmp)/'analysis.json').read_text())
             self.assertEqual(data['suite']['mode'],'available')
             self.assertEqual(data['profile']['name'],'Original')
@@ -129,7 +175,7 @@ class DataContracts(unittest.TestCase):
             self.assertEqual(data['models'][0]['evals'][0]['count'],1)
 
     def test_cli_rejects_both_csv_and_results_directory(self):
-        result=subprocess.run(['python3','-m','app.build','unused.csv','--results-dir','unused'],capture_output=True,text=True)
+        result=subprocess.run([sys.executable,'-m','app.build','unused.csv','--results-dir','unused'],capture_output=True,text=True)
         self.assertEqual(result.returncode,2);self.assertIn('not both',result.stderr)
 
     def test_shared_results_directory_combines_models_and_rejects_duplicates(self):
@@ -147,6 +193,30 @@ class DataContracts(unittest.TestCase):
             (results/'duplicate.csv').write_text((results/'A.csv').read_text())
             with self.assertRaisesRegex(ValueError,'Duplicate model'):build(None,out,**kw,results_dir=results)
             self.assertEqual((out/'index.html').read_bytes(),previous)
+
+    def test_sample_is_used_only_for_an_empty_results_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);kw=inputs(folder);results=folder/'results';results.mkdir();out=folder/'out'
+            sample=folder/'sample.csv';r=row(checkpoint='Sample')
+            sample.write_text(','.join(r)+'\n'+','.join(r.values()))
+            with contextlib.redirect_stdout(io.StringIO()):
+                build(None,out,**kw,results_dir=results,sample_csv=sample)
+            data=json.loads((out/'analysis.json').read_text())
+            self.assertEqual(data['sample_models'],['Sample'])
+            self.assertEqual([m['model'] for m in data['models']],['Sample'])
+            self.assertEqual(data['sources'][0]['file'],'sample.csv')
+            r=row(checkpoint='Shared');(results/'real.csv').write_text(','.join(r)+'\n'+','.join(r.values()))
+            # A real dataset wins even if the fallback path is unavailable.
+            with contextlib.redirect_stdout(io.StringIO()):
+                build(None,out,**kw,results_dir=results,sample_csv=folder/'absent.csv')
+            data=json.loads((out/'analysis.json').read_text())
+            self.assertEqual(data['sample_models'],[])
+            self.assertEqual([m['model'] for m in data['models']],['Shared'])
+            (results/'real.csv').write_text('invalid')
+            with self.assertRaises(ValueError):build(None,out,**kw,results_dir=results,sample_csv=sample)
+            with self.assertRaisesRegex(ValueError,'sample.*results-dir'):
+                build(None,out,**kw,sample_csv=sample)
+            with self.assertRaises(ValueError):build(None,out,**kw,results_dir=folder/'missing',sample_csv=sample)
 
     def test_shared_results_report_bad_filename_and_reject_missing_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -222,7 +292,7 @@ class DataContracts(unittest.TestCase):
         for field in ['checkpoint', 'task', 'metric', 'harness', 'backend']:
             invalid.extend(row(**{field: value}) for value in ['', ' ', None, 1])
         invalid.extend(row(n_shot=value) for value in ['', '-1', '1.5', 'NaN', '00', '1e1', True, None])
-        invalid.extend([row(filter=None), row(value=True), row(checkpoint='SYNTHETIC demo — perturbed')])
+        invalid.extend([row(filter=None), row(value=True), row(checkpoint='SYNTHETIC demo — perturbed'), row(checkpoint='SYNTHETIC demo — higher scores')])
         cases = [dict(rows=[r], config=config()) for r in invalid]
         for c, js in zip(cases, javascript(cases, 'api.auditRows(c.rows,c.config)')):
             with self.subTest(row=c['rows']):

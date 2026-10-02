@@ -2,18 +2,19 @@ import json
 import unittest
 from pathlib import Path
 from app.build import classify, summarize
-from app.config_engine import task_language, validate_config, normalize_score, match_task, shared_config, load_catalogue
+from quickdash.config import task_language, validate_config, normalize_score, match_task, load_catalogue, load_profile, load_suite, resolve_config, scope_rows
 from copy import deepcopy
 import subprocess
+import sys
 import tempfile
 ROOT=Path(__file__).resolve().parent.parent
-CONFIG=shared_config('resolve',value=[load_catalogue(ROOT/'configs/catalogue.yaml'),shared_config('suite',ROOT/'configs/sets/any-available.yaml'),shared_config('weights',ROOT/'configs/weights/oellm.yaml')])
+CONFIG=resolve_config(load_catalogue(ROOT/'configs/catalogue.yaml'),load_suite(ROOT/'configs/sets/any-available.yaml'),load_profile(ROOT/'configs/weights/oellm.yaml'))
 def resolve_languages(tasks):return [task_language(t,CONFIG) for t in tasks]
 DATA=json.loads((ROOT/'output/analysis.json').read_text())
 class AnalysisTests(unittest.TestCase):
  def test_english_weighting_language_fallback(self):
   config={'evals':[{'name':'mixed','category':'C','metric':'acc'},{'name':'english','category':'C','metric':'acc'}], 'weights':{'C':1}, 'english_weights':{'C':.5}}
-  rows=[dict(task=task,eval=ev,score_100=score,selected=True,checkpoint='A') for task,ev,score in [('en','mixed',80),('fr','mixed',20),('de','mixed',40),('english','english',100)]]
+  rows=[dict(task=task,eval=ev,score_100=score,selected=True,checkpoint='A',metric='acc',filter='none',n_shot='0',harness='fixture',backend='cpu') for task,ev,score in [('en','mixed',80),('fr','mixed',20),('de','mixed',40),('english','english',100)]]
   for code in [None,'mul','hbs_Latn']:
    config['languages']=[{'tasks':['en','english'],'scope':'single','language':'eng_Latn'},{'tasks':['de'],'scope':'single','language':'deu_Latn'}]
    if code:config['languages'].append({'tasks':['fr'],'scope':'pooled','language':code})
@@ -25,7 +26,7 @@ class AnalysisTests(unittest.TestCase):
  def test_complete_source_coverage(self):
   self.assertEqual(len(DATA['rows']),2124)
   self.assertTrue(all(r['eval'] for r in DATA['rows']))
-  self.assertEqual(len([e for e in DATA['models'][0]['evals'] if not e['excluded']]),45)
+  self.assertEqual({e['name'] for e in DATA['models'][0]['evals'] if not e['excluded']},{r['eval'] for r in scope_rows(DATA['rows'],DATA['suite'])['rows']})
  def test_selected_measurements_unique(self):
   rr=[r for r in DATA['rows'] if r['selected']]
   keys=[tuple(r[k] for k in ['task','metric','filter','n_shot','harness','backend']) for r in rr]
@@ -105,7 +106,7 @@ class AnalysisTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as tmp:
    from tests.test_data import inputs
    path=Path(tmp);kw=inputs(path,c)
-   subprocess.run(['python3','-m','app.build',str(ROOT/'data/v2zloss_86k.flag-evals-436.tasks.csv'),'--catalogue',str(kw['catalogue_path']),'--weights',str(kw['weights_path']),'--eval-set',str(kw['suite_path']),'--output',str(path/'result')],check=True,capture_output=True)
+   subprocess.run([sys.executable,'-m','app.build',str(ROOT/'data/v2zloss_86k.flag-evals-436.tasks.csv'),'--catalogue',str(kw['catalogue_path']),'--weights',str(kw['weights_path']),'--eval-set',str(kw['suite_path']),'--output',str(path/'result')],check=True,capture_output=True)
    data=json.loads((path/'result/analysis.json').read_text())
    self.assertNotEqual(data['models'][0]['score'],DATA['models'][0]['score'])
    script="const fs=require('fs'),e=require('./app/eval_config.js');const d=JSON.parse(fs.readFileSync(process.argv[1]));console.log(JSON.stringify({rows:e.auditRows(d.rows,d.scheme),metadata:d.metadata.map(m=>e.taskLanguage(m.task,d.scheme))}));"
@@ -144,9 +145,15 @@ class AnalysisTests(unittest.TestCase):
   c=deepcopy(CONFIG)
   for e in c['evals']:e['normalize']={'min':0,'max':1}
   raw=classify(DATA['rows'],c)
-  scoped=shared_config('scope',value=[raw,DATA['suite']])['rows']
+  scoped=scope_rows(raw,DATA['suite'])['rows']
   from statistics import mean
-  expected_raw=sum(weight*mean(mean(r['raw_score_100'] for r in scoped if r['eval']==e) for e in {r['eval'] for r in scoped if r['category']==category}) for category,weight in c['weights'].items())
+  def raw_eval(name):
+   rr=[r for r in scoped if r['eval']==name]
+   if name!='PolyMath':return mean(r['raw_score_100'] for r in rr)
+   levels={'low':1,'medium':2,'high':4,'top':8}
+   languages={r['task'].split('_')[1] for r in rr}
+   return mean(sum(r['raw_score_100']*levels[r['task'].split('_')[-1]] for r in rr if r['task'].split('_')[1]==lang)/15 for lang in languages)
+  expected_raw=sum(weight*mean(raw_eval(e) for e in {r['eval'] for r in scoped if r['category']==category}) for category,weight in c['weights'].items())
   self.assertAlmostEqual(summarize(scoped,c)[0]['score'],expected_raw)
   self.assertLess(DATA['models'][0]['score'],expected_raw)
   self.assertEqual([r['raw_score_100'] for r in raw],[r['raw_score_100'] for r in DATA['rows']])

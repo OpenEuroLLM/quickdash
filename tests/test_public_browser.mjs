@@ -132,8 +132,91 @@ try{
  await upload('#suiteFile',serializeSuite({version:1,name:'Freeform',mode:'available'}),'freeform.yaml');
  await click('[data-view=warnings]');
  assert.match(await evaluate("document.querySelector('#view').textContent"),/Config caveat.*Example math requires review/s);
+ // Weighted components use fictional scores and remain inspectable after exclusion.
+ await click('#clearModels');await click('[data-view=config]');
+ const levels=['low','medium','high','top'];
+ const componentCatalogue={version:1,name:'Component example',evals:[{name:'Poly example',category:'Reasoning',match:{regex:'poly_.+'},metric:'acc',filter:'none',score:{scale:1},aggregation:{components:levels.map((name,i)=>({name,match:{regex:'poly_.+_'+name},relative_weight:2**i})),note:'Fictional component fixture.'}}],languages:['en','de'].map((lang,i)=>({tasks:levels.map(l=>'poly_'+lang+'_'+l),scope:'single',language:i?'deu_Latn':'eng_Latn'}))};
+ await upload('#configFile',serializeCatalogue(componentCatalogue),'components.yaml');
+ await upload('#weightsFile',serializeWeightProfile({version:1,name:'Component weights',weights:{Reasoning:1},english_weights:{Reasoning:.5}}),'weights.yaml');
+ const componentCSV=(model,omit=false)=>['checkpoint,task,metric,filter,n_shot,harness,backend,value',...['en','de'].flatMap(lang=>levels.flatMap((l,i)=>omit&&lang==='en'&&l==='top'?[]:[`${model},poly_${lang}_${l},acc,none,0,test,cpu,${model==='Component A'?(lang==='en'?[.6,.3,.15,0][i]:.2):(lang==='en'?.3:.1)}`]))].join('\n');
+ await upload('#modelFile',componentCSV('Component A'),'a.csv');
+ await upload('#modelFile',componentCSV('Component B'),'b.csv');
+ assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+ assert.deepEqual(await evaluate("[...document.querySelectorAll('.score-card strong')].map(e=>e.textContent)"),['16.00','20.00','-4.00']);
+ for(const view of ['categories','languages']){
+  await click('[data-view='+view+']');
+  const parent= view==='categories'?'[data-kind=eval][data-label="Poly example"]':'[data-kind=language][data-label=eng_Latn]';
+  const expected=view==='categories'?'16.00':'12.00';
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(parent)}+' > summary').children[2].textContent`),expected);
+  const leaf='[data-kind=variant][data-label=poly_en_low]';
+  assert.deepEqual(await evaluate(`Array.from(document.querySelector(${JSON.stringify(leaf)}).children).slice(2).map(e=>e.textContent)`),['60.00','30.00','30.00','1 · 6.67%','4.000','2.000']);
+  await evaluate("document.querySelectorAll('.breakdown-node').forEach(e=>e.open=true)");
+  const aligned=await evaluate(`{const header=[...document.querySelector('.tree-head').children].map(e=>e.getBoundingClientRect().right),row=[...document.querySelector(${JSON.stringify(leaf)}).children].map(e=>e.getBoundingClientRect().right);header.every((x,i)=>i===0||Math.abs(x-row[i])<2)}`);
+  assert.equal(aligned,true);
+  if(view==='languages'){await click('[data-language-sort=componentA]');assert.match(await evaluate("document.querySelector('#view').textContent"),/Group contribution/);}
+ }
+ await click('[data-view=config]');
+ assert.match(await evaluate("document.querySelector('.component-info').textContent"),/sum\(relative_weight × normalized score\) \/ 15/);
+ await evaluate(`window.originalCreate=URL.createObjectURL;window.originalClick=HTMLAnchorElement.prototype.click;URL.createObjectURL=b=>{window.exportBlob=b;return 'blob:test'};HTMLAnchorElement.prototype.click=function(){};`);
+ await click('#exportConfig');assert.deepEqual(await evaluate('exportBlob.text().then(parseCatalogue)'),componentCatalogue);
+ await evaluate('URL.createObjectURL=originalCreate;HTMLAnchorElement.prototype.click=originalClick');
+ await upload('#configFile',serializeCatalogue(componentCatalogue).replace('relative_weight: 1','relative_weight: 0'),'invalid-components.yaml');
+ assert.match(await evaluate("document.querySelector('#error').textContent"),/positive/);
+ assert.equal(await evaluate("document.querySelector('.score-card strong').textContent"),'16.00');
+ await upload('#modelFile',componentCSV('Component C',true),'incomplete.csv');
+ assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+ assert.deepEqual(await evaluate("[...document.querySelectorAll('.score-card strong')].map(e=>e.textContent)"),['20.00','10.00','10.00']);
+ await click('[data-view=warnings]');assert.match(await evaluate("document.querySelector('#view').textContent"),/Incomplete components.*top: missing/s);
+ await click('[data-view=config]');
+ await click('[data-task=poly_en_low] > summary');
+ assert.match(await evaluate("document.querySelector('[data-task=poly_en_low] .task-details').textContent"),/Excluded from comparison/);
+ const componentSet={version:1,name:'All component tasks',mode:'fixed',evals:[{name:'Poly example',variants:componentCatalogue.languages.flatMap(g=>g.tasks.map(task=>({task,n_shot:0})))}]};
+ const cardsBeforeRejectedConfig=await evaluate("document.querySelector('#cards').textContent");
+ for(const modify of [s=>s.evals[0].variants.pop(),s=>s.evals[0].variants[0].n_shot=5,s=>delete s.evals[0].variants[0].n_shot]){
+  const bad=structuredClone(componentSet);modify(bad);
+  await upload('#suiteFile',serializeSuite(bad),'incompatible-set.yaml');
+  assert.match(await evaluate("document.querySelector('#error').textContent"),/Incompatible aggregation config/);
+  assert.equal(await evaluate("document.querySelector('#cards').textContent"),cardsBeforeRejectedConfig);
+ }
+ const incompatibleCatalogue=structuredClone(componentCatalogue);incompatibleCatalogue.evals[0].select={regex:'poly_.+_(low|medium|high)'};
+ await upload('#configFile',JSON.stringify(incompatibleCatalogue),'incompatible-catalogue.yaml');
+ assert.match(await evaluate("document.querySelector('#error').textContent"),/Incompatible aggregation config.*top/);
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),cardsBeforeRejectedConfig);
+ await upload('#suiteFile',serializeSuite(componentSet),'components-set.yaml');
+ assert.match(await evaluate("document.querySelector('#coverage').textContent"),/INCOMPLETE.*4\/8 requirements shared/);
+ await click('[data-view=comparisons]');await change('#compareGroup','variant');await change('#compareMeasure','weighted');
+ assert.match(await evaluate("document.querySelector('#view').textContent"),/10.0000 index points/);
+ // Editable weights resolve a category missing from the loaded profile.
+ const beforeCategoryEdit=await evaluate("document.querySelector('#cards').textContent");
+ const customCategory=structuredClone(componentCatalogue);customCategory.evals[0].category='Custom';
+ await click('[data-view=config]');await upload('#configFile',serializeCatalogue(customCategory),'custom-category.yaml');
+ await click('[data-view=warnings]');assert.match(await evaluate("document.querySelector('#view').textContent"),/No category weight/);
+ await click('[data-view=score]');
+ await evaluate(`{for(const input of document.querySelectorAll('[data-weight]')){input.value=input.dataset.weight==='Custom'?'1':'0';document.querySelector('#view').onchange({target:input});}}`);
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),beforeCategoryEdit);
+ await click('[data-view=warnings]');assert.doesNotMatch(await evaluate("document.querySelector('#view').textContent"),/No category weight/);
+ // Exercise the actual Pages fallback with the full public sample and every synthetic choice.
+ const sample=path.join(temporary,'sample'),resultsDir=path.join(temporary,'empty-results');fs.mkdirSync(resultsDir);
+ execFileSync('python3',['-m','app.build','--results-dir',resultsDir,'--sample-csv','examples/sample-evals.csv','--output',sample],{cwd:root,stdio:'pipe'});
+ await navigate(pathToFileURL(path.join(sample,'index.html')).href);
+ assert.match(await evaluate("document.querySelector('#modelA').value"),/^SAMPLE/);
+ assert.equal(await evaluate("document.querySelector('#cards').hidden"),false);
+ const syntheticNames=await evaluate("syntheticOptions.map(o=>o.name)");
+ const scores=[];
+ for(const name of syntheticNames){
+  await change('#modelB',name);
+  assert.match(await evaluate("document.querySelector('#demo').textContent"),/synthetic scores/);
+  assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+  scores.push(await evaluate("document.querySelector('#cards').textContent"));
+  for(const view of ['categories','languages','comparisons','config','warnings','score'])await click('[data-view='+view+']');
+ }
+ assert.equal(new Set(scores).size,syntheticNames.length);
+ await change('#modelB',await evaluate("document.querySelector('#modelA').value"));
+ assert.match(await evaluate("document.querySelector('#demo').textContent"),/Sample dataset/);
+ await click('#clearModels');
+ assert.equal(await evaluate("document.querySelector('#modelA').options.length"),0);
  assert.deepEqual(errors,[]);assert.deepEqual(network,[],'Loading and comparing local files must not send HTTP requests');
- console.log('Public browser checks passed: empty start, shared models, independent weights and eval sets, required coverage, temporary uploads, rollback, clear models and no uploads.');
+ console.log('Public browser checks passed: empty start, shared models, independent weights and eval sets, required coverage, temporary uploads, rollback, Pages sample, synthetic choices, clear models and no uploads.');
 }finally{
  ws?.close();fs.rmSync(temporary,{recursive:true,force:true});
 }

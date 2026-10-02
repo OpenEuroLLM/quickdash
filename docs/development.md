@@ -1,23 +1,24 @@
 # Develop and publish Quickdash
 
-Run commands from the repository root. Python 3.8+ and Node.js 18+ build the dashboard without installing packages; browser tests require Node.js 22+ and Chrome. The scoring config format is documented in the [configuration reference](configuration.md).
+Run commands from the repository root. Install the Python package with `python -m pip install -e .` in a virtual environment (Python 3.8+). Building and using the Python library need no Node runtime. Cross-language tests require Node.js 18+; browser tests require Node.js 22+ and Chrome. Activate the environment before running browser tests so their builder subprocess uses the installed dependencies. The scoring config format is documented in the [configuration reference](configuration.md).
 
 ## Source layout
 
 | Directory | Contents |
 | --- | --- |
-| `app/` | Python builder, browser application, HTML template, and bundled YAML parser. |
+| `quickdash/` | Native Python interpretation, analysis, diagnostics, and CLI. |
+| `app/` | Python builder, DOM-independent JavaScript engine (`analysis.js`), browser renderer (`app.js`), HTML, and bundled YAML parser. |
 | `tests/` | Public contract tests, browser checks, and optional private-export regressions. |
 | `configs/` | Global catalogue, weighting profiles, optional named sets, and fictional examples. |
 | `results/` | Public CSV exports contributed to the shared dashboard. |
-| `examples/` | Fictional input data for the demo and tests. |
+| `examples/` | Public sample export for Pages and parity tests, plus small fictional quickstart data. |
 | `docs/` | Configuration and contributor documentation. |
 | `data/`, `output/` | Ignored local inputs and generated files. |
 
 ## Build and inspect a change
 
 ```sh
-python3 -m app.build --results-dir results --output output/shared
+python3 -m app.build --results-dir results --sample-csv examples/sample-evals.csv --output output/shared
 python3 -m app.build examples/scores.csv --catalogue configs/examples/catalogue.yaml \
   --weights configs/examples/weights.yaml --eval-set configs/sets/any-available.yaml --output output/demo
 ```
@@ -31,9 +32,11 @@ Check the views affected by your change, including their warnings and failed-inp
 These tests use small fixtures and run from a fresh checkout without private evaluation data:
 
 ```sh
-python3 -m unittest tests.test_data
-node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs
+python -m unittest tests.test_data tests.test_engines
+node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs
 ```
+
+The shared suite in `tests/test_engines.py` sends the same input cases to native Python and the real browser engine through `tests/engine_adapter.cjs`. Both must satisfy independently specified expectations, then their complete semantic reports are compared. Diagnostic codes, contexts and actions are checked; presentation text is not. Numerical comparison uses absolute tolerance `1e-9` and relative tolerance `1e-12`. Fixtures vary configuration sizes, contents and ordering. Python tests also exercise warning emission and CLI stdout/stderr without Node on PATH.
 
 They cover input validation, normalization, warning/exclusion behavior, failed-build preservation, Python/JavaScript parity, hierarchy sorting, and deterministic randomized scoring comparisons against an independent calculation.
 
@@ -58,7 +61,7 @@ The full-export regression tests require the original private CSV at `data/v2zlo
 ```sh
 python3 -m app.build data/v2zloss_86k.flag-evals-436.tasks.csv
 python3 -m unittest tests.test_analysis tests.test_data
-node --test tests/test_app.cjs tests/test_english.cjs tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs
+node --test tests/test_app.cjs tests/test_english.cjs tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs
 ```
 
 With the isolated Chrome session above running, use `node tests/test_browser.mjs` for the full-export browser checks: filtering, sortable hierarchies, scroll preservation, warnings, model swapping, header alignment, and mobile layouts. Screenshots go into the ignored `output/` directory.
@@ -72,9 +75,20 @@ node --test --experimental-test-coverage --test-coverage-include=app/eval_config
 
 </details>
 
+## Compare a dashboard refactor against a baseline
+
+Preserve the revision being reviewed in a temporary checkout or directory. Build an example or private dashboard with the candidate revision, then compare the calculation paths:
+
+```sh
+QUICKDASH_BASELINE=/path/to/baseline-checkout \
+  node tests/compare_baseline.cjs output/example/analysis.json
+```
+
+This optional check compares included rows, weights, contributions, scores and descriptive trees across profiles, sets, all aggregation modes, and missing coverage. Run the browser suites against both builds as well; arithmetic agreement alone does not establish UI behavior. Record the comparison and any intentional fixes in the PR. Keep private inputs and generated evidence outside tracked files.
+
 ## Publish through GitHub Pages
 
-The [workflow](../.github/workflows/pages.yml) runs public tests on pull requests and pushes to `main`. After tests pass, it builds the shared dashboard and a separate fictional demo. Only `output/site/` is uploaded as the Pages artifact: `index.html`, `demo.html`, and license files. The repository root and private local output are not published as the site.
+The [workflow](../.github/workflows/pages.yml) runs public tests on pull requests and pushes to `main`. After tests pass, it builds the shared dashboard and a separate fictional demo. When `results/` has no CSVs, the shared page embeds `examples/sample-evals.csv`; real shared CSVs take precedence. The sample also runs through both engines in CI for all shipped weighting profiles, eval sets, and aggregation modes, with complete and mismatched coverage. See [contributor requirements](../AGENTS.md). Only `output/site/` is uploaded as the Pages artifact: `index.html`, `demo.html`, and license files. The repository root and private local output are not published as the site.
 
 In repository **Settings → Pages**, select **GitHub Actions** as the source. Publishing uses the generated artifact rather than a checked-in root or `docs/` folder. A successful push to `main` deploys automatically; a failed build leaves the last successful site available. Review build or deployment failures in the repository’s **Actions** tab.
 

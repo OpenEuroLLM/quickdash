@@ -4,9 +4,11 @@ A standalone, offline dashboard for comparing model evaluation scores. Explore c
 
 **[Open the dashboard](https://openeurollm.github.io/quickdash/)** or **[try the fictional example](https://openeurollm.github.io/quickdash/demo.html)**. No installation is needed to use either page.
 
+While no shared CSVs have been added to `results/`, the main page opens with our [sample eval export](examples/README.md) and synthetic comparison choices. Shared CSVs replace that fallback automatically on the next successful deployment.
+
 ## Compare models
 
-1. Select shared models as A and B, or use **Add model CSV** to open your exports. With one real model, a labelled synthetic comparison is supplied for exploring the interface.
+1. Select shared models as A and B, or use **Add model CSV** to open your exports. Three labelled synthetic comparisons (perturbed, higher, and lower scores) are supplied for exploring the interface.
 2. Choose a **Weighting profile**. Leave **Eval set** on **Any available** to compare the measurements both models have, or select **flagship-1** to check an expected set. Weights and eval sets are independent. The supplied sets exclude prompted Global PIQA pending scoring validation.
 3. Review **Warnings**, then explore the scores and breakdowns. The global catalogue determines how to interpret each eval: category, scoring field, normalization, and language assignments.
 
@@ -26,12 +28,15 @@ The [Pages workflow](.github/workflows/pages.yml) publishes only the generated d
 
 ## Build a standalone file
 
-Building requires Python 3.8+ and Node.js 18+. The YAML parser is [bundled with its license](app/vendor/README.md); no package installation is needed.
+Building requires Python 3.8+ and the Python package below. Node.js is needed only for development tests; the generated dashboard remains standalone and offline.
 
 ```sh
 git clone https://github.com/OpenEuroLLM/quickdash.git
 cd quickdash
-python3 -m app.build examples/scores.csv --catalogue configs/examples/catalogue.yaml \
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+python -m app.build examples/scores.csv --catalogue configs/examples/catalogue.yaml \
   --weights configs/examples/weights.yaml --eval-set configs/sets/any-available.yaml --output output/example
 open output/example/index.html  # macOS; elsewhere, open it in your browser
 ```
@@ -41,10 +46,10 @@ The example compares two fictional models with a multilingual reasoning eval and
 To build the shared dashboard, including all shared results and config choices:
 
 ```sh
-python3 -m app.build --results-dir results --output output/shared
+python3 -m app.build --results-dir results --sample-csv examples/sample-evals.csv --output output/shared
 ```
 
-An empty `results/` directory produces a page ready for local CSV imports. To start without embedded models regardless of the directory’s contents, omit `--results-dir`.
+The sample is used only when `results/` contains no CSVs. Omit `--sample-csv` to leave an empty results directory upload-ready; omit both options to start without embedded models regardless of shared data.
 
 For private exports, put your CSV in the ignored `data/` directory:
 
@@ -67,15 +72,29 @@ The builder replaces the files it generates in the chosen output directory, incl
 
 Filters affect inspection views, while composite scores and contribution weights use shared coverage within the selected eval set. A named set with missing requirements is labelled incomplete; it uses the shared subset with redistributed weights. Unmatched measurements are excluded from both compared scores with warnings. Malformed input and invalid selected scores are rejected; failed imports preserve the active dashboard. See the [data-handling policy](docs/configuration.md#data-validation-and-failure-behavior).
 
-Language/category breakdowns show descriptive raw averages. Weighted scores use configured normalization, whose baselines and limitations are visible per eval. Shared numerical scales do not establish comparable difficulty across benchmarks. Unknown/mixed-language scores use the documented English fallback for balancing; this does not change their language labels.
+Language/category breakdowns show descriptive raw averages for ordinary evals. Evals with configured components, including PolyMath, show calculated scores when collapsed; expand them to see individual raw scores, relative component weights, and contributions. PolyMath stores `relative_weight` values of 1, 2, 4, and 8, divided by their total of 15 when scoring; incomplete language/protocol groups are excluded with warnings. Incompatible component configurations are rejected before taking effect. See [component aggregation](docs/configuration.md#weighted-components-within-an-eval). Weighted scores use configured normalization, whose baselines and limitations are visible per eval. Shared numerical scales do not establish comparable difficulty across benchmarks. Unknown/mixed-language scores use the documented English fallback for balancing; this does not change their language labels.
+
+## Analyze from Python or the command line
+
+The native Python library uses the same CSVs, YAML rules, weighting profiles, and optional eval sets as the dashboard. It returns calculated trees, effective weights, contributions, coverage, and structured diagnostics. Python emits warnings by default; applications can explicitly collect them or reject results with warnings. See the [Python API and CLI guide](docs/python-api.md).
+
+After installing the package as above:
+
+```sh
+quickdash examples/scores.csv --catalogue configs/examples/catalogue.yaml \
+  --weights configs/examples/weights.yaml --eval-set configs/sets/any-available.yaml \
+  --compare 'Example A' 'Example B'
+```
+
+Add `--format json` for a complete report. Diagnostics go to stderr. Python and browser engines run against the same behavioral test cases.
 
 ## Development
 
-Application code lives in `app/`, tests in `tests/`, and contributor documentation in `docs/`. Common checks:
+Application code lives in `app/` and `quickdash/`, tests in `tests/`, and contributor documentation in `docs/`. Common checks:
 
 ```sh
-python3 -m unittest tests.test_data
-node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs
+python -m unittest tests.test_data tests.test_engines
+node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs
 ```
 
 See [development and publishing](docs/development.md) for the source layout, browser tests, and GitHub Pages workflow.

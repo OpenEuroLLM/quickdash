@@ -46,6 +46,7 @@ const SuiteConfig=(()=>{
     const matches=catalogue.evals.filter(rule=>api.matchTask(rule.match,v.task));
     if(matches.length!==1||matches[0].name!==e.name||e.select&&!api.matchTask(e.select,v.task)||'shots'in e&&'n_shot'in v&&e.shots!==v.n_shot)throw Error('Required variant is not selected by its catalogue rule: '+v.task);
    }
+   if(required.variants)api.validateAggregationSelection(e,required.variants,catalogue);
    return e;
   });
   return api.validateConfig({version:1,name:catalogue.name,evals,languages:catalogue.languages,weights:{...profile.weights,...Object.fromEntries(evals.filter(e=>!Object.hasOwn(profile.weights,e.category)).map(e=>[e.category,0]))},english_weights:{...profile.english_weights},aggregate:profile.aggregate||'standard',notes:[...(catalogue.notes||[]),...(profile.notes||[])]});

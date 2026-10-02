@@ -80,6 +80,7 @@ The builder embeds YAML profiles directly in `configs/weights/` and sets directl
 - `--weights PATH` chooses a profile; used alone, it embeds only that profile. `--weights-dir DIR` offers the profiles in another directory and uses its `default.txt` unless an explicit profile is supplied.
 - `--eval-set PATH` and `--sets-dir DIR` work the same way for eval sets.
 - `--results-dir DIR` embeds CSVs directly in that directory. A checkpoint label may occur in only one file; one file can contain multiple models.
+- `--sample-csv FILE`, used with `--results-dir`, supplies a fallback only if that directory has no CSVs. Invalid shared files stop the build; they never trigger the fallback. Pages uses `examples/sample-evals.csv` for this option.
 
 Every offered set is validated against the catalogue and every profile before writing output. Raw results are classified once by the global catalogue; changing sets only changes comparison membership. An empty results directory, or no CSV input, starts without models.
 
@@ -134,9 +135,12 @@ For an input row with `value=0.625`, the raw score is 62.5 and the normalized sc
 | `select` | Optional name/regex rule restricting which matched tasks contribute. Useful for selecting summaries while retaining child-task audits. |
 | `score.scale` | Raw metric's upper scale: 1 for fractional accuracy; 100 for percentage or chrF scores. Selected values must be finite and within 0..scale. |
 | `warning` | Optional nonempty text describing an unresolved scoring assumption. Appears once in Warnings when present in the selected comparison and in this eval’s configuration details; it does not change scores. |
+| `aggregation` | Optional component rules with positive relative weights; see [weighted components](#weighted-components-within-an-eval). |
 | `normalize` | Optional object with `min`, `max`, and optional `clip`, `basis`, `note`, and `sources`. Thresholds are fractions after division by `score.scale`. |
 
-Use the common Python/JavaScript regex subset: literal text, character classes, alternatives, groups, and ordinary quantifiers. Patterns match the entire task name. Named groups and lookbehind are rejected. Language extraction does not use these patterns.
+Use the shared Python/JavaScript regex subset: literal text, character classes, alternatives, capturing/noncapturing groups, and ordinary quantifiers. Patterns match the entire task name. Flags, lookarounds, named groups, backreferences and possessive quantifiers are rejected. `\d` and `\w` use ASCII character classes; `\s` uses ECMAScript whitespace and must not appear inside a character class. Dot excludes line terminators and matches one Unicode code point. Language extraction does not use these patterns. Exact-name rules are available when regexes are unnecessary.
+
+The [Python API](python-api.md) consumes these same configurations and returns score trees, audits, coverage, and structured diagnostics. All configuration counts are derived from the supplied inputs.
 
 The Original weighting profile gives Code, Math, Reasoning, Knowledge, Commonsense, and Reading a weight of 0.15 each; Translation, Language, and Instruction following each receive 0.1/3. Category weights must be nonnegative and sum to 1. Names, metrics, and task strings are case-sensitive. Unknown config fields are rejected to catch typos. `version` must be 1; `name` labels the active config. Optional top-level `notes` is a list of strings.
 
@@ -152,7 +156,60 @@ normalized_score = 100 × clamp((raw_fraction − lo) / (hi − lo), 0, 1)
 
 `0 ≤ lo < hi ≤ 1` is required. Omitting normalization gives `lo=0`, `hi=1`. `clip` defaults to true; setting it false allows normalized scores below 0 or above 100. All metrics are treated as higher-is-better.
 
-Under the original aggregate, one variant's weighted contribution is its normalized score multiplied by the effective category weight, divided by the number of available evals in that category and by the number of shared selected variants for that eval. Filtering does not change those denominators. Weighted A−B contributions sum to the composite difference over shared coverage. The English-balance modes redistribute contributions as described in [Choosing an aggregate](#choosing-an-aggregate).
+For evals without component rules, under the original aggregate, one variant's weighted contribution is its normalized score multiplied by the effective category weight, divided by the number of available evals in that category and by the number of shared selected variants for that eval. Filtering does not change those denominators. Weighted A−B contributions sum to the composite difference over shared coverage. The English-balance modes redistribute contributions as described in [Choosing an aggregate](#choosing-an-aggregate).
+
+## Weighted components within an eval
+
+Use `aggregation` when several task results form one eval score and the exporter does not supply the intended summary. It belongs in the global catalogue. Category weights and English shares remain in the weighting profile; expected task coverage remains in the eval set.
+
+For PolyMath, add this block to its eval entry (an excerpt, not a complete catalogue):
+
+```yaml
+aggregation:
+  components:
+    - name: low
+      match: {regex: 'polymath_.+_low'}
+      relative_weight: 1
+    - name: medium
+      match: {regex: 'polymath_.+_medium'}
+      relative_weight: 2
+    - name: high
+      match: {regex: 'polymath_.+_high'}
+      relative_weight: 4
+    - name: top
+      match: {regex: 'polymath_.+_top'}
+      relative_weight: 8
+  note: Difficulty-weighted accuracy; each level is required.
+  sources:
+    - https://qwen-polymath.github.io/#benchmark-score
+```
+
+Each component requires a unique nonempty `name`, a full-task `match` (exact `name` or `regex`, as for eval matching), and a positive finite numeric `relative_weight`. The weight sum must be finite. The list must be nonempty. Optional `note` is text and `sources` is a list of HTTP(S) URLs. Unknown fields are rejected. Multiplying all component weights by the same positive constant leaves the result unchanged.
+
+The supplied PolyMath rule implements the authors' [Difficulty-Weighted Accuracy](https://qwen-polymath.github.io/#benchmark-score): `(low + 2×medium + 4×high + 8×top)/15`. The [oellm-eval template](https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/custom_lm_eval_tasks/polymath/_default_template_yaml) emits a mean accuracy for each difficulty split; those input values are not already difficulty-weighted.
+
+Calculation order:
+
+1. Select the configured metric/filter/shot results and normalize each score.
+2. Within each model, eval, explicit language assignment, and protocol, require exactly one result for every component. Protocol means metric, filter, shot count, harness, and backend. Translation uses the full source/target pair; known pooled languages use their explicit pooled assignment. Unknown languages cannot form component groups.
+3. Calculate `sum(relative_weight × normalized score) / sum(relative_weights)` for each complete group.
+4. Average complete groups equally within the eval, or within its English/other side when balancing is enabled. Apply the selected eval/category aggregation and category weights afterward. Evals without component rules retain their ordinary variant means.
+
+For example, fictional component scores of 60, 30, 15, and 0 produce `(60 + 60 + 60 + 0)/15 = 12`. Their contributions to that language/protocol score are 4, 4, 4, and 0 points. Each component's contribution to the full composite also includes its group's share within the eval, any English balance, the eval's share of its category, and the category weight. These full contributions drive the weighted delta bars and sum to the score difference.
+
+**Incompatible aggregation configurations are errors.** Components inherit the parent eval's metric, filter, score scale, normalization, and any fixed shot setting; they cannot override these fields. Catalogue validation checks declared task/language assignments against the component rules and eval selection. Each represented language must have every component available in the configuration, and each task must match exactly one component. An exact component task must be eligible under its parent eval. Entire languages can be omitted; alternate task aliases are permitted in the catalogue.
+
+A named set that lists component tasks must select exactly one task for each component at every chosen language/shot setting. For example, selecting low/medium/high at 0-shot and top at 5-shot is a configuration error, as is omitting top entirely. Omitting shots for every component is allowed; mixing unrestricted and fixed shots is rejected unless the parent eval pins the same shot count. Multiple complete shot settings are allowed. An eval-only requirement or Any available leaves task selection to the catalogue. Missing task-language assignments or duplicate component selections in a named set are errors.
+
+These checks run before applying a browser config or replacing build output. Rejected imports preserve active models, settings, and scores. Regex compatibility is checked against declared task names, plus newly observed selected tasks during CSV classification; the validator does not attempt to prove arbitrary regex relationships. An observed selected task matching zero or multiple component rules is also an error.
+
+**Missing result data still warns and excludes groups, never renormalizing over the remaining levels.** A valid selection with missing metrics/components, multiple exported task results for a component, unknown languages in newly encountered results, or incomplete scoring protocols produces warnings. Check completeness per model and again after taking the exact A/B measurement intersection; a missing component on either side excludes the entire corresponding group from both calculations. Distinct protocols cannot supply each other's missing components. Named-set completion counts reflect these exclusions. Freeform mode does not require entirely absent languages, but it does require every component for each represented group. Raw data remains in Eval configuration, including excluded results and the reason they are unused.
+
+In **Categories** and **Languages**, a collapsed component eval/group shows the calculated normalized score. Its leaves show individual raw scores, relative weights, effective weight percentages, and contributions to the language/protocol group. Ordinary evals still show raw averages; mixed category summaries average the displayed eval scores and are descriptive, not the full composite. These breakdowns do not apply the chosen English balance; use Weighted score for that calculation. Inspection filters that hide required components leave the affected calculated summary unavailable (`—`), rather than inventing a partial benchmark score. Leaf contributions retain the full group's weights.
+
+**Delta comparisons** keeps raw differences as raw differences, including simple raw averages on grouped rows. Its weighted contribution differences include component weights. **Eval configuration** exposes the component matching rules, weights, formula, and sources; catalogue YAML import/export preserves them. Group contributions are explicitly separate from contributions to the overall composite.
+
+The builder and browser share the aggregation implementation. Build summaries apply completeness per model; the browser additionally enforces shared A/B coverage. `analysis.json` model summaries record component warnings alongside scores. Row audits retain metric eligibility even when component coverage excludes a result from the final calculation.
 
 ## Initial chance baselines
 
@@ -177,7 +234,7 @@ ARC Challenge uses an approximate 25% baseline. In its published test split, 1,1
 
 AMC23 is open-ended in the selected evaluator: the original contest's answer options are removed. Code generation, translation chrF, overlap F1, and other open-ended exact-match tasks do not receive an invented chance baseline.
 
-`normalize.basis` may be `uniform_choice`, `uniform_integer`, `not_applicable`, or `unresolved`. It documents the rationale; `min`, `max`, and `clip` control the actual calculation. Optional `sources` is a list of HTTP(S) URLs, and `note` is free text. Set `min: 0` and `max: 1` to disable correction. An optional eval-level `warning` string appears in the Warnings tab once for all models and in the eval configuration details. Remove it when the concern is resolved; it does not change selection or arithmetic. The supplied config uses it for translation calibration and the Croatian/Serbian language-grouping approximation. Exported YAML preserves config values and notes; YAML comments are not retained.
+`normalize.basis` may be `uniform_choice`, `uniform_integer`, `not_applicable`, or `unresolved`. It documents the rationale; `min`, `max`, and `clip` control the actual calculation. Optional `sources` is a list of HTTP(S) URLs, and `note` is free text. Set `min: 0` and `max: 1` to disable correction. An optional eval-level `warning` string appears in the Warnings tab once for all models and in the eval configuration details. Remove it when the concern is resolved; it does not change selection or arithmetic. The supplied config uses it for unvalidated prompted Global PIQA scoring and the Croatian/Serbian language-grouping approximation. Exported YAML preserves config values and notes; YAML comments are not retained.
 
 `acc_norm` in lm-eval refers to choosing answers using length-normalized likelihoods; it does **not** remove chance accuracy. Chance correction here is applied to each selected variant's aggregate score before averaging evals. Clipping after aggregation is not equivalent to clipping individual items, and a mixture of corrected and uncorrected metrics is still a provisional composite.
 
@@ -246,7 +303,7 @@ The prominent **Score calculation** panel offers three modes:
 | `english_eval` | English balance per eval | Combine English and other-language means within each eval, then average the eval scores equally. |
 | `english_category` | English balance per category | On each language side, average variants within evals and then represented evals equally; combine the two category means. |
 
-All modes apply the configured category weights last. The selector affects both model score cards, category/eval contributions, effective weights, and weighted delta bars. Raw comparison columns and descriptive language/category breakdowns retain their meanings.
+For evals with component rules, combine complete components first and use complete language/protocol groups in place of variants in the table above. All modes apply the configured category weights last. The selector affects both model score cards, category/eval contributions, effective weights, and weighted delta bars. Raw comparison columns and descriptive language/category breakdowns retain their meanings.
 
 Optional top-level fields in the **weighting profile** persist the choice and shares:
 
@@ -299,15 +356,17 @@ Builds and browser imports use the same CSV parser. Required columns are `checkp
 | Empty CSV, missing columns, invalid identity fields, malformed quotes, inconsistent row widths | Reject the file with an error. |
 | Invalid YAML/schema, ambiguous eval matches, duplicate selected measurements within a model | Reject the config or file; never silently pick a rule or duplicate. |
 | Selected score is blank, nonnumeric, nonfinite, or outside `0..score.scale` | Reject with CSV row, model, task, and metric in the error. Decimal and scientific notation are accepted; booleans and hexadecimal values are not scores. |
-| New model uses an already loaded checkpoint name or the reserved synthetic-demo name | Reject the import. Give the model a distinct checkpoint label. |
+| New model uses an already loaded checkpoint name or a name starting with the reserved `SYNTHETIC demo — ` prefix | Reject the import. Give the model a distinct checkpoint label. |
 | Task has no eval config, or lacks the configured metric/filter/shots | Warn and exclude from scoring. Alternate metrics remain inspectable and never silently substitute for the configured metric. |
 | Measurements match only one of the compared models | Warn; use only shared measurements and redistribute weights. |
 | Named set requirement is missing from either or both models | Warn and mark the set incomplete; compare the shared subset. |
 | Eval/task data is not selected by a named set or freeform exclusion | Show **Not used** and exclude it, even if only an alternate metric exists; keep it in the audit. |
 | Catalogue rule has no results in either model | No warning unless required by the selected named set. |
 | Shared category has no profile weight | Warn; zero contribution until a weight is assigned. |
-| Selected task has no explicit language assignment | Warn and retain the score. Language views show Unknown; English-balance modes use the English fallback. Known mixed-language pools use the documented fallback without claiming a resolved single language. |
-| Selected variants use inconsistent scoring settings | Warn and retain scores so the reviewer can inspect the protocols. |
+| Selected task has no explicit language assignment | For component evals, warn and exclude the group. Otherwise warn and retain the score. Language views show Unknown; English-balance modes use the English fallback. Known mixed-language pools use the documented fallback without claiming a resolved single language. |
+| Selected variants use inconsistent scoring settings | Warn; component evals require completeness independently within each protocol. Ordinary evals retain scores for review. |
+| Aggregation rules or named-set component selections are incompatible | Reject the config; preserve the active dashboard or previous build output. Components share parent scoring settings and must be selected completely at compatible shot settings. |
+| Valid component selection has missing data or multiple exported results for a component | Warn and exclude the whole language/protocol group from both scores. Keep raw data inspectable; never average only the remaining components. |
 | Matched A/B measurements report different positive `n_samples` | Warn and retain scores; sample count does not determine score weights. Review whether dataset coverage is comparable. |
 | Supplied `n_samples` is not a positive integer | Warn and retain scores; omit it from sample-count comparisons. Absent/blank sample counts are allowed. |
 | Eval has a YAML `warning` | Show the caveat in Warnings when the eval has shared comparison data. Always show it in its configuration details. Excluded evals get **Not used**, not an active scoring caveat. |
