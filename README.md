@@ -4,7 +4,7 @@ A standalone, offline dashboard for comparing model evaluation scores. Explore c
 
 **[Open the dashboard](https://openeurollm.github.io/quickdash/)** or **[try the fictional example](https://openeurollm.github.io/quickdash/demo.html)**. No installation is needed to use either page.
 
-While no shared CSVs have been added to `results/`, the main page opens with our [sample eval export](examples/README.md) and synthetic comparison choices. Shared CSVs replace that fallback automatically on the next successful deployment.
+The main page opens with **v1anneal_120k** as A and **v2anneal_120k** as B, using the exports in [results/](results/README.md). Synthetic comparison choices remain available for exploring the interface. The default strict matching excludes results whose few-shot settings differ from the catalogue; review **Warnings**, or explicitly select relaxed matching to include them.
 
 ## Compare models
 
