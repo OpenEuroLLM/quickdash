@@ -7,7 +7,6 @@ score: {scale: 1}
 normalize:
   min: 0
   max: 1
-  clip: true
   basis: not_applicable
   note: Generated mathematical answers are scored by exact match; no common finite answer space is defined.
   sources:
@@ -33,34 +32,19 @@ aggregation:
   sources:
     - https://qwen-polymath.github.io/#benchmark-score
     - https://github.com/QwenLM/PolyMath/blob/main/eval/run_eval.py
+language_defaults:
+  evidence: https://huggingface.co/datasets/Qwen/PolyMath
+  note: Dataset language resolved from the OELLM task registry and benchmark configuration.
 languages:
   - language: deu_Latn
-    scope: single
     tasks: [polymath_de_high, polymath_de_low, polymath_de_medium, polymath_de_top]
-    evidence: https://huggingface.co/datasets/Qwen/PolyMath
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: eng_Latn
-    scope: single
     tasks: [polymath_en_high, polymath_en_low, polymath_en_medium, polymath_en_top]
-    evidence: https://huggingface.co/datasets/Qwen/PolyMath
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: spa_Latn
-    scope: single
     tasks: [polymath_es_high, polymath_es_low, polymath_es_medium, polymath_es_top]
-    evidence: https://huggingface.co/datasets/Qwen/PolyMath
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: fra_Latn
-    scope: single
     tasks: [polymath_fr_high, polymath_fr_low, polymath_fr_medium, polymath_fr_top]
-    evidence: https://huggingface.co/datasets/Qwen/PolyMath
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ita_Latn
-    scope: single
     tasks: [polymath_it_high, polymath_it_low, polymath_it_medium, polymath_it_top]
-    evidence: https://huggingface.co/datasets/Qwen/PolyMath
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: por_Latn
-    scope: single
     tasks: [polymath_pt_high, polymath_pt_low, polymath_pt_medium, polymath_pt_top]
-    evidence: https://huggingface.co/datasets/Qwen/PolyMath
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.

@@ -9,171 +9,79 @@ score:
 normalize:
   min: 0.5
   max: 1
-  clip: true
   basis: uniform_choice
   note: The completion tasks compare two solutions. Uniform guessing gives 1/2. Prompted Global PIQA is configured
     separately and excluded from the supplied comparison sets.
   sources:
     - https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/tasks/piqa/piqa.yaml
     - https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/custom_lm_eval_tasks/global_piqa/completions/_template
+language_defaults:
+  evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
+  note: Dataset language resolved from the OELLM task registry and benchmark configuration.
 languages:
   - language: eng_Latn
-    scope: single
     tasks: [piqa]
     evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
     note: Original English benchmark variant; language is the prompt/question language.
   - language: sqi_Latn
-    scope: single
     tasks: [global_piqa_completions_als_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: bos_Latn
-    scope: single
     tasks: [global_piqa_completions_bos_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: bul_Cyrl
-    scope: single
     tasks: [global_piqa_completions_bul_cyrl]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: cat_Latn
-    scope: single
     tasks: [global_piqa_completions_cat_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ces_Latn
-    scope: single
     tasks: [global_piqa_completions_ces_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: deu_Latn
-    scope: single
     tasks: [global_piqa_completions_deu_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: est_Latn
-    scope: single
     tasks: [global_piqa_completions_ekk_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ell_Grek
-    scope: single
     tasks: [global_piqa_completions_ell_grek]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: eng_Latn
-    scope: single
     tasks: [global_piqa_completions_eng_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: fin_Latn
-    scope: single
     tasks: [global_piqa_completions_fin_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: fra_Latn
-    scope: single
     tasks: [global_piqa_completions_fra_latn_fran]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: glg_Latn
-    scope: single
     tasks: [global_piqa_completions_glg_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: hrv_Latn
-    scope: single
     tasks: [global_piqa_completions_hrv_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: hun_Latn
-    scope: single
     tasks: [global_piqa_completions_hun_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: isl_Latn
-    scope: single
     tasks: [global_piqa_completions_isl_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ita_Latn
-    scope: single
     tasks: [global_piqa_completions_ita_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: kat_Geor
-    scope: single
     tasks: [global_piqa_completions_kat_geor]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: lit_Latn
-    scope: single
     tasks: [global_piqa_completions_lit_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: mkd_Cyrl
-    scope: single
     tasks: [global_piqa_completions_mkd_cyrl]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: nld_Latn
-    scope: single
     tasks: [global_piqa_completions_nld_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: nor_Latn
-    scope: single
     tasks: [global_piqa_completions_nno_latn, global_piqa_completions_nob_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: pol_Latn
-    scope: single
     tasks: [global_piqa_completions_pol_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: por_Latn
-    scope: single
     tasks: [global_piqa_completions_por_latn_port]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ron_Latn
-    scope: single
     tasks: [global_piqa_completions_ron_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: slk_Latn
-    scope: single
     tasks: [global_piqa_completions_slk_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: slv_Latn
-    scope: single
     tasks: [global_piqa_completions_slv_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: spa_Latn
-    scope: single
     tasks: [global_piqa_completions_spa_latn_spai]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: srp_Cyrl
-    scope: single
     tasks: [global_piqa_completions_srp_cyrl]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: swe_Latn
-    scope: single
     tasks: [global_piqa_completions_swe_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: tur_Latn
-    scope: single
     tasks: [global_piqa_completions_tur_latn]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ukr_Cyrl
-    scope: single
     tasks: [global_piqa_completions_ukr_cyrl]
-    evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.

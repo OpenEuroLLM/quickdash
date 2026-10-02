@@ -9,7 +9,6 @@ score:
 normalize:
   min: 0
   max: 1
-  clip: true
   basis: not_applicable
   note: F1 mixes span overlap and unanswerable questions; neither 0 nor 50% is an established random baseline.
     Keep only scale conversion.
@@ -17,7 +16,6 @@ normalize:
     - https://rajpurkar.github.io/SQuAD-explorer/
 languages:
   - language: eng_Latn
-    scope: single
     tasks: [squadv2]
     evidence: https://rajpurkar.github.io/SQuAD-explorer/
     note: Original English benchmark variant; language is the prompt/question language.

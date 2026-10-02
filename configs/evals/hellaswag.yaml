@@ -10,96 +10,50 @@ score:
 normalize:
   min: 0.25
   max: 1
-  clip: true
   basis: uniform_choice
   note: Four candidate endings; the benchmark reports random performance of 25%. Applied to the translated
     variants of the same task.
   sources:
     - https://rowanzellers.com/hellaswag/
     - https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/tasks/hellaswag/hellaswag.yaml
+language_defaults:
+  evidence: https://huggingface.co/datasets/alexandrainst/m_hellaswag
+  note: Dataset language resolved from the OELLM task registry and benchmark configuration.
 languages:
   - language: eng_Latn
-    scope: single
     tasks: [hellaswag]
     evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
     note: Original English benchmark variant; language is the prompt/question language.
   - language: cat_Latn
-    scope: single
     tasks: [hellaswag_ca]
-    evidence: https://huggingface.co/datasets/alexandrainst/m_hellaswag
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: dan_Latn
-    scope: single
     tasks: [hellaswag_da]
-    evidence: https://huggingface.co/datasets/alexandrainst/m_hellaswag
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: deu_Latn
-    scope: single
     tasks: [hellaswag_de]
-    evidence: https://huggingface.co/datasets/alexandrainst/m_hellaswag
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: spa_Latn
-    scope: single
     tasks: [hellaswag_es]
-    evidence: https://huggingface.co/datasets/alexandrainst/m_hellaswag
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: eus_Latn
-    scope: single
     tasks: [hellaswag_eu]
-    evidence: https://huggingface.co/datasets/alexandrainst/m_hellaswag
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: fra_Latn
-    scope: single
     tasks: [hellaswag_fr]
-    evidence: https://huggingface.co/datasets/alexandrainst/m_hellaswag
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: hrv_Latn
-    scope: single
     tasks: [hellaswag_hr]
-    evidence: https://huggingface.co/datasets/alexandrainst/m_hellaswag
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: hun_Latn
-    scope: single
     tasks: [hellaswag_hu]
-    evidence: https://huggingface.co/datasets/alexandrainst/m_hellaswag
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ita_Latn
-    scope: single
     tasks: [hellaswag_it]
-    evidence: https://huggingface.co/datasets/alexandrainst/m_hellaswag
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: nld_Latn
-    scope: single
     tasks: [hellaswag_nl]
-    evidence: https://huggingface.co/datasets/alexandrainst/m_hellaswag
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: por_Latn
-    scope: single
     tasks: [hellaswag_pt]
-    evidence: https://huggingface.co/datasets/alexandrainst/m_hellaswag
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ron_Latn
-    scope: single
     tasks: [hellaswag_ro]
-    evidence: https://huggingface.co/datasets/alexandrainst/m_hellaswag
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: slk_Latn
-    scope: single
     tasks: [hellaswag_sk]
-    evidence: https://huggingface.co/datasets/alexandrainst/m_hellaswag
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: srp_Latn
-    scope: single
     tasks: [hellaswag_sr]
-    evidence: https://huggingface.co/datasets/alexandrainst/m_hellaswag
     note: The sr dataset examples use Latin script; this overrides the generic Serbian Cyrillic default.
   - language: swe_Latn
-    scope: single
     tasks: [hellaswag_sv]
-    evidence: https://huggingface.co/datasets/alexandrainst/m_hellaswag
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ukr_Cyrl
-    scope: single
     tasks: [hellaswag_uk]
-    evidence: https://huggingface.co/datasets/alexandrainst/m_hellaswag
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.

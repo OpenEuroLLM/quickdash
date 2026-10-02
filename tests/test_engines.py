@@ -208,6 +208,152 @@ class Engines(unittest.TestCase):
                 self.assertNotIn("error", result)
                 self.assertEqual(result["value"]["models"][0]["score"], 50)
 
+    def test_language_metadata_defaults_and_local_overrides(self):
+        original = fixture()
+        metadata = {"version": 1, "name": "Fixture"}
+        definition = {
+            **original["catalogue"]["evals"][0],
+            "language_defaults": {
+                "evidence": "https://example.org/shared",
+                "note": "Shared explanation",
+            },
+            "languages": deepcopy(original["catalogue"]["languages"]),
+        }
+        definition["languages"][1]["note"] = "French-specific explanation"
+        reference = deepcopy(original)
+        reference["catalogue"]["languages"][0].update(definition["language_defaults"])
+        reference["catalogue"]["languages"][1].update(
+            evidence="https://example.org/shared", note="French-specific explanation"
+        )
+        case = dict(
+            config={**original, "catalogue": metadata},
+            eval_definitions=[definition],
+            rows=paired([row(), row("e_fr")]),
+            operation="compare",
+        )
+        before = deepcopy(case)
+        expected = native(
+            dict(config=reference, rows=case["rows"], operation="compare")
+        )
+        for result in self.both([case])[0]:
+            self.assertNotIn("error", result)
+            self.close(semantics(result), semantics(expected))
+        self.assertEqual(case, before)
+        compiled = assemble_catalogue(metadata, [definition])
+        self.assertEqual(compiled, reference["catalogue"])
+        # An explicit empty string clears an inherited value; omitted fields inherit independently.
+        definition["languages"][1].update(evidence="", note="")
+        reference["catalogue"]["languages"][1].update(evidence="", note="")
+        expected = native(
+            dict(config=reference, rows=case["rows"], operation="compare")
+        )
+        for result in self.both([case])[0]:
+            self.assertNotIn("error", result)
+            self.close(semantics(result), semantics(expected))
+        invalid = []
+        for defaults in (
+            None,
+            [],
+            "note",
+            {"note": False},
+            {"evidence": None},
+            {"evidence": "file:///tmp/source"},
+            {"scope": "single"},
+            {"language": "eng_Latn"},
+        ):
+            bad = deepcopy(case)
+            bad["eval_definitions"][0]["language_defaults"] = defaults
+            invalid.append(bad)
+            # Bad defaults remain invalid even when all local fields override them or there are no groups.
+            empty = deepcopy(bad)
+            empty["eval_definitions"][0]["languages"] = []
+            invalid.append(empty)
+        for outputs in self.both(invalid):
+            for result in outputs:
+                self.assertIn("error", result)
+
+    def test_language_scope_inference_and_explicit_overrides(self):
+        c = fixture()
+        metadata = {"version": 1, "name": "Fixture"}
+        assignments = [
+            dict(language="eng_Latn"),
+            dict(language="fra_Latn"),
+            dict(source_language="eng_Latn", target_language="fra_Latn"),
+            dict(language="mul"),
+            dict(language="srp_Latn", scope="pooled"),
+            dict(language="srp_Latn", scope="single"),
+        ]
+        cases = []
+        for fields, scope in zip(
+            assignments,
+            ["single", "single", "translation", "pooled", "pooled", "single"],
+        ):
+            group = dict(tasks=["e_en"], **fields)
+            definition = {**c["catalogue"]["evals"][0], "languages": [group]}
+            expected = {**group, "scope": scope}
+            self.assertEqual(
+                assemble_catalogue(metadata, [definition])["languages"], [expected]
+            )
+            reference = deepcopy(c)
+            reference["catalogue"]["languages"] = [expected]
+            case = dict(
+                config={**c, "catalogue": metadata},
+                eval_definitions=[definition],
+                rows=[row()],
+            )
+            cases.append(case)
+            for result in self.both([case])[0]:
+                self.assertNotIn("error", result)
+                self.close(
+                    semantics(result),
+                    semantics(native(dict(config=reference, rows=[row()]))),
+                )
+        bad_fields = [
+            {},
+            dict(language="mul", scope="single"),
+            dict(source_language="eng_Latn"),
+            dict(target_language="fra_Latn"),
+            dict(
+                language="eng_Latn",
+                source_language="eng_Latn",
+                target_language="fra_Latn",
+            ),
+            dict(language="eng_Latn", scope="translation"),
+            dict(
+                source_language="eng_Latn", target_language="fra_Latn", scope="single"
+            ),
+            dict(language="eng_Latn", scope=None),
+            dict(language="eng_Latn", scope="guess"),
+        ]
+        invalid = []
+        for fields in bad_fields:
+            definition = {
+                **c["catalogue"]["evals"][0],
+                "languages": [dict(tasks=["e_en"], **fields)],
+            }
+            invalid.append(
+                dict(
+                    config={**c, "catalogue": metadata},
+                    eval_definitions=[definition],
+                    rows=[row()],
+                )
+            )
+        for outputs in self.both(invalid):
+            for result in outputs:
+                self.assertIn("error", result)
+
+    def test_clipping_defaults_to_true(self):
+        cases = []
+        for clip in (None, True, False):
+            c = fixture()
+            if clip is not None:
+                c["catalogue"]["evals"][0]["normalize"]["clip"] = clip
+            cases.append(dict(config=c, rows=[row(value=".1")]))
+        for outputs, score in zip(self.both(cases), (0, 0, -20)):
+            for result in outputs:
+                self.assertNotIn("error", result)
+                self.assertAlmostEqual(result["value"]["models"][0]["score"], score)
+
     def test_published_sample_across_all_shipped_configs(self):
         # Discover files so adding a profile or set automatically extends parity coverage.
         rows = parse_csv((ROOT / "examples/sample-evals.csv").read_text())

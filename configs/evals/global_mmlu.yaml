@@ -11,15 +11,16 @@ score:
 normalize:
   min: 0.25
   max: 1
-  clip: true
   basis: uniform_choice
   note: Global MMLU uses four choices and one correct label. Uniform guessing gives 1/4, including subject
     summaries.
   sources:
     - https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/tasks/global_mmlu/default/en/_en_template_yaml
+language_defaults:
+  evidence: https://huggingface.co/datasets/CohereLabs/Global-MMLU
+  note: Dataset language resolved from the OELLM task registry and benchmark configuration.
 languages:
   - language: ces_Latn
-    scope: single
     tasks: [global_mmlu_full_cs, global_mmlu_full_cs_abstract_algebra, global_mmlu_full_cs_anatomy, global_mmlu_full_cs_astronomy,
       global_mmlu_full_cs_business_ethics, global_mmlu_full_cs_clinical_knowledge, global_mmlu_full_cs_college_biology,
       global_mmlu_full_cs_college_chemistry, global_mmlu_full_cs_college_computer_science, global_mmlu_full_cs_college_mathematics,
@@ -40,10 +41,7 @@ languages:
       global_mmlu_full_cs_professional_psychology, global_mmlu_full_cs_public_relations, global_mmlu_full_cs_security_studies,
       global_mmlu_full_cs_social_sciences, global_mmlu_full_cs_sociology, global_mmlu_full_cs_stem, global_mmlu_full_cs_us_foreign_policy,
       global_mmlu_full_cs_virology, global_mmlu_full_cs_world_religions]
-    evidence: https://huggingface.co/datasets/CohereLabs/Global-MMLU
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: deu_Latn
-    scope: single
     tasks: [global_mmlu_full_de, global_mmlu_full_de_abstract_algebra, global_mmlu_full_de_anatomy, global_mmlu_full_de_astronomy,
       global_mmlu_full_de_business_ethics, global_mmlu_full_de_clinical_knowledge, global_mmlu_full_de_college_biology,
       global_mmlu_full_de_college_chemistry, global_mmlu_full_de_college_computer_science, global_mmlu_full_de_college_mathematics,
@@ -64,10 +62,7 @@ languages:
       global_mmlu_full_de_professional_psychology, global_mmlu_full_de_public_relations, global_mmlu_full_de_security_studies,
       global_mmlu_full_de_social_sciences, global_mmlu_full_de_sociology, global_mmlu_full_de_stem, global_mmlu_full_de_us_foreign_policy,
       global_mmlu_full_de_virology, global_mmlu_full_de_world_religions]
-    evidence: https://huggingface.co/datasets/CohereLabs/Global-MMLU
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ell_Grek
-    scope: single
     tasks: [global_mmlu_full_el, global_mmlu_full_el_abstract_algebra, global_mmlu_full_el_anatomy, global_mmlu_full_el_astronomy,
       global_mmlu_full_el_business_ethics, global_mmlu_full_el_clinical_knowledge, global_mmlu_full_el_college_biology,
       global_mmlu_full_el_college_chemistry, global_mmlu_full_el_college_computer_science, global_mmlu_full_el_college_mathematics,
@@ -88,10 +83,7 @@ languages:
       global_mmlu_full_el_professional_psychology, global_mmlu_full_el_public_relations, global_mmlu_full_el_security_studies,
       global_mmlu_full_el_social_sciences, global_mmlu_full_el_sociology, global_mmlu_full_el_stem, global_mmlu_full_el_us_foreign_policy,
       global_mmlu_full_el_virology, global_mmlu_full_el_world_religions]
-    evidence: https://huggingface.co/datasets/CohereLabs/Global-MMLU
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: eng_Latn
-    scope: single
     tasks: [global_mmlu_full_en, global_mmlu_full_en_abstract_algebra, global_mmlu_full_en_anatomy, global_mmlu_full_en_astronomy,
       global_mmlu_full_en_business_ethics, global_mmlu_full_en_clinical_knowledge, global_mmlu_full_en_college_biology,
       global_mmlu_full_en_college_chemistry, global_mmlu_full_en_college_computer_science, global_mmlu_full_en_college_mathematics,
@@ -112,10 +104,7 @@ languages:
       global_mmlu_full_en_professional_psychology, global_mmlu_full_en_public_relations, global_mmlu_full_en_security_studies,
       global_mmlu_full_en_social_sciences, global_mmlu_full_en_sociology, global_mmlu_full_en_stem, global_mmlu_full_en_us_foreign_policy,
       global_mmlu_full_en_virology, global_mmlu_full_en_world_religions]
-    evidence: https://huggingface.co/datasets/CohereLabs/Global-MMLU
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: spa_Latn
-    scope: single
     tasks: [global_mmlu_full_es, global_mmlu_full_es_abstract_algebra, global_mmlu_full_es_anatomy, global_mmlu_full_es_astronomy,
       global_mmlu_full_es_business_ethics, global_mmlu_full_es_clinical_knowledge, global_mmlu_full_es_college_biology,
       global_mmlu_full_es_college_chemistry, global_mmlu_full_es_college_computer_science, global_mmlu_full_es_college_mathematics,
@@ -136,10 +125,7 @@ languages:
       global_mmlu_full_es_professional_psychology, global_mmlu_full_es_public_relations, global_mmlu_full_es_security_studies,
       global_mmlu_full_es_social_sciences, global_mmlu_full_es_sociology, global_mmlu_full_es_stem, global_mmlu_full_es_us_foreign_policy,
       global_mmlu_full_es_virology, global_mmlu_full_es_world_religions]
-    evidence: https://huggingface.co/datasets/CohereLabs/Global-MMLU
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: fra_Latn
-    scope: single
     tasks: [global_mmlu_full_fr, global_mmlu_full_fr_abstract_algebra, global_mmlu_full_fr_anatomy, global_mmlu_full_fr_astronomy,
       global_mmlu_full_fr_business_ethics, global_mmlu_full_fr_clinical_knowledge, global_mmlu_full_fr_college_biology,
       global_mmlu_full_fr_college_chemistry, global_mmlu_full_fr_college_computer_science, global_mmlu_full_fr_college_mathematics,
@@ -160,10 +146,7 @@ languages:
       global_mmlu_full_fr_professional_psychology, global_mmlu_full_fr_public_relations, global_mmlu_full_fr_security_studies,
       global_mmlu_full_fr_social_sciences, global_mmlu_full_fr_sociology, global_mmlu_full_fr_stem, global_mmlu_full_fr_us_foreign_policy,
       global_mmlu_full_fr_virology, global_mmlu_full_fr_world_religions]
-    evidence: https://huggingface.co/datasets/CohereLabs/Global-MMLU
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ita_Latn
-    scope: single
     tasks: [global_mmlu_full_it, global_mmlu_full_it_abstract_algebra, global_mmlu_full_it_anatomy, global_mmlu_full_it_astronomy,
       global_mmlu_full_it_business_ethics, global_mmlu_full_it_clinical_knowledge, global_mmlu_full_it_college_biology,
       global_mmlu_full_it_college_chemistry, global_mmlu_full_it_college_computer_science, global_mmlu_full_it_college_mathematics,
@@ -184,10 +167,7 @@ languages:
       global_mmlu_full_it_professional_psychology, global_mmlu_full_it_public_relations, global_mmlu_full_it_security_studies,
       global_mmlu_full_it_social_sciences, global_mmlu_full_it_sociology, global_mmlu_full_it_stem, global_mmlu_full_it_us_foreign_policy,
       global_mmlu_full_it_virology, global_mmlu_full_it_world_religions]
-    evidence: https://huggingface.co/datasets/CohereLabs/Global-MMLU
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: lit_Latn
-    scope: single
     tasks: [global_mmlu_full_lt, global_mmlu_full_lt_abstract_algebra, global_mmlu_full_lt_anatomy, global_mmlu_full_lt_astronomy,
       global_mmlu_full_lt_business_ethics, global_mmlu_full_lt_clinical_knowledge, global_mmlu_full_lt_college_biology,
       global_mmlu_full_lt_college_chemistry, global_mmlu_full_lt_college_computer_science, global_mmlu_full_lt_college_mathematics,
@@ -208,10 +188,7 @@ languages:
       global_mmlu_full_lt_professional_psychology, global_mmlu_full_lt_public_relations, global_mmlu_full_lt_security_studies,
       global_mmlu_full_lt_social_sciences, global_mmlu_full_lt_sociology, global_mmlu_full_lt_stem, global_mmlu_full_lt_us_foreign_policy,
       global_mmlu_full_lt_virology, global_mmlu_full_lt_world_religions]
-    evidence: https://huggingface.co/datasets/CohereLabs/Global-MMLU
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: nld_Latn
-    scope: single
     tasks: [global_mmlu_full_nl, global_mmlu_full_nl_abstract_algebra, global_mmlu_full_nl_anatomy, global_mmlu_full_nl_astronomy,
       global_mmlu_full_nl_business_ethics, global_mmlu_full_nl_clinical_knowledge, global_mmlu_full_nl_college_biology,
       global_mmlu_full_nl_college_chemistry, global_mmlu_full_nl_college_computer_science, global_mmlu_full_nl_college_mathematics,
@@ -232,10 +209,7 @@ languages:
       global_mmlu_full_nl_professional_psychology, global_mmlu_full_nl_public_relations, global_mmlu_full_nl_security_studies,
       global_mmlu_full_nl_social_sciences, global_mmlu_full_nl_sociology, global_mmlu_full_nl_stem, global_mmlu_full_nl_us_foreign_policy,
       global_mmlu_full_nl_virology, global_mmlu_full_nl_world_religions]
-    evidence: https://huggingface.co/datasets/CohereLabs/Global-MMLU
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: pol_Latn
-    scope: single
     tasks: [global_mmlu_full_pl, global_mmlu_full_pl_abstract_algebra, global_mmlu_full_pl_anatomy, global_mmlu_full_pl_astronomy,
       global_mmlu_full_pl_business_ethics, global_mmlu_full_pl_clinical_knowledge, global_mmlu_full_pl_college_biology,
       global_mmlu_full_pl_college_chemistry, global_mmlu_full_pl_college_computer_science, global_mmlu_full_pl_college_mathematics,
@@ -256,10 +230,7 @@ languages:
       global_mmlu_full_pl_professional_psychology, global_mmlu_full_pl_public_relations, global_mmlu_full_pl_security_studies,
       global_mmlu_full_pl_social_sciences, global_mmlu_full_pl_sociology, global_mmlu_full_pl_stem, global_mmlu_full_pl_us_foreign_policy,
       global_mmlu_full_pl_virology, global_mmlu_full_pl_world_religions]
-    evidence: https://huggingface.co/datasets/CohereLabs/Global-MMLU
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: por_Latn
-    scope: single
     tasks: [global_mmlu_full_pt, global_mmlu_full_pt_abstract_algebra, global_mmlu_full_pt_anatomy, global_mmlu_full_pt_astronomy,
       global_mmlu_full_pt_business_ethics, global_mmlu_full_pt_clinical_knowledge, global_mmlu_full_pt_college_biology,
       global_mmlu_full_pt_college_chemistry, global_mmlu_full_pt_college_computer_science, global_mmlu_full_pt_college_mathematics,
@@ -280,10 +251,7 @@ languages:
       global_mmlu_full_pt_professional_psychology, global_mmlu_full_pt_public_relations, global_mmlu_full_pt_security_studies,
       global_mmlu_full_pt_social_sciences, global_mmlu_full_pt_sociology, global_mmlu_full_pt_stem, global_mmlu_full_pt_us_foreign_policy,
       global_mmlu_full_pt_virology, global_mmlu_full_pt_world_religions]
-    evidence: https://huggingface.co/datasets/CohereLabs/Global-MMLU
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ron_Latn
-    scope: single
     tasks: [global_mmlu_full_ro, global_mmlu_full_ro_abstract_algebra, global_mmlu_full_ro_anatomy, global_mmlu_full_ro_astronomy,
       global_mmlu_full_ro_business_ethics, global_mmlu_full_ro_clinical_knowledge, global_mmlu_full_ro_college_biology,
       global_mmlu_full_ro_college_chemistry, global_mmlu_full_ro_college_computer_science, global_mmlu_full_ro_college_mathematics,
@@ -304,10 +272,7 @@ languages:
       global_mmlu_full_ro_professional_psychology, global_mmlu_full_ro_public_relations, global_mmlu_full_ro_security_studies,
       global_mmlu_full_ro_social_sciences, global_mmlu_full_ro_sociology, global_mmlu_full_ro_stem, global_mmlu_full_ro_us_foreign_policy,
       global_mmlu_full_ro_virology, global_mmlu_full_ro_world_religions]
-    evidence: https://huggingface.co/datasets/CohereLabs/Global-MMLU
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: srp_Cyrl
-    scope: single
     tasks: [global_mmlu_full_sr, global_mmlu_full_sr_abstract_algebra, global_mmlu_full_sr_anatomy, global_mmlu_full_sr_astronomy,
       global_mmlu_full_sr_business_ethics, global_mmlu_full_sr_clinical_knowledge, global_mmlu_full_sr_college_biology,
       global_mmlu_full_sr_college_chemistry, global_mmlu_full_sr_college_computer_science, global_mmlu_full_sr_college_mathematics,
@@ -328,10 +293,7 @@ languages:
       global_mmlu_full_sr_professional_psychology, global_mmlu_full_sr_public_relations, global_mmlu_full_sr_security_studies,
       global_mmlu_full_sr_social_sciences, global_mmlu_full_sr_sociology, global_mmlu_full_sr_stem, global_mmlu_full_sr_us_foreign_policy,
       global_mmlu_full_sr_virology, global_mmlu_full_sr_world_religions]
-    evidence: https://huggingface.co/datasets/CohereLabs/Global-MMLU
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: swe_Latn
-    scope: single
     tasks: [global_mmlu_full_sv, global_mmlu_full_sv_abstract_algebra, global_mmlu_full_sv_anatomy, global_mmlu_full_sv_astronomy,
       global_mmlu_full_sv_business_ethics, global_mmlu_full_sv_clinical_knowledge, global_mmlu_full_sv_college_biology,
       global_mmlu_full_sv_college_chemistry, global_mmlu_full_sv_college_computer_science, global_mmlu_full_sv_college_mathematics,
@@ -352,10 +314,7 @@ languages:
       global_mmlu_full_sv_professional_psychology, global_mmlu_full_sv_public_relations, global_mmlu_full_sv_security_studies,
       global_mmlu_full_sv_social_sciences, global_mmlu_full_sv_sociology, global_mmlu_full_sv_stem, global_mmlu_full_sv_us_foreign_policy,
       global_mmlu_full_sv_virology, global_mmlu_full_sv_world_religions]
-    evidence: https://huggingface.co/datasets/CohereLabs/Global-MMLU
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: tur_Latn
-    scope: single
     tasks: [global_mmlu_full_tr, global_mmlu_full_tr_abstract_algebra, global_mmlu_full_tr_anatomy, global_mmlu_full_tr_astronomy,
       global_mmlu_full_tr_business_ethics, global_mmlu_full_tr_clinical_knowledge, global_mmlu_full_tr_college_biology,
       global_mmlu_full_tr_college_chemistry, global_mmlu_full_tr_college_computer_science, global_mmlu_full_tr_college_mathematics,
@@ -376,10 +335,7 @@ languages:
       global_mmlu_full_tr_professional_psychology, global_mmlu_full_tr_public_relations, global_mmlu_full_tr_security_studies,
       global_mmlu_full_tr_social_sciences, global_mmlu_full_tr_sociology, global_mmlu_full_tr_stem, global_mmlu_full_tr_us_foreign_policy,
       global_mmlu_full_tr_virology, global_mmlu_full_tr_world_religions]
-    evidence: https://huggingface.co/datasets/CohereLabs/Global-MMLU
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ukr_Cyrl
-    scope: single
     tasks: [global_mmlu_full_uk, global_mmlu_full_uk_abstract_algebra, global_mmlu_full_uk_anatomy, global_mmlu_full_uk_astronomy,
       global_mmlu_full_uk_business_ethics, global_mmlu_full_uk_clinical_knowledge, global_mmlu_full_uk_college_biology,
       global_mmlu_full_uk_college_chemistry, global_mmlu_full_uk_college_computer_science, global_mmlu_full_uk_college_mathematics,
@@ -400,5 +356,3 @@ languages:
       global_mmlu_full_uk_professional_psychology, global_mmlu_full_uk_public_relations, global_mmlu_full_uk_security_studies,
       global_mmlu_full_uk_social_sciences, global_mmlu_full_uk_sociology, global_mmlu_full_uk_stem, global_mmlu_full_uk_us_foreign_policy,
       global_mmlu_full_uk_virology, global_mmlu_full_uk_world_religions]
-    evidence: https://huggingface.co/datasets/CohereLabs/Global-MMLU
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.

@@ -9,14 +9,12 @@ score:
 normalize:
   min: 0
   max: 1
-  clip: true
   basis: not_applicable
   note: Free-response exact match over algorithm outputs; no defined uniform answer space.
   sources:
     - https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/cs_algorithms
 languages:
   - language: eng_Latn
-    scope: single
     tasks: [bigbench_cs_algorithms_generate_until]
     evidence: https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/cs_algorithms
     note: English instructions/prompts; symbolic or numerical content is not a separate natural language.

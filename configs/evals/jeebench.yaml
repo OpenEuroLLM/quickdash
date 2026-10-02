@@ -10,7 +10,6 @@ normalize:
   # Shared 10.55% baseline; Table 2 reports approximately 10.5%.
   min: 0.1055
   max: 1
-  clip: true
   note: Configured 10.55% overall random baseline, aligned with the shared scoring policy. Table 2 of the JEEBench
     paper reports an approximate 10.5% baseline. It combines uniform single-choice guessing and random option
     subsets with partial credit for multi-answer questions, assigning zero expected score to integer and numeric
@@ -20,7 +19,6 @@ normalize:
     - https://github.com/mlfoundations/evalchemy/blob/6ed674159b37f740f2353a86f596f49f6ac13c19/eval/chat_benchmarks/JEEBench/eval_instruct.py
 languages:
   - language: eng_Latn
-    scope: single
     tasks: [JEEBench]
     evidence: https://huggingface.co/datasets/daman1209arora/jeebench
     note: Original English benchmark variant; language is the prompt/question language.

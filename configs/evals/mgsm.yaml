@@ -9,84 +9,45 @@ score:
 normalize:
   min: 0
   max: 1
-  clip: true
   basis: not_applicable
   note: Generated numerical answers follow GSM-style scoring; no fixed uniform answer space is specified.
   sources:
     - https://github.com/google-research/url-nlp/tree/main/mgsm
+language_defaults:
+  evidence: https://huggingface.co/datasets/CohereLabs/global-mgsm
+  note: Dataset language resolved from the OELLM task registry and benchmark configuration.
 languages:
   - language: cat_Latn
-    scope: single
     tasks: [global_mgsm_ca]
-    evidence: https://huggingface.co/datasets/CohereLabs/global-mgsm
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ces_Latn
-    scope: single
     tasks: [global_mgsm_cs]
-    evidence: https://huggingface.co/datasets/CohereLabs/global-mgsm
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: deu_Latn
-    scope: single
     tasks: [global_mgsm_de]
-    evidence: https://huggingface.co/datasets/CohereLabs/global-mgsm
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ell_Grek
-    scope: single
     tasks: [global_mgsm_el]
-    evidence: https://huggingface.co/datasets/CohereLabs/global-mgsm
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: eng_Latn
-    scope: single
     tasks: [global_mgsm_en]
-    evidence: https://huggingface.co/datasets/CohereLabs/global-mgsm
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: spa_Latn
-    scope: single
     tasks: [global_mgsm_es]
-    evidence: https://huggingface.co/datasets/CohereLabs/global-mgsm
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: eus_Latn
-    scope: single
     tasks: [global_mgsm_eu]
-    evidence: https://huggingface.co/datasets/CohereLabs/global-mgsm
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: fra_Latn
-    scope: single
     tasks: [global_mgsm_fr]
-    evidence: https://huggingface.co/datasets/CohereLabs/global-mgsm
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: glg_Latn
-    scope: single
     tasks: [global_mgsm_gl]
-    evidence: https://huggingface.co/datasets/CohereLabs/global-mgsm
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: hun_Latn
-    scope: single
     tasks: [global_mgsm_hu]
-    evidence: https://huggingface.co/datasets/CohereLabs/global-mgsm
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: srp_Cyrl
-    scope: single
     tasks: [global_mgsm_sr]
-    evidence: https://huggingface.co/datasets/CohereLabs/global-mgsm
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: deu_Latn
-    scope: single
     tasks: [mgsm_native_cot_de]
     evidence: https://huggingface.co/datasets/jbross-ibm-research/mgsm
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: eng_Latn
-    scope: single
     tasks: [mgsm_native_cot_en]
     evidence: https://huggingface.co/datasets/jbross-ibm-research/mgsm
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: spa_Latn
-    scope: single
     tasks: [mgsm_native_cot_es]
     evidence: https://huggingface.co/datasets/jbross-ibm-research/mgsm
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: fra_Latn
-    scope: single
     tasks: [mgsm_native_cot_fr]
     evidence: https://huggingface.co/datasets/jbross-ibm-research/mgsm
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.

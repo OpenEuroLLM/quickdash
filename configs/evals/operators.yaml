@@ -9,14 +9,12 @@ score:
 normalize:
   min: 0
   max: 1
-  clip: true
   basis: not_applicable
   note: The selected task uses generated exact-match answers, with no specified random-answer distribution.
   sources:
     - https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/operators
 languages:
   - language: eng_Latn
-    scope: single
     tasks: [bigbench_operators_generate_until]
     evidence: https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/operators
     note: English instructions/prompts; symbolic or numerical content is not a separate natural language.

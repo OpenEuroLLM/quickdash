@@ -9,6 +9,8 @@ Choose the file to edit based on what you want to change:
 
 [catalogue.yaml](catalogue.yaml) is a small manifest pointing to `evals/`. Every `.yaml` or `.yml` file directly in that directory is loaded in filename order; adding a file needs no registration elsewhere. Keep language tasks in the file for the eval they match. The loader rejects misplaced tasks, duplicate names or assignments, and incompatible component configurations before changing the dashboard. An empty `languages: []` is allowed for an eval without known language metadata; unknown-language warnings still apply to its results.
 
+Put repeated language `evidence` and `note` under `language_defaults` in the eval file; individual language entries can override either field. Ordinary entries need only a canonical `language` and `tasks`: scope is inferred from the declared language fields. Keep an explicit `scope: pooled` when a pooled result is assigned to a specific language label. See [shared language metadata](../docs/configuration.md#shared-language-metadata).
+
 Each profile or set needs a distinct `name` within its directory. To change a selector's startup choice, edit that directory's `default.txt` to name one YAML file. The catalogue is selected at build time with `--catalogue`, or temporarily loaded in the browser.
 
 The [configuration reference](../docs/configuration.md) describes all three formats with small examples. [examples/](examples/) contains the fictional catalogue and weights used by [examples/scores.csv](../examples/scores.csv).

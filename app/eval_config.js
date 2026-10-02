@@ -71,7 +71,15 @@ const EvalConfig=(()=>{
   const catalogue={...structuredClone(metadata),evals:[],languages:[]};
   for(const definition of definitions){
    if(!definition||typeof definition!=='object'||Array.isArray(definition)||!Object.hasOwn(definition,'languages'))throw Error('Each eval definition needs its own languages list');
-   const {languages,...e}=structuredClone(definition);
+   const {languages:groups,language_defaults:defaults={},...e}=structuredClone(definition);
+   objectKeys(defaults,['evidence','note']);validateLanguageMetadata(defaults);
+   if(!Array.isArray(groups))throw Error('languages must be a list');
+   const languages=groups.map(group=>{
+    if(!group||typeof group!=='object'||Array.isArray(group))return group;
+    const g={...defaults,...group};
+    if(!Object.hasOwn(g,'scope'))g.scope=Object.hasOwn(g,'source_language')||Object.hasOwn(g,'target_language')?'translation':g.language==='mul'?'pooled':'single';
+    return g;
+   });
    validateCatalogue({...metadata,evals:[e],languages});
    for(const group of languages)for(const task of group.tasks)if(!matchTask(e.match,task))throw Error(`Language task ${task} does not belong to eval ${e.name}`);
    catalogue.evals.push(e);catalogue.languages.push(...languages);
@@ -128,10 +136,13 @@ const EvalConfig=(()=>{
    const fields=g.scope==='translation'?['source_language','target_language']:['language'],forbidden=g.scope==='translation'?['language']:['source_language','target_language'];
    if(forbidden.some(k=>k in g))throw Error('Use language for single/pooled; source and target for translation');
    for(const f of fields)if(typeof g[f]!=='string'||!canonical.test(g[f])||(g[f]==='mul'&&g.scope!=='pooled'))throw Error('Use canonical language codes, such as eng_Latn');
-   for(const f of ['note','evidence'])if(f in g&&typeof g[f]!=='string')throw Error(f+' must be a string');
-   if(g.evidence&&!/^https?:\/\//.test(g.evidence))throw Error('Evidence links must use HTTP or HTTPS');
+   validateLanguageMetadata(g);
   }
   return validateAggregationConfig(config);
+ }
+ function validateLanguageMetadata(g){
+   for(const f of ['note','evidence'])if(f in g&&typeof g[f]!=='string')throw Error(f+' must be a string');
+   if(g.evidence&&!/^https?:\/\//.test(g.evidence))throw Error('Evidence links must use HTTP or HTTPS');
  }
  // Validate concrete task selections without attempting to infer languages from regexes.
  function validateAggregationSelection(e,variants,config,unique=true){

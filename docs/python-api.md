@@ -90,7 +90,8 @@ config = load_config(
 
 The loader reads each eval file from the manifest’s `evals_dir`, resolves relative
 paths beside that manifest, and validates the combined catalogue. Each eval file
-contains its own language assignments. The returned `config["catalogue"]` is a
+contains its own language assignments. Shared language evidence/notes and omitted
+scopes are resolved during loading; local metadata overrides are preserved. The returned `config["catalogue"]` is a
 complete in-memory catalogue, so later analysis does not access those files.
 Existing single-file catalogues remain supported. When passing a dictionary
 instead of a filename, supply the complete catalogue; a filesystem manifest needs

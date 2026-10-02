@@ -9,7 +9,6 @@ score:
 normalize:
   min: 0
   max: 1
-  clip: true
   basis: not_applicable
   note: Exact-match generated bracket completions have length-dependent spaces; no single fixed baseline is
     assigned.
@@ -17,7 +16,6 @@ normalize:
     - https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/dyck_languages
 languages:
   - language: eng_Latn
-    scope: single
     tasks: [bigbench_dyck_languages_generate_until]
     evidence: https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/dyck_languages
     note: English instructions/prompts; symbolic or numerical content is not a separate natural language.

@@ -9,7 +9,6 @@ score:
 normalize:
   min: 0.5
   max: 1
-  clip: true
   basis: uniform_choice
   note: A minimal pair compares a grammatical sentence with an ungrammatical one; chance under random preference
     is 1/2.
@@ -18,74 +17,37 @@ normalize:
 warning: 'Language-grouping approximation: multiblimp_hbs pools Croatian and Serbian. Assign its combined score
   to Serbian (srp_Latn) because Serbian has more speakers, not because of the dataset''s language proportions.
   The score still includes both languages and is not a Serbian-only result.'
+language_defaults:
+  evidence: https://huggingface.co/datasets/jumelet/multiblimp
+  note: Dataset language resolved from the OELLM task registry and benchmark configuration.
 languages:
   - language: bul_Cyrl
-    scope: single
     tasks: [multiblimp_bul]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: cat_Latn
-    scope: single
     tasks: [multiblimp_cat]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ces_Latn
-    scope: single
     tasks: [multiblimp_ces]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: dan_Latn
-    scope: single
     tasks: [multiblimp_dan]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: deu_Latn
-    scope: single
     tasks: [multiblimp_deu]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ell_Grek
-    scope: single
     tasks: [multiblimp_ell]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: eng_Latn
-    scope: single
     tasks: [multiblimp_eng]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: est_Latn
-    scope: single
     tasks: [multiblimp_est]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: eus_Latn
-    scope: single
     tasks: [multiblimp_eus]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: fin_Latn
-    scope: single
     tasks: [multiblimp_fin]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: fra_Latn
-    scope: single
     tasks: [multiblimp_fra]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: gle_Latn
-    scope: single
     tasks: [multiblimp_gle]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: glg_Latn
-    scope: single
     tasks: [multiblimp_glg]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: srp_Latn
-    scope: single
     tasks: [multiblimp_hbs]
     evidence: https://huggingface.co/datasets/jumelet/multiblimp/blob/main/hbs/data.tsv
     note: 'Grouping convention: assign the pooled Croatian/Serbian score to Serbian, the language with more
@@ -93,92 +55,38 @@ languages:
       estimates approximately 11 million Serbian speakers and 6 million Croatian speakers: https://slavic.ucla.edu/languages/bcs/serbian-background-info/
       and https://slavic.ucla.edu/languages/bcs/croatian-background-info/.'
   - language: hun_Latn
-    scope: single
     tasks: [multiblimp_hun]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: isl_Latn
-    scope: single
     tasks: [multiblimp_isl]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ita_Latn
-    scope: single
     tasks: [multiblimp_ita]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: kat_Geor
-    scope: single
     tasks: [multiblimp_kat]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: lav_Latn
-    scope: single
     tasks: [multiblimp_lav]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: lit_Latn
-    scope: single
     tasks: [multiblimp_lit]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: mkd_Cyrl
-    scope: single
     tasks: [multiblimp_mkd]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: nld_Latn
-    scope: single
     tasks: [multiblimp_nld]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: pol_Latn
-    scope: single
     tasks: [multiblimp_pol]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: por_Latn
-    scope: single
     tasks: [multiblimp_por]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ron_Latn
-    scope: single
     tasks: [multiblimp_ron]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: slk_Latn
-    scope: single
     tasks: [multiblimp_slk]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: slv_Latn
-    scope: single
     tasks: [multiblimp_slv]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: spa_Latn
-    scope: single
     tasks: [multiblimp_spa]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: sqi_Latn
-    scope: single
     tasks: [multiblimp_sqi]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: swe_Latn
-    scope: single
     tasks: [multiblimp_swe]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: tur_Latn
-    scope: single
     tasks: [multiblimp_tur]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ukr_Cyrl
-    scope: single
     tasks: [multiblimp_ukr]
-    evidence: https://huggingface.co/datasets/jumelet/multiblimp
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.

@@ -9,14 +9,12 @@ score:
 normalize:
   min: 0
   max: 1
-  clip: true
   basis: not_applicable
   note: Token-overlap F1 for generated conversational answers has no universal chance floor.
   sources:
     - https://stanfordnlp.github.io/coqa/
 languages:
   - language: eng_Latn
-    scope: single
     tasks: [coqa]
     evidence: https://stanfordnlp.github.io/coqa/
     note: Original English benchmark variant; language is the prompt/question language.

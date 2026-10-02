@@ -9,14 +9,12 @@ score:
 normalize:
   min: 0.5
   max: 1
-  clip: true
   basis: uniform_choice
   note: The evaluator compares two candidate antecedents; uniform guessing gives 1/2.
   sources:
     - https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/tasks/wsc273/default.yaml
 languages:
   - language: eng_Latn
-    scope: single
     tasks: [wsc273]
     evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
     note: Original English benchmark variant; language is the prompt/question language.

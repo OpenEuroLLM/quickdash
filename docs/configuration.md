@@ -105,15 +105,12 @@ score: {scale: 1}
 normalize:
   min: 0.25  # Four choices: uniform guessing gets 1/4 correct.
   max: 1
-  clip: true
   basis: uniform_choice
   note: Four-choice chance correction is enabled for this example.
 languages:
   - language: eng_Latn
-    scope: single
     tasks: [example_en]
   - language: fra_Latn
-    scope: single
     tasks: [example_fr]
 ```
 
@@ -139,6 +136,38 @@ directories and malformed files stop loading. Errors identify the source file
 when a single file is invalid. All validation finishes before the builder replaces
 output or a browser import takes effect.
 
+## Shared language metadata
+
+Put repeated language evidence and notes in `language_defaults` within the eval
+file. A language entry inherits each omitted field and can override either field
+independently:
+
+```yaml
+language_defaults:
+  evidence: https://huggingface.co/datasets/Qwen/PolyMath
+  note: Language assignments follow the benchmark configuration.
+languages:
+  - language: deu_Latn
+    tasks: [polymath_de_low, polymath_de_medium, polymath_de_high, polymath_de_top]
+  - language: eng_Latn
+    tasks: [polymath_en_low, polymath_en_medium, polymath_en_high, polymath_en_top]
+    note: A language-specific explanation can replace the shared note.
+```
+
+`language_defaults` accepts only `evidence` and `note`. Both must be strings;
+nonempty evidence must be an HTTP(S) URL. An explicit empty string clears an
+inherited field; `null` is invalid. Invalid defaults are rejected even if every
+language overrides them. The assembled catalogue and single-file exports contain
+the resolved metadata, so they remain self-contained.
+
+In per-eval files, `scope` is optional: `language` implies `single`, `language: mul`
+implies `pooled`, and source/target fields imply `translation`. Both translation
+languages are required. Use an explicit `scope: pooled` when a score pools languages
+but is grouped under one specific language code. Explicit overrides must agree
+with the fields: translation cannot also have `language`, and single/pooled cannot
+have source/target fields. Assembly records an explicit scope for every entry.
+This uses the declared fields; it does not infer language identity from task names.
+
 ## Complete small example
 
 For a portable single file, the format remains `version`, `name`, `evals`, and
@@ -157,6 +186,7 @@ For an input row with `value=0.625`, the raw score is 62.5 and the normalized sc
 
 | Field | Meaning |
 |---|---|
+| `language_defaults` | Optional per-eval defaults for language `evidence` and `note`; individual language entries override them. Expanded during assembly. |
 | `languages` | In a per-eval file, the explicit language groups for that eval. Required; use `[]` when unknown. In a complete catalogue, these groups live in the top-level `languages` list. |
 | `name` | Unique display name of the eval, grouping its variants. |
 | `category` | Category label used by weighting profiles and breakdowns. |

@@ -19,8 +19,30 @@ def assemble_catalogue(metadata, definitions):
     for definition in definitions:
         if not isinstance(definition, dict) or "languages" not in definition:
             raise ValueError("Each eval definition needs its own languages list")
-        e = {k: deepcopy(v) for k, v in definition.items() if k != "languages"}
+        e = {
+            k: deepcopy(v)
+            for k, v in definition.items()
+            if k not in {"languages", "language_defaults"}
+        }
+        defaults = definition.get("language_defaults", {})
+        object_keys(defaults, {"evidence", "note"})
+        validate_language_metadata(defaults)
         groups = deepcopy(definition["languages"])
+        if not isinstance(groups, list):
+            raise ValueError("languages must be a list")
+        for index, group in enumerate(groups):
+            if not isinstance(group, dict):
+                continue  # The ordinary language-group validator rejects this value.
+            group = {**defaults, **group}
+            if "scope" not in group:
+                group["scope"] = (
+                    "translation"
+                    if "source_language" in group or "target_language" in group
+                    else "pooled"
+                    if group.get("language") == "mul"
+                    else "single"
+                )
+            groups[index] = group
         validate_catalogue(dict(metadata, evals=[e], languages=groups))
         for group in groups:
             for task in group["tasks"]:
@@ -343,13 +365,17 @@ def validate_rules(config):
                 or (value == "mul" and scope != "pooled")
             ):
                 raise ValueError("Use canonical language codes, such as eng_Latn")
-        for field in ["note", "evidence"]:
-            if field in group and not isinstance(group[field], str):
-                raise ValueError(field + " must be a string")
-        if group.get("evidence") and not re.match(r"^https?://", group["evidence"]):
-            raise ValueError("Evidence links must use HTTP or HTTPS")
+        validate_language_metadata(group)
     validate_aggregation_config(config)
     return config
+
+
+def validate_language_metadata(group):
+    for field in ["note", "evidence"]:
+        if field in group and not isinstance(group[field], str):
+            raise ValueError(field + " must be a string")
+    if group.get("evidence") and not re.match(r"^https?://", group["evidence"]):
+        raise ValueError("Evidence links must use HTTP or HTTPS")
 
 
 def normalize_score(value, e):

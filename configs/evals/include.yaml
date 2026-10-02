@@ -11,139 +11,78 @@ score:
 normalize:
   min: 0.25
   max: 1
-  clip: true
   basis: uniform_choice
   note: The INCLUDE task templates score A/B/C/D against one answer; 1/4 also holds for weighted aggregates
     of four-choice subjects.
   sources:
     - https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/tasks/include/default/Albanian/_albanian_template_yaml
     - https://huggingface.co/datasets/CohereLabs/include-base-44
+language_defaults:
+  evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
+  note: Dataset language resolved from the OELLM task registry and benchmark configuration.
 languages:
   - language: sqi_Latn
-    scope: single
     tasks: [include_base_44_albanian, include_base_44_albanian_arts_humanities, include_base_44_albanian_business_commerce,
       include_base_44_albanian_health_oriented_education, include_base_44_albanian_social_science, include_base_44_albanian_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: eus_Latn
-    scope: single
     tasks: [include_base_44_basque, include_base_44_basque_professional_certification]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: bul_Cyrl
-    scope: single
     tasks: [include_base_44_bulgarian, include_base_44_bulgarian_arts_humanities, include_base_44_bulgarian_social_science,
       include_base_44_bulgarian_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: hrv_Latn
-    scope: single
     tasks: [include_base_44_croatian, include_base_44_croatian_arts_humanities, include_base_44_croatian_social_science,
       include_base_44_croatian_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: nld_Latn
-    scope: single
     tasks: [include_base_44_dutch, include_base_44_dutch_applied_science, include_base_44_dutch_arts_humanities,
       include_base_44_dutch_health_oriented_education, include_base_44_dutch_social_science, include_base_44_dutch_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: est_Latn
-    scope: single
     tasks: [include_base_44_estonian, include_base_44_estonian_applied_science, include_base_44_estonian_arts_humanities,
       include_base_44_estonian_health_oriented_education, include_base_44_estonian_social_science, include_base_44_estonian_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: fin_Latn
-    scope: single
     tasks: [include_base_44_finnish, include_base_44_finnish_applied_science, include_base_44_finnish_arts_humanities,
       include_base_44_finnish_health_oriented_education, include_base_44_finnish_social_science, include_base_44_finnish_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: fra_Latn
-    scope: single
     tasks: [include_base_44_french, include_base_44_french_arts_humanities, include_base_44_french_driving_license,
       include_base_44_french_health_oriented_education, include_base_44_french_social_science, include_base_44_french_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: kat_Geor
-    scope: single
     tasks: [include_base_44_georgian, include_base_44_georgian_arts_humanities]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: deu_Latn
-    scope: single
     tasks: [include_base_44_german, include_base_44_german_driving_license, include_base_44_german_social_science,
       include_base_44_german_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ell_Grek
-    scope: single
     tasks: [include_base_44_greek, include_base_44_greek_arts_humanities, include_base_44_greek_business_commerce,
       include_base_44_greek_health_oriented_education, include_base_44_greek_medical_license, include_base_44_greek_professional_certification,
       include_base_44_greek_social_science, include_base_44_greek_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: hun_Latn
-    scope: single
     tasks: [include_base_44_hungarian, include_base_44_hungarian_applied_science, include_base_44_hungarian_social_science,
       include_base_44_hungarian_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ita_Latn
-    scope: single
     tasks: [include_base_44_italian, include_base_44_italian_applied_science, include_base_44_italian_arts_humanities,
       include_base_44_italian_health_oriented_education, include_base_44_italian_professional_certification,
       include_base_44_italian_social_science, include_base_44_italian_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: lit_Latn
-    scope: single
     tasks: [include_base_44_lithuanian, include_base_44_lithuanian_arts_humanities, include_base_44_lithuanian_business_commerce,
       include_base_44_lithuanian_professional_certification, include_base_44_lithuanian_social_science, include_base_44_lithuanian_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: mkd_Cyrl
-    scope: single
     tasks: [include_base_44_north macedonian, include_base_44_north macedonian_arts_humanities, include_base_44_north
         macedonian_business_commerce, include_base_44_north macedonian_social_science, include_base_44_north
         macedonian_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: pol_Latn
-    scope: single
     tasks: [include_base_44_polish, include_base_44_polish_professional_certification, include_base_44_polish_social_science,
       include_base_44_polish_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: por_Latn
-    scope: single
     tasks: [include_base_44_portuguese, include_base_44_portuguese_applied_science, include_base_44_portuguese_arts_humanities,
       include_base_44_portuguese_business_commerce, include_base_44_portuguese_health_oriented_education, include_base_44_portuguese_social_science,
       include_base_44_portuguese_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: srp_Cyrl
-    scope: single
     tasks: [include_base_44_serbian, include_base_44_serbian_arts_humanities, include_base_44_serbian_social_science,
       include_base_44_serbian_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: spa_Latn
-    scope: single
     tasks: [include_base_44_spanish, include_base_44_spanish_arts_humanities, include_base_44_spanish_health_oriented_education,
       include_base_44_spanish_social_science, include_base_44_spanish_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: tur_Latn
-    scope: single
     tasks: [include_base_44_turkish, include_base_44_turkish_arts_humanities, include_base_44_turkish_business_commerce,
       include_base_44_turkish_social_science, include_base_44_turkish_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
   - language: ukr_Cyrl
-    scope: single
     tasks: [include_base_44_ukrainian, include_base_44_ukrainian_arts_humanities, include_base_44_ukrainian_social_science,
       include_base_44_ukrainian_stem]
-    evidence: https://huggingface.co/datasets/CohereLabs/include-base-44
-    note: Dataset language resolved from the OELLM task registry and benchmark configuration.

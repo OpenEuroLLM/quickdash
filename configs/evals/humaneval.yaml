@@ -9,14 +9,12 @@ score:
 normalize:
   min: 0
   max: 1
-  clip: true
   basis: not_applicable
   note: Executable code pass@1 has no benchmark-defined uniform random-program baseline.
   sources:
     - https://github.com/openai/human-eval
 languages:
   - language: eng_Latn
-    scope: single
     tasks: [HumanEval]
     evidence: https://github.com/openai/human-eval
     note: Original English benchmark variant; language is the prompt/question language. Programming-language

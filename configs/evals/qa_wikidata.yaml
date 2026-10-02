@@ -9,14 +9,12 @@ score:
 normalize:
   min: 0
   max: 1
-  clip: true
   basis: not_applicable
   note: The selected generate-until task uses open-ended exact match; no fixed choice count.
   sources:
     - https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/qa_wikidata
 languages:
   - language: eng_Latn
-    scope: single
     tasks: [bigbench_qa_wikidata_generate_until]
     evidence: https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/qa_wikidata
     note: English instructions/prompts; symbolic or numerical content is not a separate natural language.
