@@ -361,6 +361,112 @@ class Engines(unittest.TestCase):
                 self.assertNotIn("error", result)
                 self.assertAlmostEqual(result["value"]["models"][0]["score"], score)
 
+    def test_strict_fewshot_warnings_are_grouped_without_duplicate_coverage_warnings(
+        self,
+    ):
+        c = fixture()
+        c["catalogue"]["evals"][0]["shots"] = 5
+        rr = [row(t, n_shot="0") for t in ["e_en", "e_fr"]]
+        cases = []
+        for mode in ["available", "fixed"]:
+            cfg = deepcopy(c)
+            if mode == "fixed":
+                cfg["suite"] = dict(
+                    version=1, name="Required", mode=mode, evals=[dict(name="E")]
+                )
+            cases.append(dict(config=cfg, rows=rr))
+        for i, results in enumerate(self.both(cases)):
+            for result in results:
+                report = result["value"]
+                self.assertEqual(
+                    [d["code"] for d in report["diagnostics"]], ["strict_shot_setting"]
+                )
+                d = report["diagnostics"][0]
+                self.assertEqual(
+                    (
+                        d["eval"],
+                        d["model"],
+                        d["expected_shots"],
+                        d["actual_shots"],
+                        d["effect"],
+                    ),
+                    ("E", "A", 5, 0, "excluded"),
+                )
+                self.assertEqual(d["tasks"], ["e_en", "e_fr"])
+                self.assertEqual(len(d["measurement_ids"]), 2)
+                self.assertIsNone(report["models"][0]["score"])
+                self.assertTrue(
+                    all(
+                        not m["included"] and m["effective_weight"] == 0
+                        for m in report["models"][0]["measurements"]
+                    )
+                )
+                if i == 1:
+                    self.assertEqual(len(report["coverage"][0]["missing"]), 2)
+        # Each actual setting has its own group; another protocol doesn't inflate the task count.
+        many = rr + [row("e_en", n_shot="0", backend="other"), row("e_fr", n_shot="3")]
+        for result in self.both([dict(config=c, rows=many)])[0]:
+            ds = result["value"]["diagnostics"]
+            self.assertEqual([d["actual_shots"] for d in ds], [0, 3])
+            self.assertEqual([len(d["tasks"]) for d in ds], [2, 1])
+        # Exact selected data makes alternative shots harmless for that task.
+        for result in self.both([dict(config=c, rows=rr + [row(n_shot="5")])])[0]:
+            ds = result["value"]["diagnostics"]
+            self.assertEqual(len(ds), 1)
+            self.assertEqual(ds[0]["tasks"], ["e_fr"])
+            self.assertEqual(result["value"]["models"][0]["score"], 50)
+        # Preserve genuinely absent requirements and other causes (wrong metric/filter).
+        cfg = deepcopy(c)
+        cfg["catalogue"]["languages"][0]["tasks"] += [
+            "e_missing",
+            "e_wrong_metric",
+            "e_wrong_filter",
+        ]
+        cfg["suite"] = dict(
+            version=1, name="Required", mode="fixed", evals=[dict(name="E", shots=10)]
+        )
+        mixed = rr + [
+            row("e_wrong_metric", metric="other"),
+            row("e_wrong_filter", filter="other"),
+        ]
+        for result in self.both([dict(config=cfg, rows=mixed)])[0]:
+            ds = result["value"]["diagnostics"]
+            shot = next(d for d in ds if d["code"] == "strict_shot_setting")
+            self.assertEqual(shot["expected_shots"], 10)
+            self.assertEqual(shot["tasks"], ["e_en", "e_fr"])
+            missing = next(d for d in ds if d["code"] == "missing_suite_data")
+            self.assertEqual(
+                missing["tasks"], ["e_missing", "e_wrong_filter", "e_wrong_metric"]
+            )
+            self.assertIn("missing_scoring_field", {d["code"] for d in ds})
+            self.assertIn("missing_scoring_setting", {d["code"] for d in ds})
+        # Excluded languages never enter the mismatch count.
+        cfg["suite"]["evals"][0]["exclude_languages"] = ["fra_Latn"]
+        for result in self.both([dict(config=cfg, rows=rr)])[0]:
+            ds = result["value"]["diagnostics"]
+            shot = next(d for d in ds if d["code"] == "strict_shot_setting")
+            self.assertEqual(shot["tasks"], ["e_en"])
+            self.assertIn("not_used", {d["code"] for d in ds})
+        # Counts are grouped independently for each model.
+        for result in self.both([dict(config=c, rows=paired(rr))])[0]:
+            ds = result["value"]["diagnostics"]
+            self.assertEqual(
+                [d["code"] for d in ds], ["strict_shot_setting", "strict_shot_setting"]
+            )
+            self.assertEqual([d["model"] for d in ds], ["A", "B"])
+            self.assertEqual(
+                [d["tasks"] for d in ds], [["e_en", "e_fr"], ["e_en", "e_fr"]]
+            )
+        # Relaxed mode retains its own warning.
+        for result in self.both([dict(config=c, rows=paired(rr), matching="relaxed")])[
+            0
+        ]:
+            ds = result["value"]["diagnostics"]
+            self.assertEqual(
+                [d["code"] for d in ds],
+                ["relaxed_shot_setting", "relaxed_shot_setting"],
+            )
+
     def test_relaxed_fewshot_selection_and_warnings(self):
         c = fixture()
         c["catalogue"]["evals"][0]["shots"] = 5

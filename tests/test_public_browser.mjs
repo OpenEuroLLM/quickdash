@@ -215,6 +215,20 @@ try{
 
  assert.equal(await evaluate("document.querySelector('#cards').hidden"),false);
  const strictSampleCards=await evaluate("document.querySelector('#cards').textContent");
+ // Strict shot mismatches collapse per eval, including duplicate missing-set warnings.
+ await change('#suitePreset','1');await click('[data-view=warnings]');
+ const arcWarnings=await evaluate("[...document.querySelectorAll('#view tbody tr')].filter(r=>r.cells[1]?.textContent==='ARC Challenge').map(r=>r.textContent)");
+ assert.equal(arcWarnings.length,1);
+ assert.match(arcWarnings[0],/Few-shot mismatch excluded.*\d+ tasks use 0 shots; expected 10/s);
+ assert.match(arcWarnings[0],/arc_challenge_mt_cs/);
+ assert.match(await evaluate("document.querySelector('#coverage').textContent"),/INCOMPLETE/);
+ await click('[data-view=config]');
+ await evaluate("document.querySelector('.catalogue-eval[data-eval=\"ARC Challenge\"]').open=true");
+ await new Promise(r=>setTimeout(r,50));
+ assert.ok(await evaluate("document.querySelectorAll('.catalogue-eval[data-eval=\"ARC Challenge\"] .has-missing-field').length>0"));
+ await change('#suitePreset','0');
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),strictSampleCards);
+
  await change('#matching','relaxed');
  assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
  assert.match(await evaluate("document.querySelector('#matchingNotice').textContent"),/INCONSISTENT EVALUATION SETTINGS/);

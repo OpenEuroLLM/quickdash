@@ -240,7 +240,7 @@ function normalizationLabel(e){const n=e.normalize;if(!n||n.min===0&&n.max===1)r
 function sameCoverage(a,b,config=null,matching='strict'){return a.length===b.length&&pairRows(a,b,config,matching).length===a.length;}
 // Public, serializable analysis boundary used by Python parity tests and the UI.
 function measurementId(r){return JSON.stringify([r.checkpoint,...['task','metric','filter','n_shot','harness','backend'].map(k=>r[k])]);}
-const diagnosticTitles={config_caveat:'Config caveat',no_config:'No config',not_used:'Not used',unknown_language:'Unknown language',invalid_sample_count:'Invalid sample count',relaxed_shot_setting:'Few-shot mismatch allowed',ambiguous_shot_setting:'Ambiguous few-shot setting',inconsistent_scoring_settings:'Inconsistent scoring settings',missing_scoring_field:'Missing scoring field',missing_scoring_setting:'Missing scoring setting',no_selected_score:'No selected score',missing_suite_data:'Missing suite data',incomplete_components:'Incomplete components',comparison_coverage:'Comparison coverage',sample_count_mismatch:'Sample-count mismatch',no_category_weight:'No category weight'};
+const diagnosticTitles={config_caveat:'Config caveat',no_config:'No config',not_used:'Not used',unknown_language:'Unknown language',invalid_sample_count:'Invalid sample count',strict_shot_setting:'Few-shot mismatch excluded',relaxed_shot_setting:'Few-shot mismatch allowed',ambiguous_shot_setting:'Ambiguous few-shot setting',inconsistent_scoring_settings:'Inconsistent scoring settings',missing_scoring_field:'Missing scoring field',missing_scoring_setting:'Missing scoring setting',no_selected_score:'No selected score',missing_suite_data:'Missing suite data',incomplete_components:'Incomplete components',comparison_coverage:'Comparison coverage',sample_count_mismatch:'Sample-count mismatch',no_category_weight:'No category weight'};
 function diagnostic(code,model,evalName,rows,detail,effect='included',tasks=null){
  const names=[...new Set(tasks??rows.map(r=>r.task))].sort(compareText);
  return {code,type:diagnosticTitles[code],model,eval:evalName,name:evalName||names[0]||model,tasks:names,measurement_ids:rows.map(measurementId).sort(compareText),effect,detail,variants:names.length?[{settings:detail,tasks:names}]:[]};
@@ -250,7 +250,7 @@ function reportDiagnostics(audits,config,included,comparison=false,matchingMode=
  const used=new Set([...included.values()].flat().map(r=>r.eval));
  for(const e of catalogue.evals)if(e.warning&&used.has(e.name))out.push(diagnostic('config_caveat','Selected comparison',e.name,[],e.warning));
  for(const [model,rows] of audits){
-  const scope=scopeRows(rows,suite),accepted=included.get(model)||[],acceptedIds=new Set(accepted.map(measurementId));
+  const scope=scopeRows(rows,suite),explainedShots=new Set(),accepted=included.get(model)||[],acceptedIds=new Set(accepted.map(measurementId));
   for(const task of [...new Set(rows.filter(r=>!r.eval).map(r=>r.task))].sort(compareText))out.push(diagnostic('no_config',model,null,rows.filter(r=>r.task===task),'No eval configuration; excluded from scoring.','excluded'));
   for(const e of catalogue.evals){
    const all=rows.filter(r=>r.eval===e.name),outside=all.filter(r=>(!e.select||matchTask(e.select,r.task))&&!inSuite(r,suite)),matching=all.filter(r=>inSuite(r,suite)),selected=matching.filter(r=>r.selected);
@@ -269,13 +269,24 @@ function reportDiagnostics(audits,config,included,comparison=false,matchingMode=
    if(bad.length)add('invalid_sample_count',bad,'Invalid sample count; retained scores are not weighted by sample count.');
    const protocol=protocolWarning(matching,e,catalogue,model);
    if(protocol)add('inconsistent_scoring_settings',selected,protocol.detail);
-   for(const task of [...new Set(matching.filter(r=>!e.select||matchTask(e.select,r.task)).map(r=>r.task))].sort(compareText)){
+   const eligibleTasks=[...new Set(matching.filter(r=>!e.select||matchTask(e.select,r.task)).map(r=>r.task))].sort(compareText),shotGroups=new Map(),shotTasks=new Set();
+   for(const task of eligibleTasks){
     const rr=matching.filter(r=>r.task===task);if(rr.some(r=>r.selected))continue;
+    const shotRows=rr.filter(r=>r.metric===e.metric&&r.filter===e.metric_filter&&Number(r.n_shot)!==e.shots);
+    if(matchingMode==='strict'&&'shots'in e&&shotRows.length){
+     shotTasks.add(task);explainedShots.add(JSON.stringify([e.name,task]));
+     for(const r of shotRows){const actual=Number(r.n_shot);if(!shotGroups.has(actual))shotGroups.set(actual,[]);shotGroups.get(actual).push(r);}continue;
+    }
     add(rr.some(r=>r.metric===e.metric)?'missing_scoring_setting':'missing_scoring_field',rr,'Excluded: expected '+e.metric+' / '+(e.metric_filter||'(empty)')+('shots'in e?' / '+e.shots+' shots':'')+'.','excluded');
    }
-   if(!selected.length)add('no_selected_score',matching,'No score matches the configured metric, filter, shots and selection. Excluded.','excluded');
+   for(const [actual,rr] of [...shotGroups].sort((a,b)=>a[0]-b[0])){
+    const count=new Set(rr.map(r=>r.task)).size;
+    out.push({...diagnostic('strict_shot_setting',model,e.name,rr,`${count} ${count===1?'task uses':'tasks use'} ${actual} shots; expected ${e.shots}. Excluded under strict matching; remaining weights are redistributed.`,'excluded'),expected_shots:e.shots,actual_shots:actual});
+   }
+   if(!selected.length&&!(shotTasks.size&&eligibleTasks.every(t=>shotTasks.has(t))))add('no_selected_score',matching,'No score matches the configured metric, filter, shots and selection. Excluded.','excluded');
   }
-  for(const name of [...new Set(scope.missing.map(r=>r.eval))])out.push(diagnostic('missing_suite_data',model,name,[],'Required results are missing from '+suite.name+'. Excluded; remaining weights are redistributed.','excluded',scope.missing.filter(r=>r.eval===name&&r.task).map(r=>r.task)));
+  const unexplainedMissing=scope.missing.filter(r=>!explainedShots.has(JSON.stringify([r.eval,r.task])));
+  for(const name of [...new Set(unexplainedMissing.map(r=>r.eval))])out.push(diagnostic('missing_suite_data',model,name,[],'Required results are missing from '+suite.name+'. Excluded; remaining weights are redistributed.','excluded',unexplainedMissing.filter(r=>r.eval===name&&r.task).map(r=>r.task)));
   const component=componentCoverage(scope.rows,scheme);
   for(const name of [...new Set(component.excluded.map(r=>r.eval))])out.push(diagnostic('incomplete_components',model,name,component.excluded.filter(r=>r.eval===name),component.warnings.filter(w=>w.eval===name).map(w=>w.detail).join(' '),'excluded'));
   if(comparison)for(const name of [...new Set(component.rows.filter(r=>!acceptedIds.has(measurementId(r))).map(r=>r.eval))])out.push(diagnostic('comparison_coverage',model,name,component.rows.filter(r=>r.eval===name&&!acceptedIds.has(measurementId(r))),'Unmatched results are excluded from both scores; weights use shared data only.','excluded'));

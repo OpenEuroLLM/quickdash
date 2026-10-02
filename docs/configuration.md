@@ -75,6 +75,8 @@ For an explicitly pinned task inventory, a fixed entry may still use `variants: 
 
 ## Strict and relaxed matching
 
+Strict shot-mismatch warnings group tasks by eval, model, and expected/actual shot-count pair, with a count and expandable task list. They replace duplicate missing-setting/coverage warnings for those same tasks; missing requirements still count toward incomplete coverage.
+
 The dashboard starts with **Strict matching**. Expected settings are resolved in this order: catalogue defaults, then optional whole-eval set overrides. Strict matching requires the configured metric, metric filter, and (when specified) shot count. Shared comparisons also require the same harness and backend.
 
 **Relaxed — allow few-shot differences** may select a different shot count for each concrete task. It prefers the expected count; otherwise it uses the uniquely closest available count, independently for each model and task with the same metric/filter/harness/backend. Equally close alternatives are ambiguous and excluded with a warning. Scores never influence that choice. Without a configured shot expectation, shot counts still have to match across models.

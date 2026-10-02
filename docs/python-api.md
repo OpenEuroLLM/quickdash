@@ -144,6 +144,7 @@ The diagnostic contract is `code`, `model`, `eval`, `tasks`, `measurement_ids`, 
 | `no_config`, `not_used` | Unknown eval or data outside the selected set; excluded. |
 | `missing_scoring_field`, `missing_scoring_setting`, `no_selected_score` | Required metric/protocol unavailable; no alternate substitution. |
 | `missing_suite_data` | A named set has missing requirements; available shared results are reweighted. |
+| `strict_shot_setting` | Tasks excluded for a shot mismatch, grouped by eval/model/expected/actual count. Includes expected/actual counts and all affected task/measurement IDs. |
 | `relaxed_shot_setting` | A differing shot count is included under relaxed matching; records expected/actual counts. |
 | `ambiguous_shot_setting` | Equally close alternative shot counts; excluded. |
 | `incomplete_components` | A language/protocol group is incomplete or incompatible; the whole group is excluded. |
@@ -152,6 +153,8 @@ The diagnostic contract is `code`, `model`, `eval`, `tasks`, `measurement_ids`, 
 | `inconsistent_scoring_settings` | Selected variants use different protocols; ordinary results or complete component groups remain eligible. |
 | `invalid_sample_count`, `sample_count_mismatch` | Sample-count metadata needs review; it does not determine weights. |
 | `no_category_weight` | An included category has no profile weight and contributes zero. |
+
+Strict shot mismatches produce one diagnostic per eval, model, and expected/actual shot-count pair. Covered tasks do not also generate `missing_scoring_setting`, `no_selected_score`, or `missing_suite_data` diagnostics for the same cause. Coverage still records those unsatisfied requirements and remains incomplete. Genuinely absent tasks and other missing settings retain their diagnostics.
 
 Unused catalogue entries do not warn merely because no data exists for them. Declare an expected eval set when absence should warn. Alternate metrics remain auditable without creating warnings when the selected metric is present.
 

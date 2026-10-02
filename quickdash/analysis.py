@@ -425,6 +425,7 @@ TITLES = dict(
     unknown_language="Unknown language",
     invalid_sample_count="Invalid sample count",
     inconsistent_scoring_settings="Inconsistent scoring settings",
+    strict_shot_setting="Few-shot mismatch excluded",
     relaxed_shot_setting="Few-shot mismatch allowed",
     ambiguous_shot_setting="Ambiguous few-shot setting",
     missing_scoring_field="Missing scoring field",
@@ -474,6 +475,7 @@ def report_diagnostics(
             )
     for model, rows in audits.items():
         scope = scope_rows(rows, suite)
+        explained_shots = set()
         accepted = {measurement_id(r) for r in included.get(model, [])}
         for task in sorted({r["task"] for r in rows if not r["eval"]}):
             out.append(
@@ -578,16 +580,29 @@ def report_diagnostics(
                     selected,
                     "Selected variants use inconsistent scoring settings; complete protocols remain included.",
                 )
-            for task in sorted(
-                {
-                    r["task"]
-                    for r in matching
-                    if "select" not in e
-                    or match_task(e["select"], r["task"]) is not None
-                }
-            ):
+            eligible_tasks = {
+                r["task"]
+                for r in matching
+                if "select" not in e or match_task(e["select"], r["task"]) is not None
+            }
+            shot_groups = {}
+            shot_tasks = set()
+            for task in sorted(eligible_tasks):
                 rr = [r for r in matching if r["task"] == task]
                 if any(r["selected"] for r in rr):
+                    continue
+                shot_rows = [
+                    r
+                    for r in rr
+                    if r["metric"] == e["metric"]
+                    and r["filter"] == e["metric_filter"]
+                    and int(r["n_shot"]) != e.get("shots")
+                ]
+                if matching_mode == "strict" and "shots" in e and shot_rows:
+                    shot_tasks.add(task)
+                    explained_shots.add((e["name"], task))
+                    for r in shot_rows:
+                        shot_groups.setdefault(int(r["n_shot"]), []).append(r)
                     continue
                 add(
                     "missing_scoring_setting"
@@ -602,14 +617,32 @@ def report_diagnostics(
                     + ".",
                     "excluded",
                 )
-            if not selected:
+            for actual, rr in sorted(shot_groups.items()):
+                count = len({r["task"] for r in rr})
+                noun = "task uses" if count == 1 else "tasks use"
+                item = diagnostic(
+                    "strict_shot_setting",
+                    model,
+                    e["name"],
+                    rr,
+                    f"{count} {noun} {actual} shots; expected {e['shots']}. Excluded under strict matching; remaining weights are redistributed.",
+                    "excluded",
+                )
+                item.update(expected_shots=e["shots"], actual_shots=actual)
+                out.append(item)
+            if not selected and not (shot_tasks and eligible_tasks <= shot_tasks):
                 add(
                     "no_selected_score",
                     matching,
                     "No score matches the configured metric, filter, shots and selection. Excluded.",
                     "excluded",
                 )
-        for name in dict.fromkeys(r["eval"] for r in scope["missing"]):
+        unexplained_missing = [
+            r
+            for r in scope["missing"]
+            if (r["eval"], r.get("task")) not in explained_shots
+        ]
+        for name in dict.fromkeys(r["eval"] for r in unexplained_missing):
             out.append(
                 diagnostic(
                     "missing_suite_data",
@@ -620,7 +653,7 @@ def report_diagnostics(
                     "excluded",
                     [
                         r["task"]
-                        for r in scope["missing"]
+                        for r in unexplained_missing
                         if r["eval"] == name and "task" in r
                     ],
                 )
