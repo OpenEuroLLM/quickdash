@@ -19,7 +19,7 @@ Files opened here stay in your browser; they are not uploaded. Changes last unti
 ## Share results and scoring configs
 
 - Add public CSV exports to [results/](results/README.md) to offer their models in the shared dashboard.
-- Add interpretation rules to [configs/catalogue.yaml](configs/catalogue.yaml).
+- Edit or add a self-contained eval file in [configs/evals/](configs/evals/), such as [polymath.yaml](configs/evals/polymath.yaml). Each file holds its scoring rules and language assignments together; the catalogue combines them automatically.
 - Add weighting profiles to [configs/weights/](configs/weights/), or optional named eval sets to [configs/sets/](configs/sets/). Each directory has a `default.txt` choosing its startup selection. See [contributing configs](configs/README.md).
 
 Use a pull request or GitHub’s **Add file → Upload files**. Changes on `main` trigger tests and a GitHub Pages rebuild; pull requests are checked without publishing. Invalid inputs stop the update and leave the last successful site online. The repository and dashboard are public, so use browser imports for private comparisons.
@@ -37,7 +37,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
 python -m app.build examples/scores.csv --catalogue configs/examples/catalogue.yaml \
-  --weights configs/examples/weights.yaml --eval-set configs/sets/any-available.yaml --output output/example
+  --weights configs/examples/weights.yaml --eval-set configs/examples/eval-set.yaml --output output/example
 open output/example/index.html  # macOS; elsewhere, open it in your browser
 ```
 
@@ -70,6 +70,8 @@ The builder replaces the files it generates in the chosen output directory, incl
 - **Eval configuration:** inspect every task's category, languages, selected field, raw alternate fields, normalization, and source notes. Load or export YAML here.
 - **Warnings:** review missing coverage, scoring inconsistencies, language fallbacks, sample-count issues, and caveats stored in the config.
 
+Catalogue files provide scoring defaults; named eval sets can override the metric, metric filter, or shot count for a whole eval and exclude languages. **Strict matching** is the default. **Relaxed — allow few-shot differences** accepts differing shot counts with explicit warnings and an inconsistency notice; metric, filter, harness, and backend matching remain strict. See [configuration and matching](docs/configuration.md#strict-and-relaxed-matching).
+
 Filters affect inspection views, while composite scores and contribution weights use shared coverage within the selected eval set. A named set with missing requirements is labelled incomplete; it uses the shared subset with redistributed weights. Unmatched measurements are excluded from both compared scores with warnings. Malformed input and invalid selected scores are rejected; failed imports preserve the active dashboard. See the [data-handling policy](docs/configuration.md#data-validation-and-failure-behavior).
 
 Language/category breakdowns show descriptive raw averages for ordinary evals. Evals with configured components, including PolyMath, show calculated scores when collapsed; expand them to see individual raw scores, relative component weights, and contributions. PolyMath stores `relative_weight` values of 1, 2, 4, and 8, divided by their total of 15 when scoring; incomplete language/protocol groups are excluded with warnings. Incompatible component configurations are rejected before taking effect. See [component aggregation](docs/configuration.md#weighted-components-within-an-eval). Weighted scores use configured normalization, whose baselines and limitations are visible per eval. Shared numerical scales do not establish comparable difficulty across benchmarks. Unknown/mixed-language scores use the documented English fallback for balancing; this does not change their language labels.
@@ -82,7 +84,7 @@ After installing the package as above:
 
 ```sh
 quickdash examples/scores.csv --catalogue configs/examples/catalogue.yaml \
-  --weights configs/examples/weights.yaml --eval-set configs/sets/any-available.yaml \
+  --weights configs/examples/weights.yaml --eval-set configs/examples/eval-set.yaml \
   --compare 'Example A' 'Example B'
 ```
 

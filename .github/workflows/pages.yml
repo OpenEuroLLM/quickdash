@@ -42,6 +42,12 @@ jobs:
             --catalogue "$GITHUB_WORKSPACE/configs/examples/catalogue.yaml" \
             --weights "$GITHUB_WORKSPACE/configs/examples/weights.yaml" \
             --compare 'Example A' 'Example B' --format json > quickdash-installed.json
+          PATH="$RUNNER_TEMP/quickdash-package/bin" \
+            "$RUNNER_TEMP/quickdash-package/bin/quickdash" "$GITHUB_WORKSPACE/examples/sample-evals.csv" \
+            --catalogue "$GITHUB_WORKSPACE/configs/catalogue.yaml" \
+            --weights "$GITHUB_WORKSPACE/configs/weights/oellm.yaml" \
+            --eval-set "$GITHUB_WORKSPACE/configs/sets/any-available.yaml" \
+            --format json > quickdash-installed-sample.json
       - name: Check the browser with public fixtures
         run: |
           google-chrome --headless --no-sandbox --disable-gpu \
@@ -57,7 +63,7 @@ jobs:
           python3 -m app.build --results-dir results --sample-csv examples/sample-evals.csv \
             --output output/shared > "$RUNNER_TEMP/quickdash-shared.json"
           python3 -m app.build examples/scores.csv --catalogue configs/examples/catalogue.yaml \
-            --weights configs/examples/weights.yaml --eval-set configs/sets/any-available.yaml \
+            --weights configs/examples/weights.yaml --eval-set configs/examples/eval-set.yaml \
             --output output/demo > "$RUNNER_TEMP/quickdash-demo.json"
           mkdir -p output/site
           cp output/shared/index.html output/site/index.html

@@ -4,11 +4,99 @@ import math
 import re
 from pathlib import Path
 from copy import deepcopy
+
+import yaml
+
 from .io import parse_yaml
 
 
+def assemble_catalogue(metadata, definitions):
+    """Combine self-contained eval definitions into a portable runtime catalogue."""
+    object_keys(metadata, {"version", "name", "notes"}, {"version", "name"})
+    if not isinstance(definitions, list) or not definitions:
+        raise ValueError("At least one eval definition is required")
+    catalogue = dict(deepcopy(metadata), evals=[], languages=[])
+    for definition in definitions:
+        if not isinstance(definition, dict) or "languages" not in definition:
+            raise ValueError("Each eval definition needs its own languages list")
+        e = {
+            k: deepcopy(v)
+            for k, v in definition.items()
+            if k not in {"languages", "language_defaults"}
+        }
+        defaults = definition.get("language_defaults", {})
+        object_keys(defaults, {"evidence", "note"})
+        validate_language_metadata(defaults)
+        groups = deepcopy(definition["languages"])
+        if not isinstance(groups, list):
+            raise ValueError("languages must be a list")
+        for index, group in enumerate(groups):
+            if not isinstance(group, dict):
+                continue  # The ordinary language-group validator rejects this value.
+            group = {**defaults, **group}
+            if "scope" not in group:
+                group["scope"] = (
+                    "translation"
+                    if "source_language" in group or "target_language" in group
+                    else "pooled"
+                    if group.get("language") == "mul"
+                    else "single"
+                )
+            groups[index] = group
+        validate_catalogue(dict(metadata, evals=[e], languages=groups))
+        for group in groups:
+            for task in group["tasks"]:
+                if match_task(e["match"], task) is None:
+                    raise ValueError(
+                        f"Language task {task!r} does not belong to eval {e['name']!r}"
+                    )
+        catalogue["evals"].append(e)
+        catalogue["languages"].extend(groups)
+    validate_catalogue(catalogue)
+    for group in catalogue["languages"]:
+        for task in group["tasks"]:
+            eval_for_task(task, catalogue)  # Reject overlap for known task assignments.
+    return catalogue
+
+
 def load_catalogue(path):
-    return validate_catalogue(parse_yaml(Path(path).read_text(encoding="utf-8")))
+    """Read a portable catalogue, or a manifest pointing to per-eval YAML files."""
+    path = Path(path)
+    try:
+        config = parse_yaml(path.read_text(encoding="utf-8"))
+        if not isinstance(config, dict) or "evals_dir" not in config:
+            return validate_catalogue(config)
+        object_keys(
+            config,
+            {"version", "name", "notes", "evals_dir"},
+            {"version", "name", "evals_dir"},
+        )
+        directory = config["evals_dir"]
+        if not isinstance(directory, str) or not directory.strip():
+            raise ValueError("evals_dir must be a nonempty directory path")
+        directory = path.parent / directory
+        if not directory.is_dir():
+            raise ValueError(f"Eval directory does not exist: {directory}")
+        metadata = {k: v for k, v in config.items() if k != "evals_dir"}
+        definitions = []
+        for source in sorted(directory.iterdir()):
+            if not source.is_file() or source.suffix.lower() not in {".yaml", ".yml"}:
+                continue
+            try:
+                definition = parse_yaml(source.read_text(encoding="utf-8"))
+                assemble_catalogue(metadata, [definition])
+            except (ValueError, OSError) as error:
+                raise ValueError(f"{source}: {error}") from error
+            definitions.append(definition)
+        return assemble_catalogue(metadata, definitions)
+    except (ValueError, OSError) as error:
+        raise ValueError(f"{path}: {error}") from error
+
+
+def serialize_catalogue(catalogue):
+    """Export a complete catalogue with no filesystem references."""
+    validate_catalogue(catalogue)
+    return yaml.safe_dump(catalogue, sort_keys=False, allow_unicode=True, width=100)
 
 
 LANGUAGE_CODE = re.compile(r"(?:[a-z]{3}_[A-Z][a-z]{3}|mul)")
@@ -116,7 +204,7 @@ def validate_rules(config):
                 "category",
                 "match",
                 "metric",
-                "filter",
+                "metric_filter",
                 "shots",
                 "select",
                 "score",
@@ -124,7 +212,7 @@ def validate_rules(config):
                 "warning",
                 "aggregation",
             },
-            {"name", "category", "match", "metric", "filter", "score"},
+            {"name", "category", "match", "metric", "metric_filter", "score"},
         )
         if not isinstance(e["name"], str) or not e["name"] or e["name"] in names:
             raise ValueError("Eval names must be unique and nonempty")
@@ -135,7 +223,7 @@ def validate_rules(config):
         if (
             not isinstance(e["metric"], str)
             or not e["metric"]
-            or not isinstance(e["filter"], str)
+            or not isinstance(e["metric_filter"], str)
         ):
             raise ValueError("Metric and filter must be strings")
         validate_match(e["match"])
@@ -277,13 +365,17 @@ def validate_rules(config):
                 or (value == "mul" and scope != "pooled")
             ):
                 raise ValueError("Use canonical language codes, such as eng_Latn")
-        for field in ["note", "evidence"]:
-            if field in group and not isinstance(group[field], str):
-                raise ValueError(field + " must be a string")
-        if group.get("evidence") and not re.match(r"^https?://", group["evidence"]):
-            raise ValueError("Evidence links must use HTTP or HTTPS")
+        validate_language_metadata(group)
     validate_aggregation_config(config)
     return config
+
+
+def validate_language_metadata(group):
+    for field in ["note", "evidence"]:
+        if field in group and not isinstance(group[field], str):
+            raise ValueError(field + " must be a string")
+    if group.get("evidence") and not re.match(r"^https?://", group["evidence"]):
+        raise ValueError("Evidence links must use HTTP or HTTPS")
 
 
 def normalize_score(value, e):
@@ -402,9 +494,9 @@ def classify(rows, config):
             )
         elif r["metric"] != e["metric"]:
             decision = "Alternate metric; using " + e["metric"]
-        elif r["filter"] != e["filter"]:
+        elif r["filter"] != e["metric_filter"]:
             decision = "Alternate extraction filter; using " + (
-                e["filter"] or "(empty)"
+                e["metric_filter"] or "(empty)"
             )
         elif "shots" in e and str(r["n_shot"]) != str(int(e["shots"])):
             decision = (
@@ -598,10 +690,26 @@ def validate_aggregation_config(config):
     return config
 
 
+def validate_language_exclusions(value):
+    if "exclude_languages" in value:
+        languages = value["exclude_languages"]
+        if (
+            not isinstance(languages, list)
+            or any(
+                not isinstance(x, str) or not LANGUAGE_CODE.fullmatch(x)
+                for x in languages
+            )
+            or len(set(languages)) != len(languages)
+        ):
+            raise ValueError(
+                "exclude_languages must be unique canonical language codes"
+            )
+
+
 def validate_suite(s):
     object_keys(
         s,
-        {"version", "name", "mode", "evals", "exclude", "notes"},
+        {"version", "name", "mode", "evals", "exclude", "exclude_languages", "notes"},
         {"version", "name", "mode"},
     )
     if (
@@ -625,6 +733,7 @@ def validate_suite(s):
         or len(set(s["exclude"])) != len(s["exclude"])
     ):
         raise ValueError("Invalid exclusions")
+    validate_language_exclusions(s)
     if s["mode"] == "available":
         if "evals" in s:
             raise ValueError("Available mode does not declare required evals")
@@ -633,7 +742,31 @@ def validate_suite(s):
         raise ValueError("Fixed suite needs required evals")
     names = set()
     for e in s["evals"]:
-        object_keys(e, {"name", "variants"}, {"name"})
+        object_keys(
+            e,
+            {
+                "name",
+                "variants",
+                "metric",
+                "metric_filter",
+                "shots",
+                "exclude_languages",
+            },
+            {"name"},
+        )
+        validate_language_exclusions(e)
+        if "metric" in e and (
+            not isinstance(e["metric"], str) or not e["metric"].strip()
+        ):
+            raise ValueError("metric must be nonempty text")
+        if "metric_filter" in e and not isinstance(e["metric_filter"], str):
+            raise ValueError("metric_filter must be text")
+        if "shots" in e and (
+            not number(e["shots"])
+            or int(e["shots"]) != e["shots"]
+            or not 0 <= e["shots"] <= 2**53 - 1
+        ):
+            raise ValueError("shots must be a nonnegative integer")
         if (
             not isinstance(e["name"], str)
             or not e["name"].strip()
@@ -709,44 +842,127 @@ def validate_profile(p):
     return p
 
 
-def resolve_config(catalogue, suite, profile):
+def catalogue_tasks(catalogue, e):
+    """Known concrete tasks, independent of which model results happen to be loaded."""
+    tasks = {t for g in catalogue["languages"] for t in g["tasks"]}
+    if "name" in e["match"]:
+        tasks.add(e["match"]["name"])
+    return sorted(
+        t
+        for t in tasks
+        if match_task(e["match"], t) is not None
+        and ("select" not in e or match_task(e["select"], t) is not None)
+    )
+
+
+def effective_catalogue(catalogue, suite):
+    """Apply whole-eval overrides without changing the global interpretation rules."""
     validate_catalogue(catalogue)
     validate_suite(suite)
-    validate_profile(profile)
-    evals = catalogue["evals"]
-    if suite["mode"] == "fixed":
-        evals = []
-        for required in suite["evals"]:
-            e = next(
-                (e for e in catalogue["evals"] if e["name"] == required["name"]), None
-            )
-            if e is None:
+    result = deepcopy(catalogue)
+    by_name = {e["name"]: e for e in result["evals"]}
+    for name in suite.get("exclude", []):
+        if name not in by_name:
+            raise ValueError("Excluded eval has no catalogue rule: " + name)
+    for setting in suite.get("evals", []):
+        if setting["name"] not in by_name:
+            raise ValueError("Suite eval has no catalogue rule: " + setting["name"])
+        e = by_name[setting["name"]]
+        e.update(
+            {
+                k: setting[k]
+                for k in ("metric", "metric_filter", "shots")
+                if k in setting
+            }
+        )
+    return validate_catalogue(result)
+
+
+def resolve_suite(catalogue, suite):
+    """Compile authored membership into concrete requirements and exclusions."""
+    validate_suite(suite)
+    by_name = {e["name"]: e for e in catalogue["evals"]}
+    task_sets = {name: catalogue_tasks(catalogue, e) for name, e in by_name.items()}
+    metadata = {t: g for g in catalogue["languages"] for t in g["tasks"]}
+
+    def excluded(languages, tasks, context):
+        def codes(task):
+            g = metadata.get(task, {})
+            return {
+                g.get(k) for k in ("language", "source_language", "target_language")
+            }
+
+        known = set().union(*(codes(t) for t in tasks))
+        for language in languages:
+            if language not in known:
                 raise ValueError(
-                    "Suite eval has no catalogue rule: " + required["name"]
+                    "Excluded language has no catalogue assignment in "
+                    + context
+                    + ": "
+                    + language
                 )
-            for v in required.get("variants", []):
-                matches = [
-                    r
-                    for r in catalogue["evals"]
-                    if match_task(r["match"], v["task"]) is not None
-                ]
-                if (
-                    len(matches) != 1
-                    or matches[0]["name"] != e["name"]
-                    or ("select" in e and match_task(e["select"], v["task"]) is None)
-                    or ("shots" in e and "n_shot" in v and e["shots"] != v["n_shot"])
-                ):
-                    raise ValueError(
-                        "Required variant is not selected by its catalogue rule: "
-                        + v["task"]
-                    )
-            if "variants" in required:
-                validate_aggregation_selection(e, required["variants"], catalogue)
-            evals.append(e)
+        return {t for t in tasks if codes(t).intersection(languages)}
+
+    all_tasks = set(t for tasks in task_sets.values() for t in tasks)
+    removed = excluded(suite.get("exclude_languages", []), all_tasks, "catalogue")
+    result = deepcopy(suite)
+    if suite["mode"] == "available":
+        for name in suite.get("exclude", []):
+            if name not in by_name:
+                raise ValueError("Excluded eval has no catalogue rule: " + name)
+        result["_excluded_tasks"] = sorted(removed)
+        return result
+    for required in result["evals"]:
+        e = by_name.get(required["name"])
+        if e is None:
+            raise ValueError("Suite eval has no catalogue rule: " + required["name"])
+        tasks = task_sets[e["name"]]
+        local_removed = excluded(
+            required.get("exclude_languages", []), tasks, e["name"]
+        )
+        variants = required.get("variants", [{"task": t} for t in tasks])
+        if not variants:
+            raise ValueError(
+                "Required eval needs known tasks in the catalogue: " + e["name"]
+            )
+        for v in variants:
+            matches = [
+                rule
+                for rule in catalogue["evals"]
+                if match_task(rule["match"], v["task"]) is not None
+            ]
+            if (
+                v["task"] not in tasks
+                or len(matches) != 1
+                or matches[0]["name"] != e["name"]
+                or ("shots" in e and "n_shot" in v and e["shots"] != v["n_shot"])
+            ):
+                raise ValueError(
+                    "Required variant is not selected by its catalogue rule: "
+                    + v["task"]
+                )
+        required["variants"] = [
+            v for v in variants if v["task"] not in removed | local_removed
+        ]
+        validate_aggregation_selection(e, required["variants"], catalogue)
+    return result
+
+
+def resolve_inputs(catalogue, suite, profile):
+    """Resolve once for classification, membership, scoring, and diagnostics."""
+    catalogue = effective_catalogue(catalogue, suite)
+    resolved = resolve_suite(catalogue, suite)
+    validate_profile(profile)
+    names = {e["name"] for e in resolved.get("evals", [])}
+    evals = [
+        e
+        for e in catalogue["evals"]
+        if suite["mode"] == "available" or e["name"] in names
+    ]
     weights = dict(profile["weights"])
     for e in evals:
         weights.setdefault(e["category"], 0)
-    return validate_config(
+    scheme = validate_config(
         dict(
             version=1,
             name=catalogue["name"],
@@ -758,11 +974,18 @@ def resolve_config(catalogue, suite, profile):
             notes=catalogue.get("notes", []) + profile.get("notes", []),
         )
     )
+    return dict(catalogue=catalogue, suite=resolved, profile=profile, scheme=scheme)
+
+
+def resolve_config(catalogue, suite, profile):
+    return resolve_inputs(catalogue, suite, profile)["scheme"]
 
 
 def in_suite(row, suite):
     if suite["mode"] == "available":
-        return row["eval"] not in suite.get("exclude", [])
+        return row["eval"] not in suite.get("exclude", []) and row[
+            "task"
+        ] not in suite.get("_excluded_tasks", [])
     e = next((e for e in suite["evals"] if e["name"] == row["eval"]), None)
     return e is not None and (
         "variants" not in e
@@ -809,7 +1032,9 @@ def load_config(*, catalogue, weights, eval_set=None):
         )
 
     bundle = dict(
-        catalogue=load(catalogue),
+        catalogue=deepcopy(catalogue)
+        if isinstance(catalogue, dict)
+        else load_catalogue(catalogue),
         profile=load(weights),
         suite=load(eval_set)
         if eval_set is not None

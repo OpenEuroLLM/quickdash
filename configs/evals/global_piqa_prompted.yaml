@@ -1,0 +1,81 @@
+name: Global PIQA (prompted)
+category: Commonsense
+match:
+  regex: global_piqa_prompted_.+
+metric: exact_match
+metric_filter: strict_match
+score:
+  scale: 1
+normalize:
+  min: 0
+  max: 1
+  basis: unresolved
+  note: Provisional scale conversion only; no validated chance correction for the prompted protocol.
+warning: Normalization and metric selection have not been validated for prompted Global PIQA. The supplied
+  comparison sets exclude this eval. Review the protocol before including its scores.
+language_defaults:
+  evidence: https://huggingface.co/datasets/mrlbenchmarks/global-piqa-nonparallel
+  note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+languages:
+  - language: sqi_Latn
+    tasks: [global_piqa_prompted_als_latn]
+  - language: bos_Latn
+    tasks: [global_piqa_prompted_bos_latn]
+  - language: bul_Cyrl
+    tasks: [global_piqa_prompted_bul_cyrl]
+  - language: cat_Latn
+    tasks: [global_piqa_prompted_cat_latn]
+  - language: ces_Latn
+    tasks: [global_piqa_prompted_ces_latn]
+  - language: deu_Latn
+    tasks: [global_piqa_prompted_deu_latn]
+  - language: est_Latn
+    tasks: [global_piqa_prompted_ekk_latn]
+  - language: ell_Grek
+    tasks: [global_piqa_prompted_ell_grek]
+  - language: eng_Latn
+    tasks: [global_piqa_prompted_eng_latn]
+  - language: fin_Latn
+    tasks: [global_piqa_prompted_fin_latn]
+  - language: fra_Latn
+    tasks: [global_piqa_prompted_fra_latn_fran]
+  - language: glg_Latn
+    tasks: [global_piqa_prompted_glg_latn]
+  - language: hrv_Latn
+    tasks: [global_piqa_prompted_hrv_latn]
+  - language: hun_Latn
+    tasks: [global_piqa_prompted_hun_latn]
+  - language: isl_Latn
+    tasks: [global_piqa_prompted_isl_latn]
+  - language: ita_Latn
+    tasks: [global_piqa_prompted_ita_latn]
+  - language: kat_Geor
+    tasks: [global_piqa_prompted_kat_geor]
+  - language: lit_Latn
+    tasks: [global_piqa_prompted_lit_latn]
+  - language: mkd_Cyrl
+    tasks: [global_piqa_prompted_mkd_cyrl]
+  - language: nld_Latn
+    tasks: [global_piqa_prompted_nld_latn]
+  - language: nor_Latn
+    tasks: [global_piqa_prompted_nno_latn, global_piqa_prompted_nob_latn]
+  - language: pol_Latn
+    tasks: [global_piqa_prompted_pol_latn]
+  - language: por_Latn
+    tasks: [global_piqa_prompted_por_latn_port]
+  - language: ron_Latn
+    tasks: [global_piqa_prompted_ron_latn]
+  - language: slk_Latn
+    tasks: [global_piqa_prompted_slk_latn]
+  - language: slv_Latn
+    tasks: [global_piqa_prompted_slv_latn]
+  - language: spa_Latn
+    tasks: [global_piqa_prompted_spa_latn_spai]
+  - language: srp_Cyrl
+    tasks: [global_piqa_prompted_srp_cyrl]
+  - language: swe_Latn
+    tasks: [global_piqa_prompted_swe_latn]
+  - language: tur_Latn
+    tasks: [global_piqa_prompted_tur_latn]
+  - language: ukr_Cyrl
+    tasks: [global_piqa_prompted_ukr_cyrl]

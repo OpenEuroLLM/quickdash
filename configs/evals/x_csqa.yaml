@@ -1,0 +1,37 @@
+name: X-CSQA
+category: Commonsense
+match:
+  regex: xcsqa_.+
+metric: acc_norm
+metric_filter: none
+shots: 0
+score:
+  scale: 1
+normalize:
+  min: 0.2
+  max: 1
+  basis: uniform_choice
+  note: Translated CommonsenseQA retains five answer options; uniform guessing gives 1/5.
+  sources:
+    - https://inklab.usc.edu/XCSR/xcsr_datasets#x-csqa
+    - https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/custom_lm_eval_tasks/xcsqa/_default_template_yaml
+language_defaults:
+  evidence: https://huggingface.co/datasets/INK-USC/xcsr
+  note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+languages:
+  - language: deu_Latn
+    tasks: [xcsqa_deu_Latn]
+  - language: eng_Latn
+    tasks: [xcsqa_eng_Latn]
+  - language: fra_Latn
+    tasks: [xcsqa_fra_Latn]
+  - language: ita_Latn
+    tasks: [xcsqa_ita_Latn]
+  - language: nld_Latn
+    tasks: [xcsqa_nld_Latn]
+  - language: pol_Latn
+    tasks: [xcsqa_pol_Latn]
+  - language: por_Latn
+    tasks: [xcsqa_por_Latn]
+  - language: spa_Latn
+    tasks: [xcsqa_spa_Latn]

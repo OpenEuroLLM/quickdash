@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const E=require('../app/eval_config.js'),A=require('../app/analysis.js');
 const levels=['low','medium','high','top'];
-const config=()=>({version:1,name:'Components',weights:{Reasoning:1},english_weights:{Reasoning:.5},evals:[{name:'Poly',category:'Reasoning',match:{regex:'poly_.+'},metric:'acc',filter:'none',score:{scale:1},aggregation:{components:levels.map((name,i)=>({name,match:{regex:'poly_.+_'+name},relative_weight:2**i}))}}],languages:['en','de','fr'].map((lang,i)=>({tasks:levels.map(l=>'poly_'+lang+'_'+l),scope:'single',language:['eng_Latn','deu_Latn','fra_Latn'][i]}))});
+const config=()=>({version:1,name:'Components',weights:{Reasoning:1},english_weights:{Reasoning:.5},evals:[{name:'Poly',category:'Reasoning',match:{regex:'poly_.+'},metric:'acc',metric_filter:'none',score:{scale:1},aggregation:{components:levels.map((name,i)=>({name,match:{regex:'poly_.+_'+name},relative_weight:2**i}))}}],languages:['en','de','fr'].map((lang,i)=>({tasks:levels.map(l=>'poly_'+lang+'_'+l),scope:'single',language:['eng_Latn','deu_Latn','fra_Latn'][i]}))});
 const rows=(cfg=config(),langs=['en'],values=[.6,.3,.15,0],checkpoint='A')=>E.auditRows(langs.flatMap(lang=>levels.map((l,i)=>({checkpoint,task:'poly_'+lang+'_'+l,metric:'acc',filter:'none',n_shot:'0',harness:'test',backend:'cpu',value:values[i]}))),cfg);
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-9,`${a} != ${b}`);
 test('relative weights round trip; invalid component rules reject',()=>{
@@ -60,7 +60,7 @@ test('200 independent component calculations reconcile modes, groups, and catego
  for(let trial=0;trial<200;trial++){
   const c=config(),share=rand(),weights=levels.map(()=>1+Math.floor(rand()*8));c.english_weights.Reasoning=share;
   c.evals[0].aggregation.components.forEach((x,i)=>x.relative_weight=weights[i]);
-  c.evals.push({name:'Ordinary',category:'Reasoning',match:{name:'ordinary'},metric:'acc',filter:'none',score:{scale:1}});
+  c.evals.push({name:'Ordinary',category:'Reasoning',match:{name:'ordinary'},metric:'acc',metric_filter:'none',score:{scale:1}});
   c.languages.push({tasks:['ordinary'],scope:'single',language:'eng_Latn'});
   const inputs=['en','de','fr'].map(()=>levels.map(()=>rand()));
   let r=inputs.flatMap((values,i)=>rows(c,[['en','de','fr'][i]],values));
@@ -71,7 +71,7 @@ test('200 independent component calculations reconcile modes, groups, and catego
  }
 });
 test('missing groups redistribute eval/category weights',()=>{
- const c=config();c.weights={Reasoning:.4,Other:.6};c.evals.push({name:'Other',category:'Other',metric:'acc',filter:'none',match:{name:'other'},score:{scale:1}});
+ const c=config();c.weights={Reasoning:.4,Other:.6};c.evals.push({name:'Other',category:'Other',metric:'acc',metric_filter:'none',match:{name:'other'},score:{scale:1}});
  const incomplete=rows(c).slice(0,3),ordinary={...incomplete[0],task:'other',eval:'Other',category:'Other',score_100:70,raw_score_100:70};
  const t=A.totals([...incomplete,ordinary],c,c.weights);close(t.score,70);assert.ok(t.evals.find(e=>e.name==='Poly').excluded);close(t.rowWeights.get(ordinary),1);
 });
@@ -87,7 +87,7 @@ test('catalogue rejects incompatible component matching and selection',()=>{
   c=>c.evals[0].select={regex:'poly_.+_(low|medium|high)'},
   c=>c.languages[0].tasks.pop(),
   c=>c.evals[0].aggregation.components[0].metric='other',
-  c=>c.evals[0].aggregation.components[0].filter='other',
+  c=>c.evals[0].aggregation.components[0].metric_filter='other',
   c=>c.evals[0].aggregation.components[0].score={scale:100},
   c=>c.evals[0].aggregation.components[0].normalize={min:.25,max:1},
   c=>c.evals[0].aggregation.components[0].shots=5

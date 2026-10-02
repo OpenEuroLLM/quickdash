@@ -53,7 +53,7 @@ try{
  assert.equal(await evaluate("document.querySelector('#suitePreset').selectedOptions[0].textContent"),'Any available');
  for(const view of ['categories','languages','comparisons','config','warnings','score'])await click('[data-view='+view+']');
  const upload=async(selector,content,name)=>evaluate(`(async()=>{const dt=new DataTransfer();dt.items.add(new File([${JSON.stringify(content)}],${JSON.stringify(name)}));const e=document.querySelector(${JSON.stringify(selector)});e.files=dt.files;if(e.id==='modelFile')await e.onchange({target:e});else await document.querySelector('#view').onchange({target:e});})()`);
- await click('[data-view=config]');await upload('#configFile',serializeCatalogue(fixture),'catalogue.yaml');
+ await click('[data-view=config]');await upload('#suiteFile',serializeSuite({version:1,name:'Any example',mode:'available'}),'any.yaml');await upload('#configFile',serializeCatalogue(fixture),'catalogue.yaml');
  await change('#weightPreset','1');
  await upload('#modelFile',fs.readFileSync(path.join(root,'examples/scores.csv'),'utf8'),'scores.csv');
  assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
@@ -82,13 +82,13 @@ try{
  await click('[data-view=config]');
  assert.match(await evaluate("document.querySelector('#view').textContent"),/Example math/);
  await click('[data-view=score]');await change('[data-weight=Reasoning]','.8');await change('[data-weight=Math]','.2');
- await change('#suitePreset','0');
+ await click('[data-view=config]');await upload('#suiteFile',serializeSuite({version:1,name:'Any example',mode:'available'}),'any.yaml');await click('[data-view=score]');
  assert.equal(await evaluate("document.querySelector('[data-weight=Reasoning]').value"),'0.8');
  await click('[data-view=config]');
  const unavailable={...fixed,evals:[{name:'Absent eval'}]};
  await upload('#suiteFile',serializeSuite(unavailable),'invalid-set.yaml');
  assert.match(await evaluate("document.querySelector('#error').textContent"),/no catalogue rule/);
- assert.equal(await evaluate("document.querySelector('#suitePreset').value"),'0');
+ assert.equal(await evaluate("document.querySelector('#suitePreset').value"),'custom');
  await upload('#suiteFile',serializeSuite(fixed),'set.yaml');
  await change('#weightPreset','0');
  assert.equal(await evaluate("document.querySelector('#suitePreset').value"),'custom');
@@ -98,7 +98,7 @@ try{
  await click('#exportSuite');assert.deepEqual(await evaluate('exportBlob.text().then(parseSuite)'),fixed);
  await click('#exportWeights');assert.deepEqual(await evaluate('exportBlob.text().then(parseWeightProfile)'),{...weighting,english_weights:weighting.english_weights,aggregate:'standard'});
  await evaluate('URL.createObjectURL=originalCreate;HTMLAnchorElement.prototype.click=originalClick');
- await change('#suitePreset','0');await click('#clearModels');
+ await click('[data-view=config]');await upload('#suiteFile',serializeSuite({version:1,name:'Any example',mode:'available'}),'any.yaml');await click('[data-view=score]');await click('#clearModels');
  assert.equal(await evaluate("document.querySelector('#modelA').options.length"),0);
  await click('[data-view=config]');await upload('#configFile',serializeCatalogue(invalid),'small.yaml');
  await upload('#modelFile',fs.readFileSync(path.join(root,'examples/scores.csv'),'utf8'),'bad-for-config.csv');
@@ -108,7 +108,7 @@ try{
  const results=path.join(temporary,'results');fs.mkdirSync(results);
  fs.copyFileSync(path.join(root,'examples/scores.csv'),path.join(results,'example.csv'));
  const shared=path.join(temporary,'shared');
- execFileSync('python3',['-m','app.build','--results-dir',results,'--catalogue',path.join(root,'configs/examples/catalogue.yaml'),'--weights',path.join(root,'configs/examples/weights.yaml'),'--eval-set',path.join(root,'configs/sets/any-available.yaml'),'--output',shared],{cwd:root,stdio:'pipe'});
+ execFileSync('python3',['-m','app.build','--results-dir',results,'--catalogue',path.join(root,'configs/examples/catalogue.yaml'),'--weights',path.join(root,'configs/examples/weights.yaml'),'--eval-set',path.join(root,'configs/examples/eval-set.yaml'),'--output',shared],{cwd:root,stdio:'pipe'});
  await navigate(pathToFileURL(path.join(shared,'index.html')).href);
  assert.equal(await evaluate("document.querySelector('#modelB').value"),'Example B');
  for(const view of ['score','categories','languages','comparisons','config','warnings'])await click('[data-view='+view+']');
@@ -135,7 +135,7 @@ try{
  // Weighted components use fictional scores and remain inspectable after exclusion.
  await click('#clearModels');await click('[data-view=config]');
  const levels=['low','medium','high','top'];
- const componentCatalogue={version:1,name:'Component example',evals:[{name:'Poly example',category:'Reasoning',match:{regex:'poly_.+'},metric:'acc',filter:'none',score:{scale:1},aggregation:{components:levels.map((name,i)=>({name,match:{regex:'poly_.+_'+name},relative_weight:2**i})),note:'Fictional component fixture.'}}],languages:['en','de'].map((lang,i)=>({tasks:levels.map(l=>'poly_'+lang+'_'+l),scope:'single',language:i?'deu_Latn':'eng_Latn'}))};
+ const componentCatalogue={version:1,name:'Component example',evals:[{name:'Poly example',category:'Reasoning',match:{regex:'poly_.+'},metric:'acc',metric_filter:'none',score:{scale:1},aggregation:{components:levels.map((name,i)=>({name,match:{regex:'poly_.+_'+name},relative_weight:2**i})),note:'Fictional component fixture.'}}],languages:['en','de'].map((lang,i)=>({tasks:levels.map(l=>'poly_'+lang+'_'+l),scope:'single',language:i?'deu_Latn':'eng_Latn'}))};
  await upload('#configFile',serializeCatalogue(componentCatalogue),'components.yaml');
  await upload('#weightsFile',serializeWeightProfile({version:1,name:'Component weights',weights:{Reasoning:1},english_weights:{Reasoning:.5}}),'weights.yaml');
  const componentCSV=(model,omit=false)=>['checkpoint,task,metric,filter,n_shot,harness,backend,value',...['en','de'].flatMap(lang=>levels.flatMap((l,i)=>omit&&lang==='en'&&l==='top'?[]:[`${model},poly_${lang}_${l},acc,none,0,test,cpu,${model==='Component A'?(lang==='en'?[.6,.3,.15,0][i]:.2):(lang==='en'?.3:.1)}`]))].join('\n');
@@ -200,7 +200,42 @@ try{
  execFileSync('python3',['-m','app.build','--results-dir',resultsDir,'--sample-csv','examples/sample-evals.csv','--output',sample],{cwd:root,stdio:'pipe'});
  await navigate(pathToFileURL(path.join(sample,'index.html')).href);
  assert.match(await evaluate("document.querySelector('#modelA').value"),/^SAMPLE/);
+ // The generated catalogue contains every eval and language, with no filesystem dependency.
+ const exportedCatalogue=fs.readFileSync(path.join(sample,'catalogue.yaml'),'utf8');
+ assert.deepEqual(parseCatalogue(exportedCatalogue),require('../app/catalogue_io.cjs').loadCatalogue(path.join(root,'configs/catalogue.yaml')));
+ const sampleScore=await evaluate("document.querySelector('#cards').textContent");
+ await click('[data-view=config]');await upload('#configFile',exportedCatalogue,'portable-catalogue.yaml');
+ assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),sampleScore);
+ // A manifest needs files on disk; importing it must preserve the current dashboard.
+ await upload('#configFile',fs.readFileSync(path.join(root,'configs/catalogue.yaml'),'utf8'),'catalogue-manifest.yaml');
+ assert.match(await evaluate("document.querySelector('#error').textContent"),/manifest.*build/i);
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),sampleScore);
+ await upload('#configFile',exportedCatalogue,'portable-catalogue.yaml');
+
  assert.equal(await evaluate("document.querySelector('#cards').hidden"),false);
+ const strictSampleCards=await evaluate("document.querySelector('#cards').textContent");
+ // Strict shot mismatches collapse per eval, including duplicate missing-set warnings.
+ await change('#suitePreset','1');await click('[data-view=warnings]');
+ const arcWarnings=await evaluate("[...document.querySelectorAll('#view tbody tr')].filter(r=>r.cells[1]?.textContent==='ARC Challenge').map(r=>r.textContent)");
+ assert.equal(arcWarnings.length,1);
+ assert.match(arcWarnings[0],/Few-shot mismatch excluded.*\d+ tasks use 0 shots; expected 10/s);
+ assert.match(arcWarnings[0],/arc_challenge_mt_cs/);
+ assert.match(await evaluate("document.querySelector('#coverage').textContent"),/INCOMPLETE/);
+ await click('[data-view=config]');
+ await evaluate("document.querySelector('.catalogue-eval[data-eval=\"ARC Challenge\"]').open=true");
+ await new Promise(r=>setTimeout(r,50));
+ assert.ok(await evaluate("document.querySelectorAll('.catalogue-eval[data-eval=\"ARC Challenge\"] .has-missing-field').length>0"));
+ await change('#suitePreset','0');
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),strictSampleCards);
+
+ await change('#matching','relaxed');
+ assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+ assert.match(await evaluate("document.querySelector('#matchingNotice').textContent"),/INCONSISTENT EVALUATION SETTINGS/);
+ await click('[data-view=warnings]');
+ assert.match(await evaluate("document.querySelector('#view').textContent"),/Using 0 shots despite expected 10/);
+ await change('#matching','strict');
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),strictSampleCards);
  const syntheticNames=await evaluate("syntheticOptions.map(o=>o.name)");
  const scores=[];
  for(const name of syntheticNames){
@@ -215,6 +250,63 @@ try{
  assert.match(await evaluate("document.querySelector('#demo').textContent"),/Sample dataset/);
  await click('#clearModels');
  assert.equal(await evaluate("document.querySelector('#modelA').options.length"),0);
+ // Real A/B few-shot differences are allowed only through the explicit runtime option.
+ await navigate(pathToFileURL(path.join(empty,'index.html')).href);
+ const expectedShots=structuredClone(fixture);expectedShots.evals[0].shots=5;
+ await click('[data-view=config]');await upload('#suiteFile',serializeSuite({version:1,name:'Any example',mode:'available'}),'any.yaml');
+ await click('[data-view=config]');await upload('#configFile',serializeCatalogue(expectedShots),'expected-shots.yaml');
+ await change('#weightPreset','1');
+ const shotCSV=(value='0.625')=>'checkpoint,task,metric,filter,n_shot,harness,backend,value\nShots A,example_reasoning_en,acc_norm,none,5,test,cpu,1\nShots B,example_reasoning_en,acc_norm,none,0,test,cpu,'+value;
+ await upload('#modelFile',shotCSV(),'shots.csv');
+ const noShared=await evaluate("document.querySelector('#cards').textContent");
+ await change('#matching','relaxed');
+ assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+ assert.match(await evaluate("document.querySelector('#matchingNotice').textContent"),/INCONSISTENT/);
+ assert.equal(await evaluate("document.querySelector('#cards .score-card:last-child strong').textContent"),'50.00');
+ await click('[data-view=warnings]');assert.match(await evaluate("document.querySelector('#view').textContent"),/Using 0 shots despite expected 5/);
+ await change('#matching','strict');assert.equal(await evaluate("document.querySelector('#cards').textContent"),noShared);
+ // Set overrides reinterpret all models, while catalogue export retains defaults.
+ await click('[data-view=config]');
+ const shotSet={version:1,name:'Override example',mode:'fixed',evals:[{name:'Example reasoning',shots:0,exclude_languages:['fra_Latn']}]};
+ await upload('#suiteFile',serializeSuite(shotSet),'override.yaml');
+ assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+ assert.match(await evaluate("document.querySelector('#view').textContent"),/Eval-set overrides: shots = 0/);
+ await change('#matching','relaxed');
+ assert.match(await evaluate("document.querySelector('#coverage').textContent"),/1\/1 requirements shared/);
+ await click('[data-view=warnings]');
+ assert.match(await evaluate("document.querySelector('#view').textContent"),/Using 5 shots despite expected 0/);
+ await change('#matching','strict');await click('[data-view=config]');
+ const beforeInvalidSet=await evaluate("document.querySelector('#cards').textContent");
+ await upload('#suiteFile',serializeSuite({...shotSet,exclude_languages:['kat_Geor']}),'unknown-language.yaml');
+ assert.match(await evaluate("document.querySelector('#error').textContent"),/no catalogue assignment/);
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),beforeInvalidSet);
+ const alternateCSV=shotCSV()+'\nShots A,example_reasoning_en,acc,,0,test,cpu,0.25\nShots B,example_reasoning_en,acc,,0,test,cpu,1';
+ await click('#clearModels');await upload('#modelFile',alternateCSV,'alternates.csv');await click('[data-view=config]');
+ assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+ const metricSet=structuredClone(shotSet);Object.assign(metricSet.evals[0],{metric:'acc',metric_filter:''});
+ await upload('#suiteFile',serializeSuite(metricSet),'metric.yaml');
+ assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+ assert.equal(await evaluate("document.querySelector('#cards .score-card:last-child strong').textContent"),'-100.00');
+ assert.match(await evaluate("document.querySelector('#view').textContent"),/Eval-set overrides: metric = "acc", metric_filter = "", shots = 0/);
+ await evaluate(`window.originalCreate=URL.createObjectURL;window.originalClick=HTMLAnchorElement.prototype.click;URL.createObjectURL=b=>{window.exportBlob=b;return 'blob:test'};HTMLAnchorElement.prototype.click=function(){};`);
+ await click('#exportConfig');assert.deepEqual(await evaluate('exportBlob.text().then(parseCatalogue)'),expectedShots);
+ await click('#exportSuite');assert.deepEqual(await evaluate('exportBlob.text().then(parseSuite)'),metricSet);
+ await evaluate('URL.createObjectURL=originalCreate;HTMLAnchorElement.prototype.click=originalClick');
+ await upload('#suiteFile',serializeSuite({version:1,name:'Any example',mode:'available'}),'any.yaml');
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),noShared);
+ // A present excluded language warns; absent excluded languages are not requirements.
+ const frenchCSV='checkpoint,task,metric,filter,n_shot,harness,backend,value\nShots A,example_reasoning_fr,acc_norm,none,5,test,cpu,0.5\nShots B,example_reasoning_fr,acc_norm,none,5,test,cpu,0.5';
+ await click('#clearModels');await upload('#modelFile',shotCSV()+'\n'+frenchCSV.split('\n').slice(1).join('\n'),'languages.csv');await click('[data-view=config]');
+ assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+ await upload('#suiteFile',serializeSuite({...shotSet,exclude_languages:['fra_Latn']}),'exclusions.yaml');
+ await click('[data-view=warnings]');assert.match(await evaluate("document.querySelector('#view').textContent"),/Not used.*example_reasoning_fr/s);
+ await click('[data-view=config]');await upload('#suiteFile',serializeSuite({version:1,name:'Any example',mode:'available'}),'any.yaml');
+ await click('#clearModels');await upload('#modelFile',shotCSV('bad'),'invalid-alternative.csv');
+ const beforeRelax=await evaluate("document.querySelector('#cards').textContent");
+ await change('#matching','relaxed');
+ assert.equal(await evaluate("document.querySelector('#matching').value"),'strict');
+ assert.match(await evaluate("document.querySelector('#error').textContent"),/Invalid score/);
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),beforeRelax);
  assert.deepEqual(errors,[]);assert.deepEqual(network,[],'Loading and comparing local files must not send HTTP requests');
  console.log('Public browser checks passed: empty start, shared models, independent weights and eval sets, required coverage, temporary uploads, rollback, Pages sample, synthetic choices, clear models and no uploads.');
 }finally{

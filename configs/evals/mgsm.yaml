@@ -1,0 +1,54 @@
+name: MGSM
+category: Math
+match:
+  regex: (?:mgsm_native_cot_.+|global_mgsm_.+)
+metric: exact_match
+metric_filter: flexible-extract
+shots: 5
+score:
+  scale: 1
+normalize:
+  min: 0
+  max: 1
+  basis: not_applicable
+  note: Generated numerical answers follow GSM-style scoring; no fixed uniform answer space is specified.
+  sources:
+    - https://github.com/google-research/url-nlp/tree/main/mgsm
+language_defaults:
+  evidence: https://huggingface.co/datasets/CohereLabs/global-mgsm
+  note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+languages:
+  - language: cat_Latn
+    tasks: [global_mgsm_ca]
+  - language: ces_Latn
+    tasks: [global_mgsm_cs]
+  - language: deu_Latn
+    tasks: [global_mgsm_de]
+  - language: ell_Grek
+    tasks: [global_mgsm_el]
+  - language: eng_Latn
+    tasks: [global_mgsm_en]
+  - language: spa_Latn
+    tasks: [global_mgsm_es]
+  - language: eus_Latn
+    tasks: [global_mgsm_eu]
+  - language: fra_Latn
+    tasks: [global_mgsm_fr]
+  - language: glg_Latn
+    tasks: [global_mgsm_gl]
+  - language: hun_Latn
+    tasks: [global_mgsm_hu]
+  - language: srp_Cyrl
+    tasks: [global_mgsm_sr]
+  - language: deu_Latn
+    tasks: [mgsm_native_cot_de]
+    evidence: https://huggingface.co/datasets/jbross-ibm-research/mgsm
+  - language: eng_Latn
+    tasks: [mgsm_native_cot_en]
+    evidence: https://huggingface.co/datasets/jbross-ibm-research/mgsm
+  - language: spa_Latn
+    tasks: [mgsm_native_cot_es]
+    evidence: https://huggingface.co/datasets/jbross-ibm-research/mgsm
+  - language: fra_Latn
+    tasks: [mgsm_native_cot_fr]
+    evidence: https://huggingface.co/datasets/jbross-ibm-research/mgsm

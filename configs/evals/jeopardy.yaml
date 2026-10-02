@@ -1,0 +1,21 @@
+name: Jeopardy
+category: Knowledge
+match:
+  name: jeopardy
+metric: exact_match
+metric_filter: strict-match
+shots: 10
+score:
+  scale: 1
+normalize:
+  min: 0
+  max: 1
+  basis: not_applicable
+  note: Generated exact-match answers have no defined uniform choice set.
+  sources:
+    - https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/custom_lm_eval_tasks/jeopardy.yaml
+languages:
+  - language: eng_Latn
+    tasks: [jeopardy]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Original English benchmark variant; language is the prompt/question language.

@@ -1,0 +1,51 @@
+name: PolyMath
+category: Reasoning
+match: {regex: 'polymath_.+'}
+metric: exact_match
+metric_filter: none
+shots: 0
+score: {scale: 1}
+normalize:
+  min: 0
+  max: 1
+  basis: not_applicable
+  note: Generated mathematical answers are scored by exact match; no common finite answer space is defined.
+  sources:
+    - https://github.com/QwenLM/PolyMath
+aggregation:
+  components:
+    - name: low
+      match: {regex: 'polymath_.+_low'}
+      relative_weight: 1
+    - name: medium
+      match: {regex: 'polymath_.+_medium'}
+      relative_weight: 2
+    - name: high
+      match: {regex: 'polymath_.+_high'}
+      relative_weight: 4
+    - name: top
+      match: {regex: 'polymath_.+_top'}
+      relative_weight: 8
+  note: >-
+    PolyMath difficulty-weighted accuracy combines all four levels within each language:
+    (low + 2 × medium + 4 × high + 8 × top) / 15. Exported exact_match values are
+    unweighted per-level accuracies. Each level is required; incomplete groups are excluded.
+  sources:
+    - https://qwen-polymath.github.io/#benchmark-score
+    - https://github.com/QwenLM/PolyMath/blob/main/eval/run_eval.py
+language_defaults:
+  evidence: https://huggingface.co/datasets/Qwen/PolyMath
+  note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+languages:
+  - language: deu_Latn
+    tasks: [polymath_de_high, polymath_de_low, polymath_de_medium, polymath_de_top]
+  - language: eng_Latn
+    tasks: [polymath_en_high, polymath_en_low, polymath_en_medium, polymath_en_top]
+  - language: spa_Latn
+    tasks: [polymath_es_high, polymath_es_low, polymath_es_medium, polymath_es_top]
+  - language: fra_Latn
+    tasks: [polymath_fr_high, polymath_fr_low, polymath_fr_medium, polymath_fr_top]
+  - language: ita_Latn
+    tasks: [polymath_it_high, polymath_it_low, polymath_it_medium, polymath_it_top]
+  - language: por_Latn
+    tasks: [polymath_pt_high, polymath_pt_low, polymath_pt_medium, polymath_pt_top]

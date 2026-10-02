@@ -65,6 +65,29 @@ const EvalConfig=(()=>{
   if('aggregate'in config&&!['standard','english_eval','english_category'].includes(config.aggregate))throw Error('Aggregate must be standard, english_eval, or english_category');
   if('english_weights'in config){objectKeys(config.english_weights,Object.keys(w));if(Object.values(config.english_weights).some(v=>!number(v)||v<0||v>1))throw Error('English weights must be between 0 and 1');}
  }
+ function assembleCatalogue(metadata,definitions){
+  objectKeys(metadata,['version','name','notes'],['version','name']);
+  if(!Array.isArray(definitions)||!definitions.length)throw Error('At least one eval definition is required');
+  const catalogue={...structuredClone(metadata),evals:[],languages:[]};
+  for(const definition of definitions){
+   if(!definition||typeof definition!=='object'||Array.isArray(definition)||!Object.hasOwn(definition,'languages'))throw Error('Each eval definition needs its own languages list');
+   const {languages:groups,language_defaults:defaults={},...e}=structuredClone(definition);
+   objectKeys(defaults,['evidence','note']);validateLanguageMetadata(defaults);
+   if(!Array.isArray(groups))throw Error('languages must be a list');
+   const languages=groups.map(group=>{
+    if(!group||typeof group!=='object'||Array.isArray(group))return group;
+    const g={...defaults,...group};
+    if(!Object.hasOwn(g,'scope'))g.scope=Object.hasOwn(g,'source_language')||Object.hasOwn(g,'target_language')?'translation':g.language==='mul'?'pooled':'single';
+    return g;
+   });
+   validateCatalogue({...metadata,evals:[e],languages});
+   for(const group of languages)for(const task of group.tasks)if(!matchTask(e.match,task))throw Error(`Language task ${task} does not belong to eval ${e.name}`);
+   catalogue.evals.push(e);catalogue.languages.push(...languages);
+  }
+  validateCatalogue(catalogue);
+  for(const group of catalogue.languages)for(const task of group.tasks)if(catalogue.evals.filter(e=>matchTask(e.match,task)).length!==1)throw Error('Ambiguous eval config for task: '+task);
+  return catalogue;
+ }
  function validateCatalogue(config){
   objectKeys(config,['version','name','evals','languages','notes'],['version','name','evals','languages']);
   return validateRules(config);
@@ -76,7 +99,7 @@ const EvalConfig=(()=>{
   for(const e of config.evals)if(!Object.hasOwn(config.weights,e.category))throw Error('Eval category has no weight: '+e.category);
   return config;
  }
- function parseCatalogue(source){return validateCatalogue(yaml.load(source,{schema:yaml.CORE_SCHEMA}));}
+ function parseCatalogue(source){const config=yaml.load(source,{schema:yaml.CORE_SCHEMA});if(config&&Object.hasOwn(config,'evals_dir'))throw Error('This catalogue manifest needs files on disk. Build it first, then import the generated catalogue.yaml or export the complete catalogue from a dashboard.');return validateCatalogue(config);}
  function serializeCatalogue(config){return yaml.dump(validateCatalogue(config),{schema:yaml.CORE_SCHEMA,lineWidth:110,noRefs:true});}
  function validateRules(config){
   if(config.version!==1)throw Error('Unsupported config version');
@@ -85,10 +108,10 @@ const EvalConfig=(()=>{
   if(!Array.isArray(config.evals)||!config.evals.length)throw Error('At least one eval is required');
   const names=new Set();
   for(const e of config.evals){
-   objectKeys(e,['name','category','match','metric','filter','shots','select','score','normalize','warning','aggregation'],['name','category','match','metric','filter','score']);
+   objectKeys(e,['name','category','match','metric','metric_filter','shots','select','score','normalize','warning','aggregation'],['name','category','match','metric','metric_filter','score']);
    if(typeof e.name!=='string'||!e.name||names.has(e.name))throw Error('Eval names must be unique and nonempty');names.add(e.name);
    if(typeof e.category!=='string'||!e.category.trim())throw Error('Eval category must be nonempty text');
-   if(typeof e.metric!=='string'||!e.metric||typeof e.filter!=='string')throw Error('Metric and filter must be strings');
+   if(typeof e.metric!=='string'||!e.metric||typeof e.metric_filter!=='string')throw Error('Metric and filter must be strings');
    validateMatch(e.match);if('select'in e)validateMatch(e.select);
    if('shots'in e&&(!Number.isSafeInteger(e.shots)||e.shots<0))throw Error('shots must be a nonnegative integer');
    objectKeys(e.score,['scale'],['scale']);if(!number(e.score.scale)||e.score.scale<=0)throw Error('Score scale must be positive');
@@ -113,10 +136,13 @@ const EvalConfig=(()=>{
    const fields=g.scope==='translation'?['source_language','target_language']:['language'],forbidden=g.scope==='translation'?['language']:['source_language','target_language'];
    if(forbidden.some(k=>k in g))throw Error('Use language for single/pooled; source and target for translation');
    for(const f of fields)if(typeof g[f]!=='string'||!canonical.test(g[f])||(g[f]==='mul'&&g.scope!=='pooled'))throw Error('Use canonical language codes, such as eng_Latn');
-   for(const f of ['note','evidence'])if(f in g&&typeof g[f]!=='string')throw Error(f+' must be a string');
-   if(g.evidence&&!/^https?:\/\//.test(g.evidence))throw Error('Evidence links must use HTTP or HTTPS');
+   validateLanguageMetadata(g);
   }
   return validateAggregationConfig(config);
+ }
+ function validateLanguageMetadata(g){
+   for(const f of ['note','evidence'])if(f in g&&typeof g[f]!=='string')throw Error(f+' must be a string');
+   if(g.evidence&&!/^https?:\/\//.test(g.evidence))throw Error('Evidence links must use HTTP or HTTPS');
  }
  // Validate concrete task selections without attempting to infer languages from regexes.
  function validateAggregationSelection(e,variants,config,unique=true){
@@ -165,13 +191,14 @@ const EvalConfig=(()=>{
    const matches=config.evals.filter(e=>matchTask(e.match,r.task));if(matches.length>1)throw Error('Ambiguous eval config for task: '+r.task);if(!matches.length)return {...r,eval:'',category:'',selected:false,decision:'No eval config; excluded from scoring',raw_score_100:null,score_100:null};const e=matches[0];let decision='Selected for the weighted score';
    if(e.select&&!matchTask(e.select,r.task))decision='Excluded summary level or alternate protocol; see eval selection rule';
    else if(r.metric!==e.metric)decision='Alternate metric; using '+e.metric;
-   else if(r.filter!==e.filter)decision='Alternate extraction filter; using '+(e.filter||'(empty)');
+   else if(r.filter!==e.metric_filter)decision='Alternate extraction filter; using '+(e.metric_filter||'(empty)');
    else if('shots'in e&&String(r.n_shot)!==String(e.shots))decision='Alternate shot setting; using '+e.shots+' shots';
    const selected=decision==='Selected for the weighted score';let scores={raw_score_100:null,score_100:null};
    if(selected){if(e.aggregation&&e.aggregation.components.filter(c=>matchTask(c.match,r.task)).length!==1)throw Error('Incompatible aggregation config for '+e.name+': '+r.task+' must match exactly one component');try{scores=normalizeScore(r.value,e);}catch(error){throw Error('CSV row '+(index+2)+' · '+r.checkpoint+' · '+r.task+' · '+r.metric+': '+error.message);}const key=JSON.stringify(['checkpoint','task','metric','filter','n_shot','harness','backend'].map(k=>r[k]));if(seen.has(key))throw Error('Duplicate selected measurement: '+r.checkpoint+' · '+r.task+' · '+r.metric);seen.add(key);}
    return {...r,eval:e.name,category:e.category,selected,decision,...scores};
   });
  }
- return {validateAggregationConfig,validateAggregationSelection,parseCatalogue,serializeCatalogue,validateCatalogue,validateWeights,parseCSV,validateConfig,matchTask,normalizeScore,taskLanguage,auditRows,demoModel,isDemoModel};
+function compareText(a,b){const aa=Array.from(a,c=>c.codePointAt(0)),bb=Array.from(b,c=>c.codePointAt(0));for(let i=0;i<Math.min(aa.length,bb.length);i++)if(aa[i]!==bb[i])return aa[i]-bb[i];return aa.length-bb.length;}
+ return {compareText,assembleCatalogue,validateAggregationConfig,validateAggregationSelection,parseCatalogue,serializeCatalogue,validateCatalogue,validateWeights,parseCSV,validateConfig,matchTask,normalizeScore,taskLanguage,auditRows,demoModel,isDemoModel};
 })();
 if(typeof module!=='undefined')module.exports=EvalConfig;

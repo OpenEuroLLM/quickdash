@@ -1,0 +1,26 @@
+name: XCOPA
+category: Commonsense
+match:
+  regex: xcopa:.+
+metric: acc
+metric_filter: none
+shots: 0
+score:
+  scale: 1
+normalize:
+  min: 0.5
+  max: 1
+  basis: uniform_choice
+  note: Translated COPA retains choice1 and choice2; uniform guessing gives 1/2.
+  sources:
+    - https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/tasks/xcopa/utils.py
+language_defaults:
+  evidence: https://huggingface.co/datasets/cambridgeltl/xcopa
+  note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+languages:
+  - language: est_Latn
+    tasks: ['xcopa:et']
+  - language: ita_Latn
+    tasks: ['xcopa:it']
+  - language: tur_Latn
+    tasks: ['xcopa:tr']

@@ -1,0 +1,74 @@
+name: ARC Challenge
+category: Knowledge
+match:
+  regex: arc_challenge(?:_mt_.+)?
+metric: acc_norm
+metric_filter: none
+shots: 10
+score:
+  scale: 1
+normalize:
+  min: 0.25
+  max: 1
+  basis: uniform_choice
+  note: 'Initial approximation: 25% chance. In the published 1,172-question Challenge test split, 1,165 questions
+    have four choices, four have three and three have five. Mean uniform-guess accuracy is 25.0156428%, so
+    25% is a close approximation. The same initial floor is applied to translated variants; preservation of
+    every choice count has not been audited. This is an approximate baseline, not a claim that every item has
+    exactly four options.'
+  sources:
+    - https://ai2-public-datasets.s3.amazonaws.com/arc/ARC-V1-Feb2018.zip
+    - https://huggingface.co/datasets/allenai/ai2_arc
+    - https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+language_defaults:
+  evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+  note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+languages:
+  - language: eng_Latn
+    tasks: [arc_challenge]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Original English benchmark variant; language is the prompt/question language.
+  - language: bul_Cyrl
+    tasks: [arc_challenge_mt_bg]
+  - language: ces_Latn
+    tasks: [arc_challenge_mt_cs]
+  - language: dan_Latn
+    tasks: [arc_challenge_mt_da]
+  - language: deu_Latn
+    tasks: [arc_challenge_mt_de]
+  - language: ell_Grek
+    tasks: [arc_challenge_mt_el]
+  - language: spa_Latn
+    tasks: [arc_challenge_mt_es]
+  - language: est_Latn
+    tasks: [arc_challenge_mt_et]
+  - language: fin_Latn
+    tasks: [arc_challenge_mt_fi]
+  - language: fra_Latn
+    tasks: [arc_challenge_mt_fr]
+  - language: hun_Latn
+    tasks: [arc_challenge_mt_hu]
+  - language: isl_Latn
+    tasks: [arc_challenge_mt_is]
+  - language: ita_Latn
+    tasks: [arc_challenge_mt_it]
+  - language: lit_Latn
+    tasks: [arc_challenge_mt_lt]
+  - language: lav_Latn
+    tasks: [arc_challenge_mt_lv]
+  - language: nor_Latn
+    tasks: [arc_challenge_mt_nb]
+  - language: nld_Latn
+    tasks: [arc_challenge_mt_nl]
+  - language: pol_Latn
+    tasks: [arc_challenge_mt_pl]
+  - language: por_Latn
+    tasks: [arc_challenge_mt_pt]
+  - language: ron_Latn
+    tasks: [arc_challenge_mt_ro]
+  - language: slk_Latn
+    tasks: [arc_challenge_mt_sk]
+  - language: slv_Latn
+    tasks: [arc_challenge_mt_sl]
+  - language: swe_Latn
+    tasks: [arc_challenge_mt_sv]

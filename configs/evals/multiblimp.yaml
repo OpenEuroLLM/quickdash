@@ -1,0 +1,93 @@
+name: MultiBlimp
+category: Language
+match:
+  regex: multiblimp_.+
+metric: acc_norm
+metric_filter: none
+shots: 0
+score:
+  scale: 1
+normalize:
+  min: 0.5
+  max: 1
+  basis: uniform_choice
+  note: A minimal pair compares a grammatical sentence with an ungrammatical one; chance under random preference
+    is 1/2.
+  sources:
+    - https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/tasks/multiblimp/_template_yaml
+warning: 'Language-grouping approximation: multiblimp_hbs pools Croatian and Serbian. Assign its combined score
+  to Serbian (srp_Latn) because Serbian has more speakers, not because of the dataset''s language proportions.
+  The score still includes both languages and is not a Serbian-only result.'
+language_defaults:
+  evidence: https://huggingface.co/datasets/jumelet/multiblimp
+  note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+languages:
+  - language: bul_Cyrl
+    tasks: [multiblimp_bul]
+  - language: cat_Latn
+    tasks: [multiblimp_cat]
+  - language: ces_Latn
+    tasks: [multiblimp_ces]
+  - language: dan_Latn
+    tasks: [multiblimp_dan]
+  - language: deu_Latn
+    tasks: [multiblimp_deu]
+  - language: ell_Grek
+    tasks: [multiblimp_ell]
+  - language: eng_Latn
+    tasks: [multiblimp_eng]
+  - language: est_Latn
+    tasks: [multiblimp_est]
+  - language: eus_Latn
+    tasks: [multiblimp_eus]
+  - language: fin_Latn
+    tasks: [multiblimp_fin]
+  - language: fra_Latn
+    tasks: [multiblimp_fra]
+  - language: gle_Latn
+    tasks: [multiblimp_gle]
+  - language: glg_Latn
+    tasks: [multiblimp_glg]
+  - language: srp_Latn
+    tasks: [multiblimp_hbs]
+    evidence: https://huggingface.co/datasets/jumelet/multiblimp/blob/main/hbs/data.tsv
+    note: 'Grouping convention: assign the pooled Croatian/Serbian score to Serbian, the language with more
+      speakers; retain Latin script. This does not separate the data or produce a Serbian-only score. UCLA
+      estimates approximately 11 million Serbian speakers and 6 million Croatian speakers: https://slavic.ucla.edu/languages/bcs/serbian-background-info/
+      and https://slavic.ucla.edu/languages/bcs/croatian-background-info/.'
+  - language: hun_Latn
+    tasks: [multiblimp_hun]
+  - language: isl_Latn
+    tasks: [multiblimp_isl]
+  - language: ita_Latn
+    tasks: [multiblimp_ita]
+  - language: kat_Geor
+    tasks: [multiblimp_kat]
+  - language: lav_Latn
+    tasks: [multiblimp_lav]
+  - language: lit_Latn
+    tasks: [multiblimp_lit]
+  - language: mkd_Cyrl
+    tasks: [multiblimp_mkd]
+  - language: nld_Latn
+    tasks: [multiblimp_nld]
+  - language: pol_Latn
+    tasks: [multiblimp_pol]
+  - language: por_Latn
+    tasks: [multiblimp_por]
+  - language: ron_Latn
+    tasks: [multiblimp_ron]
+  - language: slk_Latn
+    tasks: [multiblimp_slk]
+  - language: slv_Latn
+    tasks: [multiblimp_slv]
+  - language: spa_Latn
+    tasks: [multiblimp_spa]
+  - language: sqi_Latn
+    tasks: [multiblimp_sqi]
+  - language: swe_Latn
+    tasks: [multiblimp_swe]
+  - language: tur_Latn
+    tasks: [multiblimp_tur]
+  - language: ukr_Cyrl
+    tasks: [multiblimp_ukr]

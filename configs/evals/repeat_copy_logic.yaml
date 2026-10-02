@@ -1,0 +1,21 @@
+name: Repeat Copy Logic
+category: Math
+match:
+  name: bigbench_repeat_copy_logic_generate_until
+metric: exact_match
+metric_filter: strict-match
+shots: 10
+score:
+  scale: 1
+normalize:
+  min: 0
+  max: 1
+  basis: not_applicable
+  note: The selected task generates output strings; no defined uniform answer space.
+  sources:
+    - https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/repeat_copy_logic
+languages:
+  - language: eng_Latn
+    tasks: [bigbench_repeat_copy_logic_generate_until]
+    evidence: https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/repeat_copy_logic
+    note: English instructions/prompts; symbolic or numerical content is not a separate natural language.

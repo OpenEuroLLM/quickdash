@@ -1,16 +1,17 @@
 'use strict';
-const {compareAudits,selectRows,buildCatalogue,comparisonRows,weightingLanguage,scoreLanguage,englishAssignment,componentCoverage,evalDistribution,totals,pairRows,sampleCount,comparisonCoverage,synthetic,syntheticOptions,isDemoModel,languageRoles,matchesLanguage,languageCoverage,languageCountLabel,languageLabel,sortBreakdownTree,breakdownAggregate,buildBreakdownTree,protocolWarning,normalizationLabel,sameCoverage,key,avg,fmt,esc,parseCSV,parseCatalogue,serializeCatalogue,validateCatalogue,normalizeScore,taskLanguage,auditRows,matchTask,demoModel,parseSuite,serializeSuite,parseWeightProfile,serializeWeightProfile,resolveConfig,inSuite,suiteCoverage}=QuickdashAnalysis;
+const {compareAudits,matchingAudit,selectRows,buildCatalogue,comparisonRows,weightingLanguage,scoreLanguage,englishAssignment,componentCoverage,evalDistribution,totals,pairRows,sampleCount,comparisonCoverage,synthetic,syntheticOptions,isDemoModel,languageRoles,matchesLanguage,languageCoverage,languageCountLabel,languageLabel,sortBreakdownTree,breakdownAggregate,buildBreakdownTree,protocolWarning,normalizationLabel,sameCoverage,key,avg,fmt,esc,parseCSV,parseCatalogue,serializeCatalogue,validateCatalogue,normalizeScore,taskLanguage,auditRows,matchTask,demoModel,parseSuite,serializeSuite,parseWeightProfile,serializeWeightProfile,resolveInputs,resolveConfig,effectiveCatalogue,resolveSuite,inSuite,suiteCoverage}=QuickdashAnalysis;
 if(typeof document!=='undefined')start();
 
 function start(){
  const $=id=>document.getElementById(id);let catalogue=DATA.catalogue,suite=DATA.suite,profile=DATA.profile,scheme=DATA.scheme,weights={...scheme.weights},englishWeights={...scheme.english_weights};
+ let interpretation=effectiveCatalogue(catalogue,suite),selection=resolveSuite(interpretation,suite);
  const suites=DATA.suites,profiles=DATA.profiles;let activeSuite='0',activeProfile='0';
  let catalogueGroups=new Map();
  let models=new Map(),sourceAudits=new Map(),metadata=new Map(DATA.metadata.map(r=>[r.task,r]));
- for(const m of DATA.models){const audit=auditRows(DATA.rows.filter(r=>r.checkpoint===m.model),catalogue);sourceAudits.set(m.model,audit);models.set(m.model,audit.filter(r=>r.selected));}
- function addSynthetic(target,config){if(!target.size)return;const rows=[...target.values()][0];for(const option of syntheticOptions)target.set(option.name,synthetic(rows,config,option));}
- addSynthetic(models,catalogue);
- const state={aggregate:scheme.aggregate||'standard',view:'score',scoreCategory:Object.keys(weights)[0],group:'eval',expandedComparisons:new Set(),measure:'raw',sort:'descending',sortBy:'delta',languageSort:'label',languageOrder:'ascending'};
+ for(const m of DATA.models){const audit=auditRows(DATA.rows.filter(r=>r.checkpoint===m.model),interpretation);sourceAudits.set(m.model,audit);models.set(m.model,audit.filter(r=>r.selected));}
+ function addSynthetic(target,config,audits=sourceAudits,matching='strict'){if(!audits.size)return;const rows=matchingAudit([...audits.values()][0],config,matching).filter(r=>r.selected);for(const option of syntheticOptions)target.set(option.name,synthetic(rows,config,option));}
+ addSynthetic(models,interpretation);
+ const state={matching:'strict',aggregate:scheme.aggregate||'standard',view:'score',scoreCategory:Object.keys(weights)[0],group:'eval',expandedComparisons:new Set(),measure:'raw',sort:'descending',sortBy:'delta',languageSort:'label',languageOrder:'ascending'};
  const languages=r=>languageRoles(r,metadata).map(m=>m.language);
  const td=x=>'<td>'+esc(x)+'</td>';
  const num=(x,digits=2)=>'<td class="num">'+fmt(x,digits)+'</td>';
@@ -31,13 +32,13 @@ function start(){
  function selected(){
   if(!comparisonCache){
    const a=$('modelA').value,b=$('modelB').value;
-   comparisonCache=compareAudits(sourceAudits.get(a)||models.get(a)||[],sourceAudits.get(b)||models.get(b)||[],{catalogue,suite,profile},a,b);
+   comparisonCache=compareAudits(sourceAudits.get(a)||models.get(a)||[],sourceAudits.get(b)||models.get(b)||[],{catalogue,suite,profile},a,b,state.matching);
   }
   return {...comparisonCache,shown:comparisonCache.pairs.filter(filters)};
  }
  function activeWarnings(){
   if(!models.size)return [];
-  const coverage=selected(),warnings=coverage.result.diagnostics.filter(w=>!isDemoModel(w.model)&&(w.code!=='no_category_weight'||weights[w.category]===0));
+  const coverage=selected(),warnings=coverage.result.diagnostics.filter(w=>(!isDemoModel(w.model)||w.code==='relaxed_shot_setting')&&(w.code!=='no_category_weight'||weights[w.category]===0));
   if(state.aggregate!=='standard')for(const c of totals(coverage.a,scheme,weights,state.aggregate,englishWeights,metadata).categories)if(c.issue)warnings.push({type:'English split unavailable',name:c.name,model:'Selected comparison',detail:c.issue});
   return warnings;
  }
@@ -130,11 +131,13 @@ function start(){
  function renderWarnings(){const warnings=activeWarnings();return '<div class="section-heading"><div><h2>Warnings</h2><p>Coverage for the selected comparison, scoring consistency, and config caveats. A named eval set checks required measurements; unused global catalogue rules are allowed.</p></div></div>'+(warnings.length?table(['Warning','Eval / task','Model','Details'],warnings.map(w=>'<tr>'+td(w.type)+td(w.name)+td(w.model)+'<td>'+esc(w.detail)+(w.variants?'<details><summary>All affected variants</summary>'+w.variants.map(v=>'<p><strong>'+esc(v.settings)+'</strong><br>'+v.tasks.map(esc).join('<br>')+'</p>').join('')+'</details>':'')+'</td></tr>')):'<p>No warnings. The selected comparison has no detected data or configuration issues.</p>');}
  function scoringOptions(e,rows){
   const used=rows.filter(r=>r.selected),values=(rr,key)=>[...new Set(rr.map(r=>String(r[key])))].sort((a,b)=>key==='n_shot'?Number(a)-Number(b):a.localeCompare(b));
-  const shots=values(used,'n_shot'),otherMetrics=values(rows,'metric').filter(m=>m!==e.metric),otherShots=values(rows,'n_shot').filter(n=>!shots.includes(n)),otherFilters=values(rows,'filter').filter(f=>f!==e.filter);
-  return '<strong>Selected: '+esc(e.metric)+'</strong>'+(e.aggregation?'<small>Weighted components · expand for weights</small>':'')+(e.metric==='python_pass@1'?'<small>Python solutions passing tests on one attempt.</small>':'')+'<small>'+(shots.length===1&&shots[0]==='0'?'0-shot · no examples in the prompt':shots.length?'Shots used: '+esc(shots.join(', '))+' · examples in the prompt':'No selected scores')+'</small>'+(e.filter&&e.filter!=='none'?'<small>Answer extraction: '+esc(e.filter)+'</small>':'')+(otherMetrics.length?'<small>Other available metrics: '+esc(otherMetrics.join(', '))+'</small>':'')+(otherShots.length?'<small>Other available shot settings: '+esc(otherShots.join(', '))+'</small>':'')+(otherFilters.length?'<small>Other answer extraction settings: '+esc(otherFilters.map(f=>f||'not specified').join(', '))+'</small>':'');
+  const shots=values(used,'n_shot'),otherMetrics=values(rows,'metric').filter(m=>m!==e.metric),otherShots=values(rows,'n_shot').filter(n=>!shots.includes(n)),otherFilters=values(rows,'filter').filter(f=>f!==e.metric_filter);
+  return '<strong>Selected: '+esc(e.metric)+'</strong>'+(e.aggregation?'<small>Weighted components · expand for weights</small>':'')+(e.metric==='python_pass@1'?'<small>Python solutions passing tests on one attempt.</small>':'')+'<small>'+(shots.length===1&&shots[0]==='0'?'0-shot · no examples in the prompt':shots.length?'Shots used: '+esc(shots.join(', '))+' · examples in the prompt':'No selected scores')+'</small>'+(e.metric_filter&&e.metric_filter!=='none'?'<small>Metric filter: '+esc(e.metric_filter)+'</small>':'')+(otherMetrics.length?'<small>Other available metrics: '+esc(otherMetrics.join(', '))+'</small>':'')+(otherShots.length?'<small>Other available shot settings: '+esc(otherShots.join(', '))+'</small>':'')+(otherFilters.length?'<small>Other metric filters: '+esc(otherFilters.map(f=>f||'not specified').join(', '))+'</small>':'');
  }
  function selectionInfo(e){
-  return '<p class="caption"><strong>Selection rule:</strong> use metric <code>'+esc(e.metric)+'</code>; '+(e.filter?'answer extraction setting <code>'+esc(e.filter)+'</code>':'the CSV extraction-filter field must be blank')+'; '+('shots'in e?'require '+e.shots+' examples in the prompt':'accept any shot count found in the export')+'. A shot is one example provided in the prompt. Other metrics and shot settings remain available for inspection below.</p>';
+  const override=suite.evals?.find(x=>x.name===e.name),fields=['metric','metric_filter','shots'].filter(k=>override&&Object.hasOwn(override,k));
+  const source=fields.length?'<p class="caption"><strong>Eval-set overrides:</strong> '+fields.map(k=>esc(k)+' = <code>'+esc(JSON.stringify(override[k]))+'</code>').join(', ')+'. Other settings inherit from the catalogue.</p>':'<p class="caption">Scoring settings inherited from the global catalogue.</p>';
+  return source+ '<p class="caption"><strong>Selection rule:</strong> use metric <code>'+esc(e.metric)+'</code>; '+(e.metric_filter?'metric filter <code>'+esc(e.metric_filter)+'</code>':'the CSV filter column must be blank')+'; '+('shots'in e?'expected '+e.shots+' examples in the prompt'+(state.matching==='relaxed'?' (few-shot differences may be allowed with warnings)':''):'accept any shot count found in the export')+'. A shot is one example provided in the prompt. Other metrics and shot settings remain available for inspection below.</p>';
  }
  function taskDetails(f,t,missing){
   const m=metadata.get(t.name)||{};
@@ -143,7 +146,7 @@ function start(){
   const cc=f.aggregation?.components.filter(c=>matchTask(c.match,t.name))||[],component=cc.length===1?cc[0]:null;
   const componentInfo=component?'<p class="caption">Component: <strong>'+esc(component.name)+'</strong> · relative weight '+esc(component.relative_weight)+' / '+f.aggregation.components.reduce((sum,c)=>sum+c.relative_weight,0)+'. Applied after normalization, before language and category weights.</p>':'';
   const coverage=selected(),used=new Map([[$('modelA').value,new Set(coverage.a.map(key))],[$('modelB').value,new Set(coverage.b.map(key))]]);
-  const use=r=>!r.selected?['Excluded',r.decision]:!inSuite(r,suite)?['Outside eval set','Excluded by '+suite.name]:used.has(r.checkpoint)&&!used.get(r.checkpoint).has(key(r))?['Excluded from comparison','No complete shared component group or matching A/B measurement; see Warnings.']:['Selected',r.decision];
+  const use=r=>!r.selected?['Excluded',r.decision]:!inSuite(r,selection)?['Outside eval set','Excluded by '+suite.name]:used.has(r.checkpoint)&&!used.get(r.checkpoint).has(key(r))?['Excluded from comparison','No complete shared component group or matching A/B measurement; see Warnings.']:['Selected',r.decision];
   return warning+info+componentInfo+'<p class="caption"><strong>English-balance group:</strong> '+esc(englishAssignment({task:t.name},metadata))+'. Used in both English-balance modes when this category’s English share is non-zero.</p><p class="caption">Raw source scores are shown for every metric. The 0–100 columns apply to selected scores only.</p>'+table(['Model','Metric','Filter','Shots','Raw source score','Raw / 100','Normalized / 100','Use','Reason','Harness / backend'],t.rows.map(r=>'<tr class="catalogue-metric">'+td(r.checkpoint)+td(r.metric)+td(r.filter||'Not specified')+'<td class="num">'+esc(r.n_shot)+'</td><td class="num source-score">'+esc(r.value)+'</td>'+num(r.raw_score_100)+num(r.score_100)+'<td class="'+(use(r)[0]==='Selected'?'positive':'muted')+'">'+esc(use(r)[0])+'</td>'+td(use(r)[1])+td(r.harness+' / '+r.backend)+'</tr>'),[3,4,5,6]);
  }
  function catalogueTasks(f,missing){
@@ -160,14 +163,14 @@ function start(){
   else if(details.matches('.catalogue-variant')){const box=details.querySelector('.task-details');if(!box.dataset.loaded){const task=entry.f.tasks.find(t=>t.name===details.dataset.task);box.innerHTML=taskDetails(entry.f,task,entry.missing);box.dataset.loaded='true';}}
  }
  function renderConfig(){
-  const all=[...sourceAudits.values()].flat(),filtered=all.filter(filters),groups=buildCatalogue(filtered,catalogue),warnings=activeWarnings();
+  const all=[...sourceAudits.values()].flatMap(rows=>matchingAudit(rows,interpretation,state.matching)),filtered=all.filter(filters),groups=buildCatalogue(filtered,interpretation),warnings=activeWarnings();
   $('filterStatus').textContent=new Set(filtered.map(r=>r.task)).size+' of '+new Set(all.map(r=>r.task)).size+' task names · '+filtered.length+' metric rows · all loaded real exports; comparison exclusions appear in Warnings';
   let html='<div class="section-heading"><div><h2>Eval configuration</h2><p>Category, language, and scoring field for every eval. Expand an eval to inspect its variants.</p></div></div><div class="catalogue-head"><span>Eval</span><span>Category</span><span>Scoring options</span><span>Languages</span><span>Normalization</span></div>';
   catalogueGroups=new Map();
-  html+=groups.map(f=>{const allRows=all.filter(r=>r.eval===f.name),missing=warnings.filter(w=>w.eval===f.name&&['Missing scoring field','Missing scoring setting'].includes(w.type)),inconsistent=warnings.filter(w=>w.eval===f.name&&w.type==='Inconsistent scoring settings');catalogueGroups.set(f.name,{f,missing});const langs=[...new Set(f.tasks.flatMap(t=>languages(t.rows[0]).map(languageLabel)))].sort();return '<details class="catalogue-eval"'+(groups.length===1?' open':'')+' data-eval="'+esc(f.name)+'"><summary class="catalogue-summary"><span>'+esc(f.name)+' <small>('+f.tasks.length+')</small></span><span>'+esc(f.category)+'</span><span class="scoring-options">'+scoringOptions(f,allRows)+(missing.length?'<small class="missing-field">'+missing.length+' missing scoring field/settings</small>':'')+(inconsistent.length?'<small class="missing-field">Inconsistent scoring settings</small>':'')+'</span><small>'+esc(langs.length>4?langs.slice(0,3).join(', ')+' + '+(langs.length-3)+' more':langs.join(', '))+'</small><small>'+esc(normalizationLabel(f))+(f.warning?'<span class="missing-field">Config warning</span>':'')+'</small></summary>'+selectionInfo(f)+normalizationInfo(f)+aggregationInfo(f)+inconsistent.map(w=>'<p class="notice">'+esc(w.model+': '+w.detail)+'</p>').join('')+'<div class="catalogue-tasks"'+(groups.length===1?' data-loaded="true"':'')+'>'+(groups.length===1?catalogueTasks(f,missing):'')+'</div>'+'</details>';}).join('');
+  html+=groups.map(f=>{const allRows=all.filter(r=>r.eval===f.name),missing=warnings.filter(w=>w.eval===f.name&&['Missing scoring field','Missing scoring setting','Few-shot mismatch excluded'].includes(w.type)),inconsistent=warnings.filter(w=>w.eval===f.name&&w.type==='Inconsistent scoring settings'),missingTasks=new Set(missing.flatMap(w=>w.tasks)).size;catalogueGroups.set(f.name,{f,missing});const langs=[...new Set(f.tasks.flatMap(t=>languages(t.rows[0]).map(languageLabel)))].sort();return '<details class="catalogue-eval"'+(groups.length===1?' open':'')+' data-eval="'+esc(f.name)+'"><summary class="catalogue-summary"><span>'+esc(f.name)+' <small>('+f.tasks.length+')</small></span><span>'+esc(f.category)+'</span><span class="scoring-options">'+scoringOptions(f,allRows)+(missing.length?'<small class="missing-field">'+missingTasks+' tasks missing configured field/settings</small>':'')+(inconsistent.length?'<small class="missing-field">Inconsistent scoring settings</small>':'')+'</span><small>'+esc(langs.length>4?langs.slice(0,3).join(', ')+' + '+(langs.length-3)+' more':langs.join(', '))+'</small><small>'+esc(normalizationLabel(f))+(f.warning?'<span class="missing-field">Config warning</span>':'')+'</small></summary>'+selectionInfo(f)+normalizationInfo(f)+aggregationInfo(f)+inconsistent.map(w=>'<p class="notice">'+esc(w.model+': '+w.detail)+'</p>').join('')+'<div class="catalogue-tasks"'+(groups.length===1?' data-loaded="true"':'')+'>'+(groups.length===1?catalogueTasks(f,missing):'')+'</div>'+'</details>';}).join('');
   if(!groups.length)html+='<p>No evals match the filters.</p>';
   html+='<details><summary>Scoring assumptions and source files</summary><ol>'+(scheme.notes||[]).map(n=>'<li>'+esc(n)+'</li>').join('')+'</ol><p><a href="row-audit.csv">Source row audit</a> · <a href="language-metadata.csv">Language assignments</a> · <a href="analysis.json">Analysis JSON</a></p><p class="caption">'+esc(DATA.source)+' · SHA-256 '+esc(DATA.sha256)+'</p></details>';
-  const configControls='<details open><summary>Global eval catalogue</summary><p>The catalogue defines matching, categories, scoring fields, normalization, and language assignments for every known eval. It does not require models to run all those evals.</p><p><strong>Normalization:</strong> each eval lists its baseline, formula, and sources below. Chance correction and component aggregation affect calculated scores; individual raw scores stay unchanged. <code>acc_norm</code> is length-normalized answer scoring, not chance correction.</p><div class="view-controls"><button id="exportConfig">Export catalogue YAML</button><label>Load catalogue<input id="configFile" type="file" accept=".yaml,.yml"></label></div><p class="caption">Active catalogue: '+esc(catalogue.name)+' · '+catalogue.languages.reduce((n,g)=>n+g.tasks.length,0)+' explicit task language assignments.</p></details><details><summary>Weighting profile and optional eval set</summary><p>Weights apply independently of the eval set. <strong>Any available</strong> compares shared recognized measurements and warns on differences. A named set also warns about missing requirements and excludes extra measurements. An incomplete named-set score uses the shared subset with redistributed weights.</p><div class="view-controls"><button id="exportWeights">Export weights YAML</button><label>Load weights<input id="weightsFile" type="file" accept=".yaml,.yml"></label><button id="exportSuite">Export eval set YAML</button><label>Load eval set<input id="suiteFile" type="file" accept=".yaml,.yml"></label></div><p class="caption">Active eval set: '+esc(suite.name)+(suite.exclude?.length?' · Explicitly excluded: '+suite.exclude.map(esc).join(', '):'')+'.</p><p class="caption">All imports are temporary and stay in your browser. Exports save the three inputs separately. Weight exports include your edits and active score calculation.</p></details>';
+  const configControls='<details open><summary>Global eval catalogue</summary><p>The catalogue defines matching, categories, scoring fields, normalization, and language assignments for every known eval. It does not require models to run all those evals.</p><p><strong>Normalization:</strong> each eval lists its baseline, formula, and sources below. Chance correction and component aggregation affect calculated scores; individual raw scores stay unchanged. <code>acc_norm</code> is length-normalized answer scoring, not chance correction.</p><div class="view-controls"><button id="exportConfig">Export catalogue YAML</button><label>Load catalogue<input id="configFile" type="file" accept=".yaml,.yml"></label></div><p class="caption">Catalogue export includes every eval and language in one portable YAML file.</p><p class="caption">Active catalogue: '+esc(catalogue.name)+' · '+catalogue.languages.reduce((n,g)=>n+g.tasks.length,0)+' explicit task language assignments.</p></details><details><summary>Weighting profile and optional eval set</summary><p>Weights apply independently of the eval set. <strong>Any available</strong> compares shared recognized measurements and warns on differences. A named set requires all known catalogue tasks for each listed eval, except excluded languages. It can override metric, metric_filter, and shots for a whole eval. Missing requirements warn; extra measurements are excluded. An incomplete named-set score uses the shared subset with redistributed weights.</p><div class="view-controls"><button id="exportWeights">Export weights YAML</button><label>Load weights<input id="weightsFile" type="file" accept=".yaml,.yml"></label><button id="exportSuite">Export eval set YAML</button><label>Load eval set<input id="suiteFile" type="file" accept=".yaml,.yml"></label></div><p class="caption">Active eval set: '+esc(suite.name)+(suite.exclude?.length?' · Excluded evals: '+suite.exclude.map(esc).join(', '):'')+(suite.exclude_languages?.length?' · Excluded languages across the set: '+suite.exclude_languages.map(esc).join(', '):'')+(suite.evals?.some(e=>e.exclude_languages?.length)?' · Per-eval language exclusions: '+suite.evals.filter(e=>e.exclude_languages?.length).map(e=>esc(e.name)+': '+e.exclude_languages.map(esc).join(', ')).join('; '):'')+'.</p><p class="caption">All imports are temporary and stay in your browser. Exports save the three inputs separately. Weight exports include your edits and active score calculation.</p></details>';
   html=html.replace('<div class="catalogue-head">',configControls+'<div class="catalogue-head">');
 
   return html;
@@ -175,13 +178,17 @@ function start(){
  function render(){
   comparisonCache=null;
   const weightOpen=$('weightEditor')?.open,englishOpen=$('englishComponents')?.open;
-  const {a,b,pairs,shown,excludedA,excludedB,scope}=selected(),ta=totals(a,scheme,weights,state.aggregate,englishWeights,metadata),tb=totals(b,scheme,weights,state.aggregate,englishWeights,metadata),valid=sameCoverage(a,b)&&ta.score!==null&&tb.score!==null;
+  const {a,b,pairs,shown,excludedA,excludedB,scope}=selected(),ta=totals(a,scheme,weights,state.aggregate,englishWeights,metadata),tb=totals(b,scheme,weights,state.aggregate,englishWeights,metadata),valid=sameCoverage(a,b,scheme,state.matching)&&ta.score!==null&&tb.score!==null;
   const demo=[$('modelA').value,$('modelB').value].some(isDemoModel);
   configOptions();$('cards').hidden=!models.size;document.querySelector('.aggregate-controls').hidden=!models.size;
   const sample=[$('modelA').value,$('modelB').value].some(n=>(DATA.sample_models||[]).includes(n));
   $('demo').textContent=!models.size?'Ready for your eval results. Load a CSV to begin.':demo?'Demo comparison: synthetic scores are seeded perturbations of the first loaded model (2-point standard deviation; higher/lower options add/subtract 3 raw score points, clipped to 0–100). For exploration only.':sample?'Sample dataset for exploring Quickdash. Add your own CSVs to compare training methods.':'Real-model comparison · Check evaluation settings and training budgets before drawing a conclusion.';
   document.querySelectorAll('[data-aggregate]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.aggregate===state.aggregate)));
   $('aggregateNote').textContent=state.aggregate!=='standard'?(state.aggregate==='english_eval'?'Balance English and other languages inside each eval, then average evals equally within categories.':'Balance English and other languages across each category. Evals with non-English coverage can receive more weight.')+' Shares are set in the weight editor. Unknown or mixed-language scores count as English for weighting; known non-English pools count as other. Raw views stay unchanged.':'Original aggregate: combine configured components within each language/protocol; average those groups within the eval. Other evals average variants. Then average evals within each category.';
+  const mismatchWarnings=selected().result.diagnostics.filter(w=>w.code==='relaxed_shot_setting');
+  $('matchingNotice').hidden=state.matching!=='relaxed'||!models.size;
+  $('matchingNotice').className=mismatchWarnings.length?'notice':'caption';
+  $('matchingNotice').textContent=mismatchWarnings.length?'INCONSISTENT EVALUATION SETTINGS — Relaxed matching includes '+mismatchWarnings.reduce((n,w)=>n+w.tasks.length,0)+' measurement(s) with unexpected few-shot settings. See Warnings for expected and actual counts.':'Relaxed matching enabled. No few-shot mismatches are included in this comparison.';
   $('cards').innerHTML=[[$('modelA').value,ta.score,'A · '+(state.aggregate==='english_eval'?'English balance per eval':state.aggregate==='english_category'?'English balance per category':'original weighted score')],[$('modelB').value,tb.score,'B · '+(state.aggregate==='english_eval'?'English balance per eval':state.aggregate==='english_category'?'English balance per category':'original weighted score')],['A − B',valid?ta.score-tb.score:null,'Weighted difference'+(suite.mode==='fixed'&&!scope.complete?' · incomplete set':'')]].map(([name,value,label])=>'<div class="score-card"><small>'+esc(name)+'</small><strong>'+fmt(value)+'</strong><span>'+label+'</span></div>').join('');
   $('coverage').classList.toggle('notice',models.size>0&&suite.mode==='fixed'&&!scope.complete);
   $('coverage').textContent=!models.size?'No models loaded · add your CSV.':(suite.mode==='fixed'?suite.name+' · '+(scope.complete?'Complete':'INCOMPLETE')+' · '+scope.sharedRequired+'/'+scope.required+' requirements shared (A '+scope.presentA+', B '+scope.presentB+') · '+(scope.extrasA+scope.extrasB)+' extra measurements excluded · ':suite.name+' · ')+pairs.length+' matched variants · excluded: '+excludedA.length+' from A, '+excludedB.length+' from B · weights use shared data only'+(valid?'':' · Score unavailable: check weights and language assignments.');
@@ -195,19 +202,16 @@ function start(){
   if(!shown.length&&['categories','languages','comparisons'].includes(state.view))$('view').insertAdjacentHTML('beforeend','<p>No matched variants pass these filters.</p>');
  }
  function refreshConfig(){state.scoreCategory=Object.keys(weights)[0];filterOptions();clearFilters();languageOptions();}
- function importCatalogue(config){
-  validateCatalogue(config);const nextScheme=resolveConfig(config,suite,profile);
+ function reinterpret(nextCatalogue,nextSuite){
+  const {scheme:nextScheme,catalogue:nextInterpretation,suite:nextSelection}=resolveInputs(nextCatalogue,nextSuite,profile);
   const audits=new Map(),nextModels=new Map(),nextMetadata=new Map();
-  for(const [name,rows] of sourceAudits){const audit=auditRows(rows,config);audits.set(name,audit);nextModels.set(name,audit.filter(r=>r.selected));for(const row of audit)if(!nextMetadata.has(row.task))nextMetadata.set(row.task,taskLanguage(row.task,config));}
-  addSynthetic(nextModels,config);
-  catalogue=config;scheme=nextScheme;sourceAudits=audits;models=nextModels;metadata=nextMetadata;
+  for(const [name,rows] of sourceAudits){const audit=auditRows(rows,nextInterpretation);matchingAudit(audit,nextInterpretation,state.matching);audits.set(name,audit);nextModels.set(name,audit.filter(r=>r.selected));for(const row of audit)if(!nextMetadata.has(row.task))nextMetadata.set(row.task,taskLanguage(row.task,nextInterpretation));}
+  addSynthetic(nextModels,nextInterpretation,audits,state.matching);
+  catalogue=nextCatalogue;suite=nextSuite;scheme=nextScheme;interpretation=nextInterpretation;selection=nextSelection;sourceAudits=audits;models=nextModels;metadata=nextMetadata;
   weights={...nextScheme.weights,...weights};refreshConfig();
  }
- function importSuite(config,preset='custom'){
-  const next=resolveConfig(catalogue,config,profile);suite=config;scheme=next;activeSuite=preset;
-  // Changing membership preserves the user's weighting choices and calculation.
-  weights={...next.weights,...weights};refreshConfig();
- }
+ function importCatalogue(config){reinterpret(config,suite);}
+ function importSuite(config,preset='custom'){reinterpret(catalogue,config);activeSuite=preset;}
  function importWeights(config,preset='custom'){
   const next=resolveConfig(catalogue,suite,config);profile=config;scheme=next;activeProfile=preset;
   weights={...next.weights};englishWeights={...next.english_weights};state.aggregate=next.aggregate;refreshConfig();
@@ -277,15 +281,21 @@ function start(){
  $('search').oninput=render;$('clear').onclick=()=>{clearFilters();render();};
  $('swap').onclick=()=>{const value=$('modelA').value;$('modelA').value=$('modelB').value;$('modelB').value=value;render();};
  for(const [id,presets,apply] of [['suitePreset',suites,importSuite],['weightPreset',profiles,importWeights]])$(id).onchange=()=>{const chosen=$(id).value;if(chosen==='custom')return;try{apply(structuredClone(presets[Number(chosen)].config),chosen);$('error').textContent='';render();}catch(err){$('error').textContent=err.message;configOptions();}};
+ $('matching').onchange=()=>{const previous=state.matching,next=$('matching').value;try{
+  for(const audit of sourceAudits.values())matchingAudit(audit,interpretation,next);
+  const nextModels=new Map(models);addSynthetic(nextModels,interpretation,sourceAudits,next);
+  state.matching=next;models=nextModels;render();$('error').textContent='';
+ }catch(error){state.matching=previous;$('matching').value=previous;render();$('error').textContent=error.message;}};
  $('clearModels').onclick=()=>{models=new Map();sourceAudits=new Map();metadata=new Map();modelOptions();clearFilters();languageOptions();state.view='score';$('error').textContent='';render();};
  $('modelFile').onchange=async e=>{try{
   const file=e.target.files[0];if(!file)return;
-  const audit=auditRows(parseCSV(await file.text()),catalogue),rows=audit.filter(r=>r.selected),names=[...new Set(audit.map(r=>r.checkpoint))];
+  const audit=auditRows(parseCSV(await file.text()),interpretation),rows=audit.filter(r=>r.selected),names=[...new Set(audit.map(r=>r.checkpoint))];
+  matchingAudit(audit,interpretation,state.matching);
   if(!audit.length)throw Error('No measurements in CSV');if(names.some(n=>models.has(n)))throw Error('Checkpoint name already loaded; use a distinct model label.');
   const nextModels=new Map(models),nextAudits=new Map(sourceAudits),nextMetadata=new Map(metadata);
   for(const name of names){nextModels.set(name,rows.filter(r=>r.checkpoint===name));nextAudits.set(name,audit.filter(r=>r.checkpoint===name));}
   for(const r of audit)nextMetadata.set(r.task,taskLanguage(r.task,catalogue));
-  if(!nextModels.has(demoModel))addSynthetic(nextModels,catalogue);
+  addSynthetic(nextModels,interpretation,nextAudits,state.matching);
   models=nextModels;sourceAudits=nextAudits;metadata=nextMetadata;
   modelOptions(sourceAudits.size>1?names.at(-1):demoModel);languageOptions();$('error').textContent='';render();
  }catch(err){$('error').textContent=err.message;}finally{e.target.value='';}};

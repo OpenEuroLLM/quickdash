@@ -5,7 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 from quickdash.io import load_csv
-from quickdash.config import classify, task_language, load_catalogue, load_profile, load_suite, resolve_config, scope_rows
+from quickdash.config import classify, task_language, load_catalogue, serialize_catalogue, load_profile, load_suite, resolve_config, resolve_inputs, scope_rows
 from quickdash.analysis import totals, component_coverage, diagnostic, analyze
 
 APP = Path(__file__).resolve().parent
@@ -82,7 +82,8 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
             try: resolve_config(catalogue, entry['config'], profile['config'])
             except ValueError as error: raise ValueError(f'{entry["file"]} / {profile["file"]}: {error}') from error
     suite, profile = suites[0]['config'], profiles[0]['config']
-    config = resolve_config(catalogue, suite, profile)
+    resolved = resolve_inputs(catalogue, suite, profile)
+    config, interpretation, selection = (resolved[k] for k in ("scheme", "catalogue", "suite"))
     paths=[source] if source is not None else directory_files(results_dir,{'.csv'}) if results_dir is not None else []
     using_sample = not paths and sample_csv is not None
     if using_sample: paths = [sample_csv]
@@ -90,14 +91,14 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
     for path in paths:
         try:
             rr=load_csv(path)
-            classified=classify(rr,catalogue)
+            classified=classify(rr,interpretation)
         except ValueError as error:raise ValueError(f'{path.name}: {error}') from error
         for model in {r['checkpoint'] for r in rr}:
             if model in owners:raise ValueError(f'Duplicate model name {model!r} in {owners[model]} and {path.name}; combine its results in one file or rename the checkpoint')
             owners[model]=path.name
         rows.extend(rr);audit.extend(classified)
         sources.append(dict(file=path.name,sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
-    scoped = scope_rows(audit, suite)['rows']
+    scoped = scope_rows(audit, selection)['rows']
     identities = {tuple(r[k] for k in ['checkpoint','task','metric','filter','n_shot','harness','backend']) for r in scoped}
     included = {id(r) for r in audit if tuple(r[k] for k in ['checkpoint','task','metric','filter','n_shot','harness','backend']) in identities}
     scoped_audit = [dict(r, selected=r['selected'] and id(r) in included) for r in audit]
@@ -118,7 +119,7 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
                    profile=profile, profile_file=weights_path.name, suites=suites, profiles=profiles,
                    sample_models=sorted(owners) if using_sample else [], metadata=metadata, scheme=config, models=summary, aggregates=aggregates, rows=audit, sources=sources,
                    source=source.name if source else results_dir.name if results_dir else '', sha256=sources[0]['sha256'] if len(sources)==1 else None)
-    (output/'catalogue.yaml').write_text(catalogue_path.read_text())
+    (output/'catalogue.yaml').write_text(serialize_catalogue(catalogue))
     (output/'weights.yaml').write_text(weights_path.read_text())
     (output/'eval-set.yaml').write_text(suite_path.read_text())
     (output/'analysis.json').write_text(json.dumps(payload, indent=2))
@@ -132,7 +133,7 @@ if __name__ == '__main__':
     parser.add_argument('csv', type=Path, nargs='?', help='CSV to embed; omit to start without results')
     parser.add_argument('--results-dir', type=Path, help='Embed all CSV files directly inside this directory')
     parser.add_argument('--sample-csv', type=Path, help='Fallback CSV when --results-dir contains no CSVs')
-    parser.add_argument('--catalogue', type=Path, help='Global eval interpretation YAML; default: configs/catalogue.yaml')
+    parser.add_argument('--catalogue', type=Path, help='Catalogue YAML or per-eval manifest; default: configs/catalogue.yaml')
     parser.add_argument('--weights', type=Path, help='Default weighting profile YAML; used alone, embed only this profile')
     parser.add_argument('--weights-dir', type=Path, help='Offer weighting profiles from this directory (default: configs/weights)')
     parser.add_argument('--eval-set', type=Path, help='Default named eval set YAML; used alone, embed only this set')

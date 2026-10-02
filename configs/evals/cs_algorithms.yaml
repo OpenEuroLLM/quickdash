@@ -1,0 +1,21 @@
+name: CS Algorithms
+category: Code
+match:
+  name: bigbench_cs_algorithms_generate_until
+metric: exact_match
+metric_filter: strict-match
+shots: 10
+score:
+  scale: 1
+normalize:
+  min: 0
+  max: 1
+  basis: not_applicable
+  note: Free-response exact match over algorithm outputs; no defined uniform answer space.
+  sources:
+    - https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/cs_algorithms
+languages:
+  - language: eng_Latn
+    tasks: [bigbench_cs_algorithms_generate_until]
+    evidence: https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/cs_algorithms
+    note: English instructions/prompts; symbolic or numerical content is not a separate natural language.

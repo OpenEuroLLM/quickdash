@@ -1,0 +1,176 @@
+name: OpenSubtitles
+category: Translation
+match:
+  regex: opensubtitles_.+
+metric: chrf
+metric_filter: none
+shots: 0
+score:
+  scale: 100
+normalize:
+  min: 0
+  max: 1
+  basis: not_applicable
+  note: 'Select chrf: the referenced harness uses SacreBLEU defaults (char_order=6, word_order=0, beta=2),
+    so this is plain chrF, not chrF++. Prefer an explicitly identified chrF++ result when available, then chrF,
+    then BLEU. Retain native 0–100 points with no chance correction.'
+  sources:
+    - https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/custom_lm_eval_tasks/opensubtitles_multi40/utils.py
+    - https://github.com/mjpost/sacrebleu/blob/master/sacrebleu/metrics/chrf.py
+    - https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/api/metrics.py
+language_defaults:
+  evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+  note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+    not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+    views.
+languages:
+  - source_language: bul_Cyrl
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_bg_to_en]
+  - source_language: ces_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_cs_to_en]
+  - source_language: dan_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_da_to_en]
+  - source_language: deu_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_de_to_en]
+  - source_language: ell_Grek
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_el_to_en]
+  - source_language: eng_Latn
+    target_language: bul_Cyrl
+    tasks: [opensubtitles_multi40_en_to_bg]
+  - source_language: eng_Latn
+    target_language: ces_Latn
+    tasks: [opensubtitles_multi40_en_to_cs]
+  - source_language: eng_Latn
+    target_language: dan_Latn
+    tasks: [opensubtitles_multi40_en_to_da]
+  - source_language: eng_Latn
+    target_language: deu_Latn
+    tasks: [opensubtitles_multi40_en_to_de]
+  - source_language: eng_Latn
+    target_language: ell_Grek
+    tasks: [opensubtitles_multi40_en_to_el]
+  - source_language: eng_Latn
+    target_language: spa_Latn
+    tasks: [opensubtitles_multi40_en_to_es]
+  - source_language: eng_Latn
+    target_language: est_Latn
+    tasks: [opensubtitles_multi40_en_to_et]
+  - source_language: eng_Latn
+    target_language: fin_Latn
+    tasks: [opensubtitles_multi40_en_to_fi]
+  - source_language: eng_Latn
+    target_language: fra_Latn
+    tasks: [opensubtitles_multi40_en_to_fr]
+  - source_language: eng_Latn
+    target_language: hrv_Latn
+    tasks: [opensubtitles_multi40_en_to_hr]
+  - source_language: eng_Latn
+    target_language: hun_Latn
+    tasks: [opensubtitles_multi40_en_to_hu]
+  - source_language: eng_Latn
+    target_language: ita_Latn
+    tasks: [opensubtitles_multi40_en_to_it]
+  - source_language: eng_Latn
+    target_language: lit_Latn
+    tasks: [opensubtitles_multi40_en_to_lt]
+  - source_language: eng_Latn
+    target_language: lav_Latn
+    tasks: [opensubtitles_multi40_en_to_lv]
+  - source_language: eng_Latn
+    target_language: nld_Latn
+    tasks: [opensubtitles_multi40_en_to_nl]
+  - source_language: eng_Latn
+    target_language: nor_Latn
+    tasks: [opensubtitles_multi40_en_to_no]
+  - source_language: eng_Latn
+    target_language: pol_Latn
+    tasks: [opensubtitles_multi40_en_to_pl]
+  - source_language: eng_Latn
+    target_language: por_Latn
+    tasks: [opensubtitles_multi40_en_to_pt]
+  - source_language: eng_Latn
+    target_language: ron_Latn
+    tasks: [opensubtitles_multi40_en_to_ro]
+  - source_language: eng_Latn
+    target_language: slk_Latn
+    tasks: [opensubtitles_multi40_en_to_sk]
+  - source_language: eng_Latn
+    target_language: slv_Latn
+    tasks: [opensubtitles_multi40_en_to_sl]
+  - source_language: eng_Latn
+    target_language: srp_Cyrl
+    tasks: [opensubtitles_multi40_en_to_sr]
+  - source_language: eng_Latn
+    target_language: swe_Latn
+    tasks: [opensubtitles_multi40_en_to_sv]
+  - source_language: eng_Latn
+    target_language: tur_Latn
+    tasks: [opensubtitles_multi40_en_to_tr]
+  - source_language: eng_Latn
+    target_language: ukr_Cyrl
+    tasks: [opensubtitles_multi40_en_to_uk]
+  - source_language: spa_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_es_to_en]
+  - source_language: est_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_et_to_en]
+  - source_language: fin_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_fi_to_en]
+  - source_language: fra_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_fr_to_en]
+  - source_language: hrv_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_hr_to_en]
+  - source_language: hun_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_hu_to_en]
+  - source_language: ita_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_it_to_en]
+  - source_language: lit_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_lt_to_en]
+  - source_language: lav_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_lv_to_en]
+  - source_language: nld_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_nl_to_en]
+  - source_language: nor_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_no_to_en]
+  - source_language: pol_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_pl_to_en]
+  - source_language: por_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_pt_to_en]
+  - source_language: ron_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_ro_to_en]
+  - source_language: slk_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_sk_to_en]
+  - source_language: slv_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_sl_to_en]
+  - source_language: srp_Cyrl
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_sr_to_en]
+  - source_language: swe_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_sv_to_en]
+  - source_language: tur_Latn
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_tr_to_en]
+  - source_language: ukr_Cyrl
+    target_language: eng_Latn
+    tasks: [opensubtitles_multi40_uk_to_en]

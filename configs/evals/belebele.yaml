@@ -1,0 +1,68 @@
+name: Belebele
+category: Reading
+match:
+  regex: belebele_.+
+metric: acc_norm
+metric_filter: none
+shots: 5
+score:
+  scale: 1
+normalize:
+  min: 0.25
+  max: 1
+  basis: uniform_choice
+  note: All language variants score four labels A/B/C/D; uniform guessing gives 1/4.
+  sources:
+    - https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/tasks/belebele/_default_template_yaml
+language_defaults:
+  evidence: https://huggingface.co/datasets/facebook/belebele
+  note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+languages:
+  - language: bul_Cyrl
+    tasks: [belebele_bul_Cyrl]
+  - language: ces_Latn
+    tasks: [belebele_ces_Latn]
+  - language: dan_Latn
+    tasks: [belebele_dan_Latn]
+  - language: deu_Latn
+    tasks: [belebele_deu_Latn]
+  - language: ell_Grek
+    tasks: [belebele_ell_Grek]
+  - language: eng_Latn
+    tasks: [belebele_eng_Latn]
+  - language: est_Latn
+    tasks: [belebele_est_Latn]
+  - language: fin_Latn
+    tasks: [belebele_fin_Latn]
+  - language: fra_Latn
+    tasks: [belebele_fra_Latn]
+  - language: hrv_Latn
+    tasks: [belebele_hrv_Latn]
+  - language: hun_Latn
+    tasks: [belebele_hun_Latn]
+  - language: ita_Latn
+    tasks: [belebele_ita_Latn]
+  - language: lit_Latn
+    tasks: [belebele_lit_Latn]
+  - language: lav_Latn
+    tasks: [belebele_lvs_Latn]
+  - language: mlt_Latn
+    tasks: [belebele_mlt_Latn]
+  - language: nld_Latn
+    tasks: [belebele_nld_Latn]
+  - language: nor_Latn
+    tasks: [belebele_nob_Latn]
+  - language: pol_Latn
+    tasks: [belebele_pol_Latn]
+  - language: por_Latn
+    tasks: [belebele_por_Latn]
+  - language: ron_Latn
+    tasks: [belebele_ron_Latn]
+  - language: slk_Latn
+    tasks: [belebele_slk_Latn]
+  - language: slv_Latn
+    tasks: [belebele_slv_Latn]
+  - language: spa_Latn
+    tasks: [belebele_spa_Latn]
+  - language: swe_Latn
+    tasks: [belebele_swe_Latn]

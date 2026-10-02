@@ -1,8 +1,8 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const {validateCatalogue}=require('../app/eval_config.js');
-const {validateWeightProfile,parseWeightProfile,serializeWeightProfile,validateSuite,resolveConfig,scopeRows,suiteCoverage,parseSuite,serializeSuite}=require('../app/suite_config.js');
-const catalogue=()=>({version:1,name:'Catalogue',evals:[{name:'E',category:'C',match:{regex:'e_.+'},metric:'acc',filter:'none',score:{scale:1}},{name:'Unused',category:'D',match:{name:'unused'},metric:'acc',filter:'none',score:{scale:1}}],languages:[{tasks:['e_en'],scope:'single',language:'eng_Latn'},{tasks:['e_fr'],scope:'single',language:'fra_Latn'}]});
+const {validateWeightProfile,parseWeightProfile,serializeWeightProfile,validateSuite,resolveSuite,resolveConfig,scopeRows,suiteCoverage,parseSuite,serializeSuite}=require('../app/suite_config.js');
+const catalogue=()=>({version:1,name:'Catalogue',evals:[{name:'E',category:'C',match:{regex:'e_.+'},metric:'acc',metric_filter:'none',score:{scale:1}},{name:'Unused',category:'D',match:{name:'unused'},metric:'acc',metric_filter:'none',score:{scale:1}}],languages:[{tasks:['e_en'],scope:'single',language:'eng_Latn'},{tasks:['e_fr'],scope:'single',language:'fra_Latn'}]});
 const suite=()=>({version:1,name:'Required',mode:'fixed',evals:[{name:'E',variants:[{task:'e_en',n_shot:0},{task:'e_fr',n_shot:5}]}]});
 const profile=()=>({version:1,name:'Weights',weights:{C:.5,D:.5}});
 const row=(task,n_shot='0')=>({task,n_shot,eval:'E',selected:true});
@@ -24,9 +24,12 @@ test('any available creates no missing or extra suite requirements',()=>{
  assert.equal(resolveConfig(catalogue(),s,profile()).evals.length,2);
  const c=suiteCoverage([row('e_en')],[],s);assert.deepEqual(c.warnings,[]);assert.equal(c.required,null);
 });
-test('eval-only requirement permits all its recognized variants',()=>{
- const s={...suite(),evals:[{name:'E'}]};assert.equal(scopeRows([row('e_de')],s).missing.length,0);
- assert.equal(scopeRows([],s).missing.length,1);
+test('whole-eval requirement expands known tasks and reports missing languages',()=>{
+ const s=resolveSuite(catalogue(),{...suite(),evals:[{name:'E'}]});
+ assert.equal(scopeRows([row('e_en'),row('e_fr')],s).missing.length,0);
+ assert.equal(scopeRows([row('e_de')],s).missing.length,2);
+ assert.equal(scopeRows([row('e_de')],s).extras.length,1);
+ assert.equal(scopeRows([],s).missing.length,2);
 });
 test('invalid suite definitions and catalogue references fail clearly',()=>{
  for(const change of [s=>s.mode='wrong',s=>s.evals.push(s.evals[0]),s=>s.evals[0].variants.push(s.evals[0].variants[0]),s=>s.evals[0].variants[0].n_shot=-1,s=>s.evals[0].variants=[],s=>s.evals=[]]){const s=suite();change(s);assert.throws(()=>validateSuite(s));}
@@ -73,7 +76,7 @@ test('an alternate metric cannot satisfy a required measurement',()=>{
 });
 test('all shipped sets and profiles are independent and resolve against the global catalogue',()=>{
  const fs=require('node:fs'),{parseCatalogue}=require('../app/eval_config.js');
- const c=parseCatalogue(fs.readFileSync('configs/catalogue.yaml','utf8'));
+ const c=require('../app/catalogue_io.cjs').loadCatalogue('configs/catalogue.yaml');
  const profiles=fs.readdirSync('configs/weights').filter(f=>f.endsWith('.yaml')).map(f=>parseWeightProfile(fs.readFileSync('configs/weights/'+f,'utf8')));
  for(const p of profiles)for(const filename of fs.readdirSync('configs/sets').filter(f=>f.endsWith('.yaml'))){
   const s=parseSuite(fs.readFileSync('configs/sets/'+filename,'utf8'));

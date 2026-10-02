@@ -1,0 +1,23 @@
+name: AIME24
+category: Reasoning
+match:
+  name: AIME24
+metric: accuracy_avg
+metric_filter: ''
+shots: 0
+score:
+  scale: 1
+normalize:
+  min: 0
+  max: 1
+  basis: not_applicable
+  note: Open-ended integer-answer accuracy. Use a zero minimum with no chance correction; a uniform random-integer
+    guessing model is not used for this dashboard.
+  sources:
+    - https://maa.org/maa-invitational-competitions/
+    - https://github.com/mlfoundations/evalchemy/blob/6ed674159b37f740f2353a86f596f49f6ac13c19/eval/chat_benchmarks/AIME24/eval_instruct.py
+languages:
+  - language: eng_Latn
+    tasks: [AIME24]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Original English benchmark variant; language is the prompt/question language.
