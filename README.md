@@ -19,7 +19,7 @@ Files opened here stay in your browser; they are not uploaded. Changes last unti
 ## Share results and scoring configs
 
 - Add public CSV exports to [results/](results/README.md) to offer their models in the shared dashboard.
-- Add interpretation rules to [configs/catalogue.yaml](configs/catalogue.yaml).
+- Edit or add a self-contained eval file in [configs/evals/](configs/evals/), such as [polymath.yaml](configs/evals/polymath.yaml). Each file holds its scoring rules and language assignments together; the catalogue combines them automatically.
 - Add weighting profiles to [configs/weights/](configs/weights/), or optional named eval sets to [configs/sets/](configs/sets/). Each directory has a `default.txt` choosing its startup selection. See [contributing configs](configs/README.md).
 
 Use a pull request or GitHub’s **Add file → Upload files**. Changes on `main` trigger tests and a GitHub Pages rebuild; pull requests are checked without publishing. Invalid inputs stop the update and leave the last successful site online. The repository and dashboard are public, so use browser imports for private comparisons.

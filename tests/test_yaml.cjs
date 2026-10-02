@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict'),fs=require('node:fs');
 const {parseCatalogue,serializeCatalogue,normalizeScore,auditRows}=require('../app/eval_config.js');
-const config=parseCatalogue(fs.readFileSync('configs/catalogue.yaml','utf8'));
+const config=require('../app/catalogue_io.cjs').loadCatalogue('configs/catalogue.yaml');
 assert.deepEqual(parseCatalogue(serializeCatalogue(config)),config);
 const {diagnosticsFor}=require('./diagnostic_fixture.cjs');
 assert.deepEqual(diagnosticsFor(new Map(),config),[]);

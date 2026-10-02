@@ -42,6 +42,12 @@ jobs:
             --catalogue "$GITHUB_WORKSPACE/configs/examples/catalogue.yaml" \
             --weights "$GITHUB_WORKSPACE/configs/examples/weights.yaml" \
             --compare 'Example A' 'Example B' --format json > quickdash-installed.json
+          PATH="$RUNNER_TEMP/quickdash-package/bin" \
+            "$RUNNER_TEMP/quickdash-package/bin/quickdash" "$GITHUB_WORKSPACE/examples/sample-evals.csv" \
+            --catalogue "$GITHUB_WORKSPACE/configs/catalogue.yaml" \
+            --weights "$GITHUB_WORKSPACE/configs/weights/oellm.yaml" \
+            --eval-set "$GITHUB_WORKSPACE/configs/sets/any-available.yaml" \
+            --format json > quickdash-installed-sample.json
       - name: Check the browser with public fixtures
         run: |
           google-chrome --headless --no-sandbox --disable-gpu \

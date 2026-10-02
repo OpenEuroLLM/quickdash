@@ -1,0 +1,25 @@
+name: ARC Easy
+category: Knowledge
+match:
+  name: arc_easy
+metric: acc_norm
+filter: none
+score:
+  scale: 1
+normalize:
+  min: 0.25
+  max: 1
+  clip: true
+  basis: uniform_choice
+  note: Use the conventional four-choice approximation of 0.25. The published test split includes a few three-
+    and five-choice questions (mean guessing accuracy approximately 0.2501613); this small difference is intentionally
+    ignored for consistency.
+  sources:
+    - https://ai2-public-datasets.s3.amazonaws.com/arc/ARC-V1-Feb2018.zip
+    - https://huggingface.co/datasets/allenai/ai2_arc
+languages:
+  - language: eng_Latn
+    scope: single
+    tasks: [arc_easy]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Original English benchmark variant; language is the prompt/question language.

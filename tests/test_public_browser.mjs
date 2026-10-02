@@ -200,6 +200,19 @@ try{
  execFileSync('python3',['-m','app.build','--results-dir',resultsDir,'--sample-csv','examples/sample-evals.csv','--output',sample],{cwd:root,stdio:'pipe'});
  await navigate(pathToFileURL(path.join(sample,'index.html')).href);
  assert.match(await evaluate("document.querySelector('#modelA').value"),/^SAMPLE/);
+ // The generated catalogue contains every eval and language, with no filesystem dependency.
+ const exportedCatalogue=fs.readFileSync(path.join(sample,'catalogue.yaml'),'utf8');
+ assert.deepEqual(parseCatalogue(exportedCatalogue),require('../app/catalogue_io.cjs').loadCatalogue(path.join(root,'configs/catalogue.yaml')));
+ const sampleScore=await evaluate("document.querySelector('#cards').textContent");
+ await click('[data-view=config]');await upload('#configFile',exportedCatalogue,'portable-catalogue.yaml');
+ assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),sampleScore);
+ // A manifest needs files on disk; importing it must preserve the current dashboard.
+ await upload('#configFile',fs.readFileSync(path.join(root,'configs/catalogue.yaml'),'utf8'),'catalogue-manifest.yaml');
+ assert.match(await evaluate("document.querySelector('#error').textContent"),/manifest.*build/i);
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),sampleScore);
+ await upload('#configFile',exportedCatalogue,'portable-catalogue.yaml');
+
  assert.equal(await evaluate("document.querySelector('#cards').hidden"),false);
  const syntheticNames=await evaluate("syntheticOptions.map(o=>o.name)");
  const scores=[];

@@ -65,6 +65,21 @@ const EvalConfig=(()=>{
   if('aggregate'in config&&!['standard','english_eval','english_category'].includes(config.aggregate))throw Error('Aggregate must be standard, english_eval, or english_category');
   if('english_weights'in config){objectKeys(config.english_weights,Object.keys(w));if(Object.values(config.english_weights).some(v=>!number(v)||v<0||v>1))throw Error('English weights must be between 0 and 1');}
  }
+ function assembleCatalogue(metadata,definitions){
+  objectKeys(metadata,['version','name','notes'],['version','name']);
+  if(!Array.isArray(definitions)||!definitions.length)throw Error('At least one eval definition is required');
+  const catalogue={...structuredClone(metadata),evals:[],languages:[]};
+  for(const definition of definitions){
+   if(!definition||typeof definition!=='object'||Array.isArray(definition)||!Object.hasOwn(definition,'languages'))throw Error('Each eval definition needs its own languages list');
+   const {languages,...e}=structuredClone(definition);
+   validateCatalogue({...metadata,evals:[e],languages});
+   for(const group of languages)for(const task of group.tasks)if(!matchTask(e.match,task))throw Error(`Language task ${task} does not belong to eval ${e.name}`);
+   catalogue.evals.push(e);catalogue.languages.push(...languages);
+  }
+  validateCatalogue(catalogue);
+  for(const group of catalogue.languages)for(const task of group.tasks)if(catalogue.evals.filter(e=>matchTask(e.match,task)).length!==1)throw Error('Ambiguous eval config for task: '+task);
+  return catalogue;
+ }
  function validateCatalogue(config){
   objectKeys(config,['version','name','evals','languages','notes'],['version','name','evals','languages']);
   return validateRules(config);
@@ -76,7 +91,7 @@ const EvalConfig=(()=>{
   for(const e of config.evals)if(!Object.hasOwn(config.weights,e.category))throw Error('Eval category has no weight: '+e.category);
   return config;
  }
- function parseCatalogue(source){return validateCatalogue(yaml.load(source,{schema:yaml.CORE_SCHEMA}));}
+ function parseCatalogue(source){const config=yaml.load(source,{schema:yaml.CORE_SCHEMA});if(config&&Object.hasOwn(config,'evals_dir'))throw Error('This catalogue manifest needs files on disk. Build it first, then import the generated catalogue.yaml or export the complete catalogue from a dashboard.');return validateCatalogue(config);}
  function serializeCatalogue(config){return yaml.dump(validateCatalogue(config),{schema:yaml.CORE_SCHEMA,lineWidth:110,noRefs:true});}
  function validateRules(config){
   if(config.version!==1)throw Error('Unsupported config version');
@@ -172,6 +187,6 @@ const EvalConfig=(()=>{
    return {...r,eval:e.name,category:e.category,selected,decision,...scores};
   });
  }
- return {validateAggregationConfig,validateAggregationSelection,parseCatalogue,serializeCatalogue,validateCatalogue,validateWeights,parseCSV,validateConfig,matchTask,normalizeScore,taskLanguage,auditRows,demoModel,isDemoModel};
+ return {assembleCatalogue,validateAggregationConfig,validateAggregationSelection,parseCatalogue,serializeCatalogue,validateCatalogue,validateWeights,parseCSV,validateConfig,matchTask,normalizeScore,taskLanguage,auditRows,demoModel,isDemoModel};
 })();
 if(typeof module!=='undefined')module.exports=EvalConfig;

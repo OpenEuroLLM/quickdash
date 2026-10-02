@@ -12,6 +12,7 @@ from copy import deepcopy
 from pathlib import Path
 from quickdash import analyze, compare, load_config, QuickdashWarning, DiagnosticError
 from quickdash.io import parse_csv, parse_yaml
+from quickdash.config import assemble_catalogue
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -74,6 +75,11 @@ def native(c):
             if "yaml" in c
             else c["config"]
         )
+        if "eval_definitions" in c:
+            cfg = deepcopy(cfg)
+            cfg["catalogue"] = assemble_catalogue(
+                cfg["catalogue"], c["eval_definitions"]
+            )
         rows = parse_csv(c["csv"]) if "csv" in c else c["rows"]
         value = (
             compare(
@@ -135,6 +141,72 @@ class Engines(unittest.TestCase):
                     self.close(semantics(py["value"]), semantics(other["value"]))
             results.append((py, other))
         return results
+
+    def test_per_eval_catalogue_assembly(self):
+        original = fixture()
+        metadata = {"version": 1, "name": "Fixture", "notes": ["Shared catalogue"]}
+        definition = {
+            **original["catalogue"]["evals"][0],
+            "languages": original["catalogue"]["languages"],
+        }
+        c = {**original, "catalogue": metadata}
+        good = dict(
+            config=c,
+            eval_definitions=[definition],
+            rows=paired([row(), row("e_fr")]),
+            operation="compare",
+        )
+        reference_case = {k: v for k, v in good.items() if k != "eval_definitions"}
+        reference_case["config"] = {
+            **original,
+            "catalogue": {**original["catalogue"], "notes": metadata["notes"]},
+        }
+        reference = native(reference_case)
+        for result in self.both([good])[0]:
+            self.assertNotIn("error", result)
+            self.close(semantics(result), semantics(reference))
+            self.assertEqual(result["value"]["a"]["score"], 50)
+        invalid = []
+        for definitions in ([], None, [None], [definition, definition]):
+            invalid.append({**good, "eval_definitions": definitions})
+        for mutate in (
+            lambda e: e.pop("languages"),
+            lambda e: e.update(languages={}),
+            lambda e: e.update(unexpected=True),
+            lambda e: e["languages"][0].update(tasks=["foreign_task"]),
+            lambda e: e["languages"][0].update(language="de"),
+            lambda e: e["languages"].append(deepcopy(e["languages"][0])),
+        ):
+            e = deepcopy(definition)
+            mutate(e)
+            invalid.append({**good, "eval_definitions": [e]})
+        # Overlap across files is rejected for explicitly assigned tasks.
+        overlap = deepcopy(definition)
+        overlap.update(name="Other", languages=[])
+        invalid.append({**good, "eval_definitions": [definition, overlap]})
+        for outputs in self.both(invalid):
+            for result in outputs:
+                self.assertIn("error", result)
+        # Adding entries changes the result according to their data, not file count.
+        for size in (1, 3, 7):
+            definitions = []
+            rows = []
+            for i in range(size):
+                e = deepcopy(definition)
+                e.update(
+                    name=f"Eval {i}",
+                    match={"name": f"task{i}"},
+                    languages=[
+                        dict(tasks=[f"task{i}"], scope="single", language="eng_Latn")
+                    ],
+                )
+                definitions.append(e)
+                rows.append(row(f"task{i}", ".625"))
+            for result in self.both(
+                [dict(config=c, eval_definitions=definitions, rows=rows)]
+            )[0]:
+                self.assertNotIn("error", result)
+                self.assertEqual(result["value"]["models"][0]["score"], 50)
 
     def test_published_sample_across_all_shipped_configs(self):
         # Discover files so adding a profile or set automatically extends parity coverage.

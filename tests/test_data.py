@@ -12,7 +12,7 @@ from pathlib import Path
 
 from app.build import build, summarize
 from quickdash.io import load_csv
-from quickdash.config import classify, normalize_score, validate_config
+from quickdash.config import classify, normalize_score, validate_config, load_catalogue
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -44,6 +44,72 @@ def inputs(folder, c=None):
 
 
 class DataContracts(unittest.TestCase):
+    def test_python_and_node_load_the_same_catalogue_files(self):
+        def node(path):
+            return json.loads(subprocess.check_output(['node','-e',
+                "const {loadCatalogue}=require('./app/catalogue_io.cjs');try{console.log(JSON.stringify({value:loadCatalogue(process.argv[1])}));}catch(e){console.log(JSON.stringify({error:e.message}));}",str(path)],cwd=ROOT,text=True))
+        self.assertEqual(node(ROOT/'configs/catalogue.yaml')['value'],load_catalogue(ROOT/'configs/catalogue.yaml'))
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);kw=inputs(folder);path=kw['catalogue_path']
+            original=load_catalogue(path)
+            self.assertEqual(node(path)['value'],original)
+            modules=folder/'definitions';modules.mkdir()
+            (modules/'nested').mkdir();(modules/'nested/ignored.yaml').write_text('not a definition')
+            manifest=dict(version=1,name='Fixture',evals_dir='definitions')
+            path.write_text(json.dumps(manifest))
+            e={**original['evals'][0],'languages':original['languages']}
+            (modules/'first.YML').write_text(json.dumps(e))
+            self.assertEqual(node(path)['value'],load_catalogue(path))
+            (modules/'second.yaml').write_text(json.dumps(e))
+            self.assertIn('error',node(path))
+            with self.assertRaises(ValueError):load_catalogue(path)
+            (modules/'second.yaml').unlink()
+            for source in ['name: duplicate\nname: again','name: incomplete']:
+                (modules/'first.YML').write_text(source)
+                self.assertIn('first.YML',node(path)['error'])
+                with self.assertRaisesRegex(ValueError,'first.YML'):load_catalogue(path)
+            for patch in [dict(evals=[],languages=[]),dict(evals_dir=None),dict(evals_dir='missing'),dict(evals_dir='')]:
+                path.write_text(json.dumps({**manifest,**patch}))
+                self.assertIn('error',node(path))
+                with self.assertRaises(ValueError):load_catalogue(path)
+
+    def test_modular_catalogue_loading_and_portable_build(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);kw=inputs(folder);modules=folder/'evals';modules.mkdir()
+            original=json.loads((folder/'catalogue.yaml').read_text())
+            definition={**original['evals'][0],'languages':original['languages']}
+            (modules/'eval.yml').write_text(json.dumps(definition))
+            (modules/'README.md').write_text('Not YAML')
+            (folder/'catalogue.yaml').write_text('version: 1\nname: Fixture\nevals_dir: evals\n')
+            compiled=load_catalogue(folder/'catalogue.yaml')
+            self.assertEqual(compiled,original)
+            with contextlib.redirect_stdout(io.StringIO()):build(None,folder/'out',**kw)
+            self.assertEqual(load_catalogue(folder/'out/catalogue.yaml'),original)
+            previous=(folder/'out/index.html').read_bytes()
+            bad=deepcopy(definition);bad['languages'][0]['tasks']=['different_eval']
+            (modules/'eval.yml').write_text(json.dumps(bad))
+            with self.assertRaisesRegex(ValueError,'does not belong'):
+                build(None,folder/'out',**kw)
+            self.assertEqual((folder/'out/index.html').read_bytes(),previous)
+            # Export is portable: remove the entire source directory and import it.
+            (modules/'eval.yml').unlink();(modules/'README.md').unlink();modules.rmdir()
+            self.assertEqual(load_catalogue(folder/'out/catalogue.yaml'),original)
+            with self.assertRaisesRegex(ValueError,'evals'):load_catalogue(folder/'catalogue.yaml')
+
+    def test_modular_catalogue_rejects_bad_files_and_mixed_formats(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);modules=folder/'evals';modules.mkdir();path=folder/'catalogue.yaml'
+            manifest=dict(version=1,name='Test',evals_dir='evals')
+            path.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(ValueError,'eval'):load_catalogue(path)
+            (modules/'bad.yaml').write_text('name: Missing everything else')
+            with self.assertRaisesRegex(ValueError,'bad.yaml'):load_catalogue(path)
+            (modules/'bad.yaml').write_text('name: x\nname: duplicate')
+            with self.assertRaisesRegex(ValueError,'bad.yaml'):load_catalogue(path)
+            for patch in [dict(evals=[],languages=[]),dict(evals_dir=''),dict(evals_dir=None)]:
+                path.write_text(json.dumps({**manifest,**patch}))
+                with self.assertRaises(ValueError):load_catalogue(path)
+
     def test_component_config_validation_and_standalone_build(self):
         c=config();e=c['evals'][0];e.pop('normalize')
         levels=['low','medium','high','top']

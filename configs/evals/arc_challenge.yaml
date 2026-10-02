@@ -1,0 +1,138 @@
+name: ARC Challenge
+category: Knowledge
+match:
+  regex: arc_challenge(?:_mt_.+)?
+metric: acc_norm
+filter: none
+score:
+  scale: 1
+normalize:
+  min: 0.25
+  max: 1
+  clip: true
+  basis: uniform_choice
+  note: 'Initial approximation: 25% chance. In the published 1,172-question Challenge test split, 1,165 questions
+    have four choices, four have three and three have five. Mean uniform-guess accuracy is 25.0156428%, so
+    25% is a close approximation. The same initial floor is applied to translated variants; preservation of
+    every choice count has not been audited. This is an approximate baseline, not a claim that every item has
+    exactly four options.'
+  sources:
+    - https://ai2-public-datasets.s3.amazonaws.com/arc/ARC-V1-Feb2018.zip
+    - https://huggingface.co/datasets/allenai/ai2_arc
+    - https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+languages:
+  - language: eng_Latn
+    scope: single
+    tasks: [arc_challenge]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Original English benchmark variant; language is the prompt/question language.
+  - language: bul_Cyrl
+    scope: single
+    tasks: [arc_challenge_mt_bg]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: ces_Latn
+    scope: single
+    tasks: [arc_challenge_mt_cs]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: dan_Latn
+    scope: single
+    tasks: [arc_challenge_mt_da]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: deu_Latn
+    scope: single
+    tasks: [arc_challenge_mt_de]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: ell_Grek
+    scope: single
+    tasks: [arc_challenge_mt_el]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: spa_Latn
+    scope: single
+    tasks: [arc_challenge_mt_es]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: est_Latn
+    scope: single
+    tasks: [arc_challenge_mt_et]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: fin_Latn
+    scope: single
+    tasks: [arc_challenge_mt_fi]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: fra_Latn
+    scope: single
+    tasks: [arc_challenge_mt_fr]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: hun_Latn
+    scope: single
+    tasks: [arc_challenge_mt_hu]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: isl_Latn
+    scope: single
+    tasks: [arc_challenge_mt_is]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: ita_Latn
+    scope: single
+    tasks: [arc_challenge_mt_it]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: lit_Latn
+    scope: single
+    tasks: [arc_challenge_mt_lt]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: lav_Latn
+    scope: single
+    tasks: [arc_challenge_mt_lv]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: nor_Latn
+    scope: single
+    tasks: [arc_challenge_mt_nb]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: nld_Latn
+    scope: single
+    tasks: [arc_challenge_mt_nl]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: pol_Latn
+    scope: single
+    tasks: [arc_challenge_mt_pl]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: por_Latn
+    scope: single
+    tasks: [arc_challenge_mt_pt]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: ron_Latn
+    scope: single
+    tasks: [arc_challenge_mt_ro]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: slk_Latn
+    scope: single
+    tasks: [arc_challenge_mt_sk]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: slv_Latn
+    scope: single
+    tasks: [arc_challenge_mt_sl]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: swe_Latn
+    scope: single
+    tasks: [arc_challenge_mt_sv]
+    evidence: https://huggingface.co/datasets/LumiOpen/arc_challenge_mt
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.

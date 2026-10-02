@@ -5,7 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 from quickdash.io import load_csv
-from quickdash.config import classify, task_language, load_catalogue, load_profile, load_suite, resolve_config, scope_rows
+from quickdash.config import classify, task_language, load_catalogue, serialize_catalogue, load_profile, load_suite, resolve_config, scope_rows
 from quickdash.analysis import totals, component_coverage, diagnostic, analyze
 
 APP = Path(__file__).resolve().parent
@@ -118,7 +118,7 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
                    profile=profile, profile_file=weights_path.name, suites=suites, profiles=profiles,
                    sample_models=sorted(owners) if using_sample else [], metadata=metadata, scheme=config, models=summary, aggregates=aggregates, rows=audit, sources=sources,
                    source=source.name if source else results_dir.name if results_dir else '', sha256=sources[0]['sha256'] if len(sources)==1 else None)
-    (output/'catalogue.yaml').write_text(catalogue_path.read_text())
+    (output/'catalogue.yaml').write_text(serialize_catalogue(catalogue))
     (output/'weights.yaml').write_text(weights_path.read_text())
     (output/'eval-set.yaml').write_text(suite_path.read_text())
     (output/'analysis.json').write_text(json.dumps(payload, indent=2))
@@ -132,7 +132,7 @@ if __name__ == '__main__':
     parser.add_argument('csv', type=Path, nargs='?', help='CSV to embed; omit to start without results')
     parser.add_argument('--results-dir', type=Path, help='Embed all CSV files directly inside this directory')
     parser.add_argument('--sample-csv', type=Path, help='Fallback CSV when --results-dir contains no CSVs')
-    parser.add_argument('--catalogue', type=Path, help='Global eval interpretation YAML; default: configs/catalogue.yaml')
+    parser.add_argument('--catalogue', type=Path, help='Catalogue YAML or per-eval manifest; default: configs/catalogue.yaml')
     parser.add_argument('--weights', type=Path, help='Default weighting profile YAML; used alone, embed only this profile')
     parser.add_argument('--weights-dir', type=Path, help='Offer weighting profiles from this directory (default: configs/weights)')
     parser.add_argument('--eval-set', type=Path, help='Default named eval set YAML; used alone, embed only this set')

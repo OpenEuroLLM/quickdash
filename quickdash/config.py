@@ -4,11 +4,77 @@ import math
 import re
 from pathlib import Path
 from copy import deepcopy
+
+import yaml
+
 from .io import parse_yaml
 
 
+def assemble_catalogue(metadata, definitions):
+    """Combine self-contained eval definitions into a portable runtime catalogue."""
+    object_keys(metadata, {"version", "name", "notes"}, {"version", "name"})
+    if not isinstance(definitions, list) or not definitions:
+        raise ValueError("At least one eval definition is required")
+    catalogue = dict(deepcopy(metadata), evals=[], languages=[])
+    for definition in definitions:
+        if not isinstance(definition, dict) or "languages" not in definition:
+            raise ValueError("Each eval definition needs its own languages list")
+        e = {k: deepcopy(v) for k, v in definition.items() if k != "languages"}
+        groups = deepcopy(definition["languages"])
+        validate_catalogue(dict(metadata, evals=[e], languages=groups))
+        for group in groups:
+            for task in group["tasks"]:
+                if match_task(e["match"], task) is None:
+                    raise ValueError(
+                        f"Language task {task!r} does not belong to eval {e['name']!r}"
+                    )
+        catalogue["evals"].append(e)
+        catalogue["languages"].extend(groups)
+    validate_catalogue(catalogue)
+    for group in catalogue["languages"]:
+        for task in group["tasks"]:
+            eval_for_task(task, catalogue)  # Reject overlap for known task assignments.
+    return catalogue
+
+
 def load_catalogue(path):
-    return validate_catalogue(parse_yaml(Path(path).read_text(encoding="utf-8")))
+    """Read a portable catalogue, or a manifest pointing to per-eval YAML files."""
+    path = Path(path)
+    try:
+        config = parse_yaml(path.read_text(encoding="utf-8"))
+        if not isinstance(config, dict) or "evals_dir" not in config:
+            return validate_catalogue(config)
+        object_keys(
+            config,
+            {"version", "name", "notes", "evals_dir"},
+            {"version", "name", "evals_dir"},
+        )
+        directory = config["evals_dir"]
+        if not isinstance(directory, str) or not directory.strip():
+            raise ValueError("evals_dir must be a nonempty directory path")
+        directory = path.parent / directory
+        if not directory.is_dir():
+            raise ValueError(f"Eval directory does not exist: {directory}")
+        metadata = {k: v for k, v in config.items() if k != "evals_dir"}
+        definitions = []
+        for source in sorted(directory.iterdir()):
+            if not source.is_file() or source.suffix.lower() not in {".yaml", ".yml"}:
+                continue
+            try:
+                definition = parse_yaml(source.read_text(encoding="utf-8"))
+                assemble_catalogue(metadata, [definition])
+            except (ValueError, OSError) as error:
+                raise ValueError(f"{source}: {error}") from error
+            definitions.append(definition)
+        return assemble_catalogue(metadata, definitions)
+    except (ValueError, OSError) as error:
+        raise ValueError(f"{path}: {error}") from error
+
+
+def serialize_catalogue(catalogue):
+    """Export a complete catalogue with no filesystem references."""
+    validate_catalogue(catalogue)
+    return yaml.safe_dump(catalogue, sort_keys=False, allow_unicode=True, width=100)
 
 
 LANGUAGE_CODE = re.compile(r"(?:[a-z]{3}_[A-Z][a-z]{3}|mul)")
@@ -809,7 +875,9 @@ def load_config(*, catalogue, weights, eval_set=None):
         )
 
     bundle = dict(
-        catalogue=load(catalogue),
+        catalogue=deepcopy(catalogue)
+        if isinstance(catalogue, dict)
+        else load_catalogue(catalogue),
         profile=load(weights),
         suite=load(eval_set)
         if eval_set is not None

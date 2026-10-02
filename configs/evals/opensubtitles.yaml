@@ -1,0 +1,421 @@
+name: OpenSubtitles
+category: Translation
+match:
+  regex: opensubtitles_.+
+metric: chrf
+filter: none
+score:
+  scale: 100
+normalize:
+  min: 0
+  max: 1
+  clip: true
+  basis: not_applicable
+  note: 'Select chrf: the referenced harness uses SacreBLEU defaults (char_order=6, word_order=0, beta=2),
+    so this is plain chrF, not chrF++. Prefer an explicitly identified chrF++ result when available, then chrF,
+    then BLEU. Retain native 0–100 points with no chance correction.'
+  sources:
+    - https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/custom_lm_eval_tasks/opensubtitles_multi40/utils.py
+    - https://github.com/mjpost/sacrebleu/blob/master/sacrebleu/metrics/chrf.py
+    - https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/api/metrics.py
+languages:
+  - source_language: bul_Cyrl
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_bg_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: ces_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_cs_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: dan_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_da_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: deu_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_de_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: ell_Grek
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_el_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: bul_Cyrl
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_bg]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: ces_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_cs]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: dan_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_da]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: deu_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_de]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: ell_Grek
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_el]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: spa_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_es]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: est_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_et]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: fin_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_fi]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: fra_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_fr]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: hrv_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_hr]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: hun_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_hu]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: ita_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_it]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: lit_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_lt]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: lav_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_lv]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: nld_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_nl]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: nor_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_no]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: pol_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_pl]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: por_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_pt]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: ron_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_ro]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: slk_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_sk]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: slv_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_sl]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: srp_Cyrl
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_sr]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: swe_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_sv]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: tur_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_tr]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: eng_Latn
+    target_language: ukr_Cyrl
+    scope: translation
+    tasks: [opensubtitles_multi40_en_to_uk]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: spa_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_es_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: est_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_et_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: fin_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_fi_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: fra_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_fr_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: hrv_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_hr_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: hun_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_hu_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: ita_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_it_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: lit_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_lt_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: lav_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_lv_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: nld_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_nl_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: nor_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_no_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: pol_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_pl_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: por_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_pt_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: ron_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_ro_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: slk_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_sk_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: slv_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_sl_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: srp_Cyrl
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_sr_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: swe_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_sv_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: tur_Latn
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_tr_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.
+  - source_language: ukr_Cyrl
+    target_language: eng_Latn
+    scope: translation
+    tasks: [opensubtitles_multi40_uk_to_en]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Source and target from the OpenSubtitles task metadata; bare sr uses the catalogue default script,
+      not a sample-level script audit. Source and target are explicit for separate translation-into and translation-from
+      views.

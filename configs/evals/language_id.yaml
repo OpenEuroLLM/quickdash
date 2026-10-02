@@ -1,0 +1,24 @@
+name: Language ID
+category: Language
+match:
+  name: bigbench_language_identification_multiple_choice
+metric: acc
+filter: none
+score:
+  scale: 1
+normalize:
+  min: 0.09090909090909091
+  max: 1
+  clip: true
+  basis: uniform_choice
+  note: Each question offers 11 language names with one correct answer. The corpus covers 1,000 languages,
+    but the per-question guess baseline is 1/11.
+  sources:
+    - https://github.com/google/BIG-bench/blob/main/bigbench/benchmark_tasks/language_identification/README.md
+languages:
+  - language: mul
+    scope: pooled
+    tasks: [bigbench_language_identification_multiple_choice]
+    evidence: https://github.com/google/BIG-bench/tree/main/bigbench/benchmark_tasks/language_identification
+    note: One aggregate over 1,000 languages; this CSV has no per-language scores. Kept as a pooled multilingual
+      result.

@@ -7,7 +7,7 @@ Quickdash separates four inputs: model results, a weighting profile, an optional
 | CSV results | Raw measurements for models A and B | Shared files in `results/`, or browser imports |
 | Weighting profile | Category weights, English shares, default calculation | `configs/weights/oellm.yaml` |
 | Eval set | Optional expected evals and variants | `configs/sets/any-available.yaml` |
-| Global catalogue | Match tasks to evals, categories, metrics, normalization and languages | `configs/catalogue.yaml` |
+| Global catalogue | Match tasks to evals, categories, metrics, normalization and languages | `configs/catalogue.yaml` → `configs/evals/` |
 
 ## Choose weights and expected coverage
 
@@ -76,49 +76,80 @@ Weights must be nonnegative and sum to 1. Empty categories have their weight red
 
 The builder embeds YAML profiles directly in `configs/weights/` and sets directly in `configs/sets/`. Each directory's `default.txt` contains one YAML filename selected on startup. Missing or invalid defaults stop the build before replacing output. Names must be unique within each selector.
 
-- `--catalogue PATH` chooses the global interpretation file.
+- `--catalogue PATH` chooses a complete catalogue YAML or a manifest pointing to per-eval files. Relative `evals_dir` paths resolve against the manifest’s directory, independent of the working directory.
 - `--weights PATH` chooses a profile; used alone, it embeds only that profile. `--weights-dir DIR` offers the profiles in another directory and uses its `default.txt` unless an explicit profile is supplied.
 - `--eval-set PATH` and `--sets-dir DIR` work the same way for eval sets.
 - `--results-dir DIR` embeds CSVs directly in that directory. A checkpoint label may occur in only one file; one file can contain multiple models.
 - `--sample-csv FILE`, used with `--results-dir`, supplies a fallback only if that directory has no CSVs. Invalid shared files stop the build; they never trigger the fallback. Pages uses `examples/sample-evals.csv` for this option.
 
-Every offered set is validated against the catalogue and every profile before writing output. Raw results are classified once by the global catalogue; changing sets only changes comparison membership. An empty results directory, or no CSV input, starts without models.
+Every offered set is validated against the catalogue and every profile before writing output. Raw results are classified once by the global catalogue; changing sets only changes comparison membership. An empty results directory starts without models unless `--sample-csv` supplies a fallback. Omitting both input options starts without models.
 
 Under **Eval configuration**, load or export the catalogue, weights, and eval set separately. Uploaded choices are temporary; reload restores published defaults. Catalogue imports reinterpret all loaded real models and regenerate the synthetic comparison. Invalid imports preserve the previous models and settings. If a new catalogue does not contain the active named set's evals, switch to Any available before loading it. **Clear models** retains settings.
 
-`analysis.json` records the catalogue, selected profile and set, available `profiles` and `suites`, and source filenames/hashes. It also contains the resolved internal `scheme` used for arithmetic; that combined object is not a YAML input format. Generated `catalogue.yaml`, `weights.yaml`, and `eval-set.yaml` record the build inputs.
+`analysis.json` records the catalogue, selected profile and set, available `profiles` and `suites`, and source filenames/hashes. It also contains the resolved internal `scheme` used for arithmetic; that combined object is not a YAML input format. Generated `catalogue.yaml` contains the assembled, portable catalogue, with no `evals_dir` reference. `weights.yaml` and `eval-set.yaml` record the other configuration inputs. Browser export also saves the complete catalogue in one file; browser import accepts complete catalogues, not filesystem manifests.
 
-## Complete small example
+## Edit one eval
 
-This catalogue selects `acc_norm` for two explicit language variants of a four-choice eval. Additional categories and evals follow the same structure.
+The repository keeps each eval’s interpretation and language mappings in one file.
+For example, this `evals/example.yaml` selects `acc_norm` for two language variants
+of a four-choice eval:
+
+```yaml
+name: Example eval
+category: Reasoning
+match: {regex: 'example_(en|fr)'}
+metric: acc_norm
+filter: none
+shots: 0
+score: {scale: 1}
+normalize:
+  min: 0.25  # Four choices: uniform guessing gets 1/4 correct.
+  max: 1
+  clip: true
+  basis: uniform_choice
+  note: Four-choice chance correction is enabled for this example.
+languages:
+  - language: eng_Latn
+    scope: single
+    tasks: [example_en]
+  - language: fra_Latn
+    scope: single
+    tasks: [example_fr]
+```
+
+A `catalogue.yaml` beside the `evals/` directory gathers those files:
 
 ```yaml
 version: 1
 name: Example scoring
-evals:
-  - name: Example eval
-    category: Reasoning
-    match: {regex: 'example_(en|fr)'}
-    metric: acc_norm
-    filter: none
-    shots: 0
-    score: {scale: 1}
-    normalize:
-      min: 0.25  # Four choices: uniform guessing gets 1/4 correct.
-      max: 1
-      clip: true
-      basis: uniform_choice
-      note: Four-choice chance correction is enabled for this example.
-
-languages:
-  - tasks: [example_en]
-    scope: single
-    language: eng_Latn
-  - tasks: [example_fr]
-    scope: single
-    language: fra_Latn
-
+evals_dir: evals
 ```
+
+`evals_dir` is a directory path. The loader reads its direct `.yaml` and `.yml`
+files in filename order; subdirectories and other extensions are ignored. Each
+file is one eval definition with its own `languages` list. There is no per-file
+`version` field: the manifest specifies the format version. Add a new eval by
+adding a file; no separate list needs updating. Metadata `notes` may be supplied
+on the manifest as a list of strings.
+
+Every explicit language task must match the eval in its file. Duplicate eval
+names, duplicate task-language assignments, known tasks matching multiple evals,
+and incompatible component configurations are errors. Missing or empty eval
+directories and malformed files stop loading. Errors identify the source file
+when a single file is invalid. All validation finishes before the builder replaces
+output or a browser import takes effect.
+
+## Complete small example
+
+For a portable single file, the format remains `version`, `name`, `evals`, and
+`languages`, with optional `notes`. The loader collects each per-eval definition
+under `evals` and its language groups under `languages`. This assembled format is
+what the browser and scoring engines use. It contains no directory references.
+See the complete [fictional catalogue](../configs/examples/catalogue.yaml), or
+build a dashboard and use its generated `catalogue.yaml`. Both formats work with
+`--catalogue` and Python’s `load_config`; only the complete format can be imported
+into a standalone browser page. A manifest cannot also contain `evals` or
+`languages`.
 
 For an input row with `value=0.625`, the raw score is 62.5 and the normalized score is 50. Raw comparisons show the former; the composite uses the latter. A row using `acc` is retained in the configuration audit but excluded because this config selects `acc_norm`. The UI shows the original source value for every metric, including excluded metrics; the scaled and normalized columns apply to selected scores. Eval summaries label the selected metric and shot counts actually used, then list other available metrics and settings. Expanded selection rules explain blank extraction-filter fields and unrestricted shot counts separately from the data currently selected. A shot is one example in the prompt; 0-shot means no examples. Tasks eligible under `select` that lack the configured metric/filter/shot combination are highlighted and listed in Warnings for each affected model, even when other tasks in the eval have selected scores.
 
@@ -126,6 +157,7 @@ For an input row with `value=0.625`, the raw score is 62.5 and the normalized sc
 
 | Field | Meaning |
 |---|---|
+| `languages` | In a per-eval file, the explicit language groups for that eval. Required; use `[]` when unknown. In a complete catalogue, these groups live in the top-level `languages` list. |
 | `name` | Unique display name of the eval, grouping its variants. |
 | `category` | Category label used by weighting profiles and breakdowns. |
 | `match` | Exactly one of `{name: exact task name}` or `{regex: 'full-match pattern'}`. Unmatched tasks are excluded and listed in Warnings; overlapping matches are an error. |

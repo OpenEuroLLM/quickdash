@@ -30,7 +30,7 @@ def main(argv=None):
         help="Result CSV files (model labels must be unique across files)",
     )
     parser.add_argument(
-        "--catalogue", required=True, help="Global eval interpretation YAML"
+        "--catalogue", required=True, help="Catalogue YAML or manifest pointing to per-eval files"
     )
     parser.add_argument("--weights", required=True, help="Weighting profile YAML")
     parser.add_argument(

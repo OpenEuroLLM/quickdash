@@ -1,0 +1,200 @@
+name: SIB-200
+category: Reading
+match:
+  regex: sib200_.+
+# Use acc: acc_norm is not a reliable/useful metric for this eval in our export
+# (exactly 0.25 for 34 of 36 languages).
+metric: acc
+filter: none
+score:
+  scale: 1
+normalize:
+  min: 0.14285714285714285
+  max: 1
+  clip: true
+  basis: uniform_choice
+  note: The OELLM template lists seven topic choices; uniform guessing gives 1/7. The selected field is raw
+    acc, not acc_norm.
+  sources:
+    - https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/custom_lm_eval_tasks/sib200/_default_template_yaml
+languages:
+  - language: sqi_Latn
+    scope: single
+    tasks: [sib200_als_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: bos_Latn
+    scope: single
+    tasks: [sib200_bos_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: bul_Cyrl
+    scope: single
+    tasks: [sib200_bul_Cyrl]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: cat_Latn
+    scope: single
+    tasks: [sib200_cat_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: ces_Latn
+    scope: single
+    tasks: [sib200_ces_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: dan_Latn
+    scope: single
+    tasks: [sib200_dan_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: deu_Latn
+    scope: single
+    tasks: [sib200_deu_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: ell_Grek
+    scope: single
+    tasks: [sib200_ell_Grek]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: eng_Latn
+    scope: single
+    tasks: [sib200_eng_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: est_Latn
+    scope: single
+    tasks: [sib200_est_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: eus_Latn
+    scope: single
+    tasks: [sib200_eus_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: fin_Latn
+    scope: single
+    tasks: [sib200_fin_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: fra_Latn
+    scope: single
+    tasks: [sib200_fra_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: gle_Latn
+    scope: single
+    tasks: [sib200_gle_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: glg_Latn
+    scope: single
+    tasks: [sib200_glg_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: hrv_Latn
+    scope: single
+    tasks: [sib200_hrv_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: hun_Latn
+    scope: single
+    tasks: [sib200_hun_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: isl_Latn
+    scope: single
+    tasks: [sib200_isl_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: ita_Latn
+    scope: single
+    tasks: [sib200_ita_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: kat_Geor
+    scope: single
+    tasks: [sib200_kat_Geor]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: lit_Latn
+    scope: single
+    tasks: [sib200_lit_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: lav_Latn
+    scope: single
+    tasks: [sib200_lvs_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: mkd_Cyrl
+    scope: single
+    tasks: [sib200_mkd_Cyrl]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: mlt_Latn
+    scope: single
+    tasks: [sib200_mlt_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: nld_Latn
+    scope: single
+    tasks: [sib200_nld_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: nor_Latn
+    scope: single
+    tasks: [sib200_nob_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: pol_Latn
+    scope: single
+    tasks: [sib200_pol_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: por_Latn
+    scope: single
+    tasks: [sib200_por_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: ron_Latn
+    scope: single
+    tasks: [sib200_ron_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: slk_Latn
+    scope: single
+    tasks: [sib200_slk_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: slv_Latn
+    scope: single
+    tasks: [sib200_slv_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: spa_Latn
+    scope: single
+    tasks: [sib200_spa_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: srp_Cyrl
+    scope: single
+    tasks: [sib200_srp_Cyrl]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: swe_Latn
+    scope: single
+    tasks: [sib200_swe_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: tur_Latn
+    scope: single
+    tasks: [sib200_tur_Latn]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.
+  - language: ukr_Cyrl
+    scope: single
+    tasks: [sib200_ukr_Cyrl]
+    evidence: https://huggingface.co/datasets/Davlan/sib200
+    note: Dataset language resolved from the OELLM task registry and benchmark configuration.

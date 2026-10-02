@@ -1,0 +1,23 @@
+name: AMC23
+category: Reasoning
+match:
+  name: AMC23
+metric: accuracy_avg
+filter: ''
+score:
+  scale: 1
+normalize:
+  min: 0
+  max: 1
+  clip: true
+  basis: not_applicable
+  note: This evaluator supplies open-ended questions with answer options removed. The original contest five-choice
+    baseline does not apply to this prompt.
+  sources:
+    - https://github.com/mlfoundations/evalchemy/blob/6ed674159b37f740f2353a86f596f49f6ac13c19/eval/chat_benchmarks/AMC23/data/amc23.json
+languages:
+  - language: eng_Latn
+    scope: single
+    tasks: [AMC23]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Original English benchmark variant; language is the prompt/question language.

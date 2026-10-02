@@ -76,6 +76,26 @@ Child contributions sum to the parent's contribution. For nodes with positive ef
 
 Reports are dictionaries with attribute access for top-level fields. Nested records are ordinary dictionaries and lists. Use `json.dumps(report, allow_nan=False)` to serialize one; no custom encoder is needed. Renderers can format or reorder nodes without reconstructing the calculation.
 
+## Load the repository’s per-eval files
+
+Use the same manifest as the dashboard build:
+
+```python
+config = load_config(
+    catalogue="configs/catalogue.yaml",
+    weights="configs/weights/oellm.yaml",
+    eval_set="configs/sets/any-available.yaml",
+)
+```
+
+The loader reads each eval file from the manifest’s `evals_dir`, resolves relative
+paths beside that manifest, and validates the combined catalogue. Each eval file
+contains its own language assignments. The returned `config["catalogue"]` is a
+complete in-memory catalogue, so later analysis does not access those files.
+Existing single-file catalogues remain supported. When passing a dictionary
+instead of a filename, supply the complete catalogue; a filesystem manifest needs
+a filename to resolve its directory. See [editing an eval](configuration.md#edit-one-eval).
+
 ## Surface warnings
 
 By default, `analyze()` and `compare()` emit a `QuickdashWarning` through Python's standard `warnings` mechanism for each grouped diagnostic. Warnings normally appear on stderr. Each warning object has a `.diagnostic` attribute containing its structured record. The same diagnostics are retained in `report.diagnostics`, separately from the tree.

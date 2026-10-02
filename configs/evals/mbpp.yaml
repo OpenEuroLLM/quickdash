@@ -1,0 +1,22 @@
+name: MBPP
+category: Code
+match:
+  name: mbpp
+metric: pass_at_1
+filter: none
+score:
+  scale: 1
+normalize:
+  min: 0
+  max: 1
+  clip: true
+  basis: not_applicable
+  note: Generated code is graded by tests; there is no benchmark-defined random-program baseline.
+  sources:
+    - https://github.com/google-research/google-research/tree/master/mbpp
+languages:
+  - language: eng_Latn
+    scope: single
+    tasks: [mbpp]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Original English benchmark variant; language is the prompt/question language.

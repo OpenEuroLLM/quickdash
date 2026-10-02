@@ -1,0 +1,22 @@
+name: GPQA Diamond
+category: Knowledge
+match:
+  name: GPQADiamond
+metric: accuracy_avg
+filter: ''
+score:
+  scale: 1
+normalize:
+  min: 0.25
+  max: 1
+  clip: true
+  basis: uniform_choice
+  note: The evaluator constructs four options and extracts A/B/C/D; uniform valid-letter guessing gives 1/4.
+  sources:
+    - https://github.com/mlfoundations/evalchemy/blob/6ed674159b37f740f2353a86f596f49f6ac13c19/eval/chat_benchmarks/GPQADiamond/eval_instruct.py
+languages:
+  - language: eng_Latn
+    scope: single
+    tasks: [GPQADiamond]
+    evidence: https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/task-groups.yaml
+    note: Original English benchmark variant; language is the prompt/question language.
