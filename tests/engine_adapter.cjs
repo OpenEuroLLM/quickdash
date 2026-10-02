@@ -5,6 +5,6 @@ function run(c){try{
  const config=c.yaml?{catalogue:E.parseCatalogue(c.yaml.catalogue),profile:S.parseWeightProfile(c.yaml.profile),suite:S.parseSuite(c.yaml.suite)}:c.config;
  if(Object.hasOwn(c,'eval_definitions'))config.catalogue=E.assembleCatalogue(config.catalogue,c.eval_definitions);
  const rows=c.csv!==undefined?E.parseCSV(c.csv):c.rows;
- return {value:c.operation==='compare'?A.compare(rows,config,c.a||'A',c.b||'B'):A.analyze(rows,config)};
+ return {value:c.operation==='compare'?A.compare(rows,config,c.a||'A',c.b||'B',c.matching||'strict'):A.analyze(rows,config,c.matching||'strict')};
 }catch(error){return {error:true,message:error.message};}}
 process.stdout.write(JSON.stringify(JSON.parse(fs.readFileSync(0,'utf8')).map(run)));

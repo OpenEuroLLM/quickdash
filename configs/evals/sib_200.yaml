@@ -5,7 +5,8 @@ match:
 # Use acc: acc_norm is not a reliable/useful metric for this eval in our export
 # (exactly 0.25 for 34 of 36 languages).
 metric: acc
-filter: none
+metric_filter: none
+shots: 0
 score:
   scale: 1
 normalize:

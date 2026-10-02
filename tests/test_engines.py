@@ -27,7 +27,7 @@ def fixture():
                 category="C",
                 match={"regex": "e_.+"},
                 metric="acc",
-                filter="none",
+                metric_filter="none",
                 score={"scale": 1},
                 normalize={"min": 0.25, "max": 1},
             )
@@ -83,10 +83,17 @@ def native(c):
         rows = parse_csv(c["csv"]) if "csv" in c else c["rows"]
         value = (
             compare(
-                rows, cfg, a=c.get("a", "A"), b=c.get("b", "B"), diagnostics="collect"
+                rows,
+                cfg,
+                a=c.get("a", "A"),
+                b=c.get("b", "B"),
+                diagnostics="collect",
+                matching=c.get("matching", "strict"),
             )
             if c.get("operation") == "compare"
-            else analyze(rows, cfg, diagnostics="collect")
+            else analyze(
+                rows, cfg, diagnostics="collect", matching=c.get("matching", "strict")
+            )
         )
         return {"value": value}
     except ValueError as error:
@@ -354,6 +361,413 @@ class Engines(unittest.TestCase):
                 self.assertNotIn("error", result)
                 self.assertAlmostEqual(result["value"]["models"][0]["score"], score)
 
+    def test_relaxed_fewshot_selection_and_warnings(self):
+        c = fixture()
+        c["catalogue"]["evals"][0]["shots"] = 5
+        rr = [row(n_shot="5"), row(checkpoint="B", n_shot="0", value=".4")]
+        case = dict(config=c, rows=rr, operation="compare", matching="relaxed")
+        for result in self.both([case])[0]:
+            self.assertNotIn("error", result)
+            r = result["value"]
+            self.assertAlmostEqual(r["delta"], 30)
+            self.assertTrue(r["inconsistent"])
+            self.assertEqual(r["b"]["measurements"][0]["n_shot"], "0")
+            self.assertEqual(
+                r["deltas"][0]["measurement_b"], r["b"]["measurements"][0]["id"]
+            )
+            warnings = [
+                d for d in r["diagnostics"] if d["code"] == "relaxed_shot_setting"
+            ]
+            self.assertEqual(
+                [
+                    (d["model"], d["expected_shots"], d["actual_shots"])
+                    for d in warnings
+                ],
+                [("B", 5, 0)],
+            )
+        for result in self.both([{**case, "matching": "strict"}])[0]:
+            self.assertIsNone(result["value"]["delta"])
+            self.assertFalse(result["value"]["inconsistent"])
+        # Exact settings win, irrespective of score; an unused alternative's value is not validated.
+        more = rr + [
+            row(checkpoint="B", n_shot="5", value=".55"),
+            row(checkpoint="B", n_shot="1", value="NaN"),
+        ]
+        for result in self.both([{**case, "rows": more}])[0]:
+            self.assertNotIn("error", result)
+            r = result["value"]
+            self.assertAlmostEqual(r["delta"], 10)
+            self.assertFalse(r["inconsistent"])
+            self.assertEqual(
+                [m["n_shot"] for m in r["b"]["measurements"] if m["included"]], ["5"]
+            )
+        for result in self.both(
+            [{**case, "rows": rr + [row(checkpoint="B", n_shot="3", value=".7")]}]
+        )[0]:
+            self.assertEqual(
+                [
+                    m["n_shot"]
+                    for m in result["value"]["b"]["measurements"]
+                    if m["included"]
+                ],
+                ["3"],
+            )
+        tie = [rr[0], row(checkpoint="B", n_shot="3"), row(checkpoint="B", n_shot="7")]
+        for result in self.both([{**case, "rows": tie}])[0]:
+            self.assertIsNone(result["value"]["delta"])
+            self.assertIn(
+                "ambiguous_shot_setting",
+                {d["code"] for d in result["value"]["diagnostics"]},
+            )
+        for field, value in [
+            ("filter", "other"),
+            ("metric", "other"),
+            ("harness", "other"),
+            ("backend", "other"),
+        ]:
+            bad = deepcopy(rr)
+            bad[1][field] = value
+            for result in self.both([{**case, "rows": bad}])[0]:
+                self.assertIsNone(result["value"]["delta"])
+                self.assertNotIn(
+                    "relaxed_shot_setting",
+                    {d["code"] for d in result["value"]["diagnostics"]},
+                )
+        for result in self.both([{**case, "matching": "best_score"}])[0]:
+            self.assertIn("error", result)
+        for result in self.both([{**case, "operation": "analyze"}])[0]:
+            self.assertEqual(len(result["value"]["models"]), 2)
+            self.assertTrue(result["value"]["inconsistent"])
+        # An eval without an expected shot setting retains strict A/B matching.
+        unpinned = fixture()
+        for result in self.both([{**case, "config": unpinned}])[0]:
+            self.assertIsNone(result["value"]["delta"])
+        # Required task coverage comes from the set; expected shots come from the catalogue.
+        fixed = deepcopy(c)
+        fixed["suite"] = dict(
+            version=1,
+            name="Required",
+            mode="fixed",
+            evals=[dict(name="E", variants=[dict(task="e_en")])],
+        )
+        for result in self.both([{**case, "config": fixed}])[0]:
+            self.assertTrue(result["value"]["coverage"]["complete"])
+            self.assertEqual(result["value"]["coverage"]["sharedRequired"], 1)
+        for result in self.both([{**case, "a": "B", "b": "A"}])[0]:
+            self.assertAlmostEqual(result["value"]["delta"], -30)
+
+    def test_relaxed_matching_preserves_component_protocols_and_validation(self):
+        c = fixture()
+        e = c["catalogue"]["evals"][0]
+        e["shots"] = 5
+        e["aggregation"] = {
+            "components": [
+                dict(name=n, match={"name": "e_" + n}, relative_weight=i + 1)
+                for i, n in enumerate(["low", "high"])
+            ]
+        }
+        c["catalogue"]["languages"] = [
+            dict(tasks=["e_low", "e_high"], language="eng_Latn", scope="single")
+        ]
+        rr = [
+            row("e_" + n, n_shot=shots, checkpoint=model)
+            for model, shots in [("A", "5"), ("B", "0")]
+            for n in ["low", "high"]
+        ]
+        case = dict(config=c, rows=rr, operation="compare", matching="relaxed")
+        for result in self.both([case])[0]:
+            self.assertNotIn("error", result)
+            self.assertEqual(result["value"]["delta"], 0)
+            self.assertTrue(result["value"]["inconsistent"])
+            self.check_tree(result["value"]["b"]["tree"])
+        split = deepcopy(rr)
+        split[-1]["n_shot"] = "5"
+        for rows in [split, rr[:-1]]:
+            for result in self.both([{**case, "rows": rows}])[0]:
+                self.assertNotIn("error", result)
+                self.assertIsNone(result["value"]["delta"])
+                self.assertFalse(result["value"]["inconsistent"])
+                self.assertIn(
+                    "incomplete_components",
+                    {d["code"] for d in result["value"]["diagnostics"]},
+                )
+        bad = deepcopy(rr)
+        bad[-1]["value"] = "NaN"
+        for rows in [bad, rr + [dict(rr[-1])]]:
+            for result in self.both([{**case, "rows": rows}])[0]:
+                self.assertIn("error", result)
+
+    def test_eval_set_defaults_overrides_and_language_exclusions(self):
+        c = fixture()
+        c["catalogue"]["evals"][0]["shots"] = 5
+        c["catalogue"]["languages"].append(
+            dict(tasks=["e_ka"], scope="single", language="kat_Geor")
+        )
+        c["suite"] = dict(
+            version=1,
+            name="Required",
+            mode="fixed",
+            exclude_languages=["kat_Geor"],
+            evals=[dict(name="E", shots=0, metric="acc_norm", metric_filter="")],
+        )
+        rr = paired(
+            [row(t, metric="acc_norm", filter="") for t in ["e_en", "e_fr", "e_ka"]]
+        )
+        before = deepcopy(c)
+        for result in self.both([dict(config=c, rows=rr, operation="compare")])[0]:
+            self.assertNotIn("error", result)
+            r = result["value"]
+            self.assertEqual(r["coverage"]["required"], 2)
+            self.assertTrue(r["coverage"]["complete"])
+            self.assertEqual(r["a"]["score"], 50)
+            self.assertEqual(
+                {m["task"] for m in r["a"]["measurements"] if m["included"]},
+                {"e_en", "e_fr"},
+            )
+            self.assertEqual({d["code"] for d in r["diagnostics"]}, {"not_used"})
+        self.assertEqual(c, before, "Resolution must not mutate inputs")
+        c["suite"]["evals"][0]["exclude_languages"] = ["eng_Latn"]
+        cases = [dict(config=deepcopy(c), rows=rr, operation="compare")]
+        # Missing excluded data is not a missing requirement.
+        cases.append(
+            dict(
+                config=deepcopy(c),
+                rows=[r for r in rr if r["task"] == "e_fr"],
+                operation="compare",
+            )
+        )
+        # Relaxation applies after the effective override, preserving actual identities.
+        changed = [{**r, "n_shot": "3"} if r["checkpoint"] == "B" else r for r in rr]
+        cases.append(
+            dict(
+                config=deepcopy(c),
+                rows=changed,
+                operation="compare",
+                matching="relaxed",
+            )
+        )
+        for i, results in enumerate(self.both(cases)):
+            for result in results:
+                r = result["value"]
+                self.assertTrue(r["coverage"]["complete"])
+                self.assertEqual(r["coverage"]["required"], 1)
+                self.assertEqual(
+                    [m["task"] for m in r["a"]["measurements"] if m["included"]],
+                    ["e_fr"],
+                )
+                if i == 2:
+                    d = next(
+                        d
+                        for d in r["diagnostics"]
+                        if d["code"] == "relaxed_shot_setting"
+                    )
+                    self.assertEqual((d["expected_shots"], d["actual_shots"]), (0, 3))
+        # Removing an included language must warn even though another language exists.
+        c["suite"]["evals"][0].pop("exclude_languages")
+        for result in self.both(
+            [
+                dict(
+                    config=c,
+                    rows=paired([row(metric="acc_norm", filter="")]),
+                    operation="compare",
+                )
+            ]
+        )[0]:
+            self.assertFalse(result["value"]["coverage"]["complete"])
+            self.assertIn(
+                "missing_suite_data",
+                {d["code"] for d in result["value"]["diagnostics"]},
+            )
+        # Metric mismatches are never relaxed.
+        for result in self.both(
+            [
+                dict(
+                    config=c,
+                    rows=paired([row()]),
+                    operation="compare",
+                    matching="relaxed",
+                )
+            ]
+        )[0]:
+            self.assertIsNone(result["value"]["a"]["score"])
+            self.assertIn(
+                "missing_scoring_field",
+                {d["code"] for d in result["value"]["diagnostics"]},
+            )
+
+    def test_required_inventory_unicode_order(self):
+        c = fixture()
+        tasks = ["e_😀", "e_\ue000", "e_fr"]
+        c["catalogue"]["languages"] = [
+            dict(tasks=tasks, scope="single", language="fra_Latn")
+        ]
+        c["suite"] = dict(
+            version=1, name="Required", mode="fixed", evals=[dict(name="E")]
+        )
+        for result in self.both([dict(config=c, rows=[row("e_fr")])])[0]:
+            self.assertEqual(
+                [v["task"] for v in result["value"]["coverage"][0]["missing"]],
+                sorted(tasks[:2]),
+            )
+
+    def test_eval_set_reference_errors(self):
+        base = fixture()
+        base["suite"] = dict(
+            version=1, name="Required", mode="fixed", evals=[dict(name="E")]
+        )
+        bad = []
+        for patch in [
+            dict(name="Typo"),
+            dict(exclude_languages=["deu_Latn"]),
+            dict(shots=-1),
+            dict(shots=True),
+            dict(metric=""),
+            dict(metric_filter=None),
+            dict(filter="none"),
+            dict(variants=[dict(task="e_typo")]),
+        ]:
+            c = deepcopy(base)
+            c["suite"]["evals"][0].update(patch)
+            bad.append(c)
+        c = deepcopy(base)
+        c["suite"]["exclude_languages"] = ["kat_Geor"]
+        bad.append(c)
+        c = deepcopy(base)
+        c["suite"]["exclude_languages"] = ["eng_Latn", "eng_Latn"]
+        bad.append(c)
+        c = fixture()
+        c["suite"]["exclude"] = ["Typo"]
+        bad.append(c)
+        for outputs in self.both([dict(config=c, rows=paired([row()])) for c in bad]):
+            for result in outputs:
+                self.assertIn("error", result)
+
+    def test_eval_set_translation_exclusions_and_empty_selection(self):
+        c = fixture()
+        c["catalogue"]["languages"] = [
+            dict(
+                tasks=["e_to_ka"],
+                scope="translation",
+                source_language="eng_Latn",
+                target_language="kat_Geor",
+            ),
+            dict(
+                tasks=["e_from_ka"],
+                scope="translation",
+                source_language="kat_Geor",
+                target_language="eng_Latn",
+            ),
+            dict(tasks=["e_fr"], scope="single", language="fra_Latn"),
+        ]
+        rr = paired([row(t) for t in ["e_to_ka", "e_from_ka", "e_fr"]])
+        cases = []
+        for mode in ["fixed", "available"]:
+            s = dict(
+                version=1, name="Excluded", mode=mode, exclude_languages=["kat_Geor"]
+            )
+            if mode == "fixed":
+                s["evals"] = [dict(name="E")]
+            c["suite"] = s
+            cases.append(dict(config=deepcopy(c), rows=rr, operation="compare"))
+            c["suite"]["exclude_languages"].append("fra_Latn")
+            cases.append(dict(config=deepcopy(c), rows=rr, operation="compare"))
+        for i, results in enumerate(self.both(cases)):
+            for result in results:
+                r = result["value"]
+                self.assertEqual(
+                    [m["task"] for m in r["a"]["measurements"] if m["included"]],
+                    [] if i % 2 else ["e_fr"],
+                )
+                self.assertNotIn(
+                    "missing_suite_data", {d["code"] for d in r["diagnostics"]}
+                )
+                if i % 2:
+                    self.assertIsNone(r["a"]["score"])
+
+    def test_eval_set_inheritance_and_component_language_exclusions(self):
+        c = fixture()
+        e = c["catalogue"]["evals"][0]
+        e["shots"] = 5
+        e["aggregation"] = {
+            "components": [
+                dict(name=n, match={"regex": "e_.+_" + n}, relative_weight=i + 1)
+                for i, n in enumerate(["low", "high"])
+            ]
+        }
+        c["catalogue"]["languages"] = [
+            dict(
+                tasks=["e_" + lang + "_low", "e_" + lang + "_high"],
+                language=code,
+                scope="single",
+            )
+            for lang, code in [("en", "eng_Latn"), ("fr", "fra_Latn")]
+        ]
+        c["suite"] = dict(
+            version=1,
+            name="Required",
+            mode="fixed",
+            evals=[dict(name="E", exclude_languages=["fra_Latn"])],
+        )
+        rr = paired(
+            [
+                row("e_" + lang + "_" + part, n_shot="5", value=value)
+                for lang in ["en", "fr"]
+                for part, value in [("low", ".25"), ("high", "1")]
+            ]
+        )
+        for result in self.both([dict(config=c, rows=rr, operation="compare")])[0]:
+            r = result["value"]
+            self.assertEqual(r["coverage"]["required"], 2)
+            self.assertTrue(r["coverage"]["complete"])
+            self.assertAlmostEqual(r["a"]["score"], 200 / 3)
+            self.assertEqual({d["code"] for d in r["diagnostics"]}, {"not_used"})
+        # Explicit membership may not slice a required component group.
+        c["suite"]["evals"][0]["variants"] = [dict(task="e_en_low")]
+        for result in self.both([dict(config=c, rows=rr)])[0]:
+            self.assertIn("error", result)
+
+    def test_flagship_exclusions_are_set_policy(self):
+        config = load_config(
+            catalogue=ROOT / "configs/catalogue.yaml",
+            weights=ROOT / "configs/weights/oellm.yaml",
+            eval_set=ROOT / "configs/sets/flagship-1.yaml",
+        )
+        rows = parse_csv((ROOT / "examples/sample-evals.csv").read_text())
+        report = analyze(rows, config, matching="relaxed", diagnostics="collect")
+        records = report.models[0]["measurements"]
+        georgian = [
+            r
+            for r in records
+            if "kat_Geor"
+            in [
+                r["language"].get(k)
+                for k in ("language", "source_language", "target_language")
+            ]
+        ]
+        self.assertTrue(georgian)
+        self.assertTrue(all(not r["included"] for r in georgian))
+        self.assertTrue(
+            all(not r["included"] for r in records if r["task"] == "xcsqa_eng_Latn")
+        )
+        config["suite"] = dict(version=1, name="Available", mode="available")
+        free = analyze(rows, config, matching="relaxed", diagnostics="collect")
+        included = {r["task"] for r in free.models[0]["measurements"] if r["included"]}
+        excluded_tasks = ({r["task"] for r in georgian} | {"xcsqa_eng_Latn"}) & included
+        self.assertTrue(excluded_tasks)
+        self.assertIn("xcsqa_eng_Latn", excluded_tasks)
+        warned = {
+            t for d in report.diagnostics if d["code"] == "not_used" for t in d["tasks"]
+        }
+        self.assertTrue(excluded_tasks <= warned)
+        self.assertFalse(
+            excluded_tasks.intersection(
+                t
+                for d in report.diagnostics
+                if d["code"] == "missing_suite_data"
+                for t in d["tasks"]
+            )
+        )
+
     def test_published_sample_across_all_shipped_configs(self):
         # Discover files so adding a profile or set automatically extends parity coverage.
         rows = parse_csv((ROOT / "examples/sample-evals.csv").read_text())
@@ -401,6 +815,11 @@ class Engines(unittest.TestCase):
                                 b=b,
                             ),
                         ]
+                        cases = [
+                            {**case, "matching": matching}
+                            for matching in ("strict", "relaxed")
+                            for case in cases
+                        ]
                         for outputs in self.both(cases):
                             for result in outputs:
                                 self.assertNotIn("error", result)
@@ -422,7 +841,7 @@ class Engines(unittest.TestCase):
                 category="C",
                 match={"name": "f_en"},
                 metric="acc",
-                filter="none",
+                metric_filter="none",
                 score={"scale": 1},
             )
         )
@@ -665,7 +1084,7 @@ class Engines(unittest.TestCase):
                             category=category,
                             match={"regex": name + "_.+"},
                             metric="acc",
-                            filter="none",
+                            metric_filter="none",
                             score={"scale": 1},
                         )
                     )
@@ -854,7 +1273,7 @@ evals:
     category: C
     match: {name: e_en}
     metric: acc
-    filter: none
+    metric_filter: none
     score: {scale: 1}
 languages: []
 notes:
@@ -989,7 +1408,7 @@ notes:
                 category="Other",
                 match={"name": "unused"},
                 metric="acc",
-                filter="none",
+                metric_filter="none",
                 score={"scale": 1},
                 warning="Unused caveat",
             )
@@ -1048,7 +1467,7 @@ evals:
     category: C
     match: {name: e_en}
     metric: acc
-    filter: none
+    metric_filter: none
     score: {scale: 1}
     normalize: {min: TOKEN, max: 1}
 languages: []
@@ -1128,7 +1547,7 @@ languages: []
                 category="1",
                 match={"name": "other"},
                 metric="acc",
-                filter="none",
+                metric_filter="none",
                 score={"scale": 1},
             )
         )

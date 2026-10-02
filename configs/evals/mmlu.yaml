@@ -5,7 +5,8 @@ match:
 select:
   name: mmlu
 metric: acc
-filter: none
+metric_filter: none
+shots: 5
 score:
   scale: 1
 normalize:

@@ -3,7 +3,8 @@ category: Reasoning
 match:
   name: agieval_lsat_ar
 metric: acc_norm
-filter: none
+metric_filter: none
+shots: 3
 score:
   scale: 1
 normalize:

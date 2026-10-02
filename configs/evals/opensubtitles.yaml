@@ -3,7 +3,8 @@ category: Translation
 match:
   regex: opensubtitles_.+
 metric: chrf
-filter: none
+metric_filter: none
+shots: 0
 score:
   scale: 100
 normalize:

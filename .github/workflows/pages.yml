@@ -63,7 +63,7 @@ jobs:
           python3 -m app.build --results-dir results --sample-csv examples/sample-evals.csv \
             --output output/shared > "$RUNNER_TEMP/quickdash-shared.json"
           python3 -m app.build examples/scores.csv --catalogue configs/examples/catalogue.yaml \
-            --weights configs/examples/weights.yaml --eval-set configs/sets/any-available.yaml \
+            --weights configs/examples/weights.yaml --eval-set configs/examples/eval-set.yaml \
             --output output/demo > "$RUNNER_TEMP/quickdash-demo.json"
           mkdir -p output/site
           cp output/shared/index.html output/site/index.html

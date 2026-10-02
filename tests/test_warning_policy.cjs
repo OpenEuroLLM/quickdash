@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const {auditRows}=require('../app/eval_config.js');
 const {compare,comparisonCoverage,totals}=require('../app/analysis.js');
 const {resolveConfig,suiteCoverage}=require('../app/suite_config.js');
-const catalogue=()=>({version:1,name:'Rules',evals:['E','F'].map(name=>({name,category:'C',match:{name:name.toLowerCase()},metric:'acc_norm',filter:'none',score:{scale:1},warning:name+' caveat'})),languages:[{tasks:['e','f'],scope:'single',language:'eng_Latn'}]});
+const catalogue=()=>({version:1,name:'Rules',evals:['E','F'].map(name=>({name,category:'C',match:{name:name.toLowerCase()},metric:'acc_norm',metric_filter:'none',score:{scale:1},warning:name+' caveat'})),languages:[{tasks:['e','f'],scope:'single',language:'eng_Latn'}]});
 const profile={version:1,name:'Weights',weights:{C:1}};
 const available={version:1,name:'Any available',mode:'available'};
 const fixed={version:1,name:'Required',mode:'fixed',evals:[{name:'E'},{name:'F'}]};
@@ -53,11 +53,11 @@ test('a caveat is not advertised for an eval excluded by A/B coverage',()=>{
  const r=run([row(),row('f')],[row()]);
  assert.deepEqual(r.warnings.filter(w=>w.type==='Config caveat').map(w=>w.name),['E']);
 });
-test('available-mode exclusions are explicit, validated, and portable across catalogues',()=>{
+test('available-mode exclusions reject unknown catalogue names',()=>{
  const {validateSuite}=require('../app/suite_config.js');
  for(const exclude of [null,'E',['E','E'],[''],[1]])assert.throws(()=>validateSuite({...available,exclude}));
  assert.throws(()=>validateSuite({...fixed,exclude:['E']}));
- assert.doesNotThrow(()=>resolveConfig(catalogue(),{...available,exclude:['Absent from this catalogue']},profile));
+ assert.throws(()=>resolveConfig(catalogue(),{...available,exclude:['Absent from this catalogue']},profile),/no catalogue rule/);
  const r=run([row()],[row()],{...available,exclude:['E','F']});
  assert.equal(r.score,null);assert.equal(r.coverage.pairs.length,0);
  assert.equal(r.warnings.filter(w=>w.type==='Not used').length,2);

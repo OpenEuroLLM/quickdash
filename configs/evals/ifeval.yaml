@@ -3,7 +3,8 @@ category: Instruction following
 match:
   name: ifeval
 metric: prompt_level_strict_acc
-filter: none
+metric_filter: none
+shots: 0
 score:
   scale: 1
 normalize:

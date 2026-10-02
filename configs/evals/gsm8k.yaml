@@ -3,7 +3,8 @@ category: Math
 match:
   name: gsm8k
 metric: exact_match
-filter: flexible-extract
+metric_filter: flexible-extract
+shots: 4
 score:
   scale: 1
 normalize:

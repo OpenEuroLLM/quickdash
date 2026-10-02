@@ -3,7 +3,8 @@ category: Code
 match:
   name: HumanEval
 metric: python_pass@1
-filter: ''
+metric_filter: ''
+shots: 0
 score:
   scale: 1
 normalize:

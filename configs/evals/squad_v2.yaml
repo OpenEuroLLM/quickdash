@@ -3,7 +3,8 @@ category: Reading
 match:
   name: squadv2
 metric: f1
-filter: none
+metric_filter: none
+shots: 10
 score:
   scale: 100
 normalize:

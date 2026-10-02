@@ -22,7 +22,7 @@ from quickdash import analyze, compare, load_config, read_results
 config = load_config(
     catalogue="configs/examples/catalogue.yaml",
     weights="configs/examples/weights.yaml",
-    eval_set="configs/sets/any-available.yaml",
+    eval_set="configs/examples/eval-set.yaml",
 )
 results = read_results("examples/scores.csv")
 report = analyze(results, config)
@@ -37,15 +37,15 @@ print(comparison.delta)  # -2.5 score points
 
 `load_config()` accepts paths or configuration dictionaries, validates their combination, and returns a bundle containing `catalogue`, `profile`, and `suite`. It copies supplied dictionaries. Change configurations by loading a new bundle. The analysis functions do not mutate results or configuration inputs.
 
-Omitting `eval_set` means all recognized evals are eligible. To apply the project's explicit exclusions, pass its `configs/sets/any-available.yaml` file, as above. No eval names, language lists, category counts, or component counts are hardcoded into the library.
+Omitting `eval_set` means all recognized evals are eligible. To apply the project's explicit exclusions, pass its `configs/sets/any-available.yaml` file with the project catalogue. Names in exclusions must exist in the active catalogue; the fictional example uses its own neutral set. No eval names, language lists, category counts, or component counts are hardcoded into the library.
 
 `read_results()` accepts a path or a list of paths. It preserves CSV fields as strings and rejects model names repeated across files. Put all measurements for a model in one CSV, or deliberately combine row dictionaries before analysis. The analysis functions also accept lists of row dictionaries directly, with the same required fields and validation as CSV imports.
 
 ## Independent scores and fair comparisons
 
-`analyze(results, config)` scores each model independently on its available, selected measurements. Its top-level fields are `models`, `diagnostics`, and `coverage`.
+`analyze(results, config)` scores each model independently on its available, selected measurements. Its top-level fields are `models`, `diagnostics`, `coverage`, `matching`, and `inconsistent`.
 
-`compare(results, config, a=..., b=...)` first restricts both models to matching valid measurements. It excludes incomplete component groups, including groups made incomplete by intersecting coverage, before redistributing weights. Its fields are `a`, `b`, `delta`, `deltas`, `diagnostics`, and `coverage`. `a` and `b` have the same model-result shape used by `analyze()`.
+`compare(results, config, a=..., b=...)` first restricts both models to matching valid measurements. It excludes incomplete component groups, including groups made incomplete by intersecting coverage, before redistributing weights. Its fields are `a`, `b`, `delta`, `deltas`, `diagnostics`, `coverage`, `matching`, and `inconsistent`. `a` and `b` have the same model-result shape used by `analyze()`.
 
 Do not subtract independent scores to reproduce an A/B comparison: the models may have different coverage. A missing comparison model raises `ValueError`; comparing a model with itself is permitted.
 
@@ -97,6 +97,31 @@ Existing single-file catalogues remain supported. When passing a dictionary
 instead of a filename, supply the complete catalogue; a filesystem manifest needs
 a filename to resolve its directory. See [editing an eval](configuration.md#edit-one-eval).
 
+## Expected settings and relaxed comparisons
+
+Both `analyze()` and `compare()` accept `matching="strict"` (the default) or
+`matching="relaxed"`. They first apply the eval set's optional whole-eval `metric`,
+`metric_filter`, and `shots` overrides to the catalogue defaults. Set-wide and
+per-eval `exclude_languages` remove results from membership and required coverage.
+See the [configuration contract](configuration.md#strict-and-relaxed-matching)
+for selection, ambiguity, and component-group rules.
+
+```python
+comparison = compare(
+    results, config, a="Example A", b="Example B",
+    matching="relaxed", diagnostics="collect",
+)
+print(comparison.matching, comparison.inconsistent)
+```
+
+`matching` records the requested mode. `inconsistent` is true when included
+measurements have an allowed few-shot mismatch. Actual shot counts remain in
+measurement records and IDs. Structured `relaxed_shot_setting` diagnostics contain
+`expected_shots` and `actual_shots`; `ambiguous_shot_setting` has `expected_shots`
+and an `actual_shots` list. Excluded alternatives do not emit an allowed-mismatch
+diagnostic. Configuration errors always raise, including unknown names in set
+requirements or exclusions; missing data for a valid requirement warns instead.
+
 ## Surface warnings
 
 By default, `analyze()` and `compare()` emit a `QuickdashWarning` through Python's standard `warnings` mechanism for each grouped diagnostic. Warnings normally appear on stderr. Each warning object has a `.diagnostic` attribute containing its structured record. The same diagnostics are retained in `report.diagnostics`, separately from the tree.
@@ -119,6 +144,8 @@ The diagnostic contract is `code`, `model`, `eval`, `tasks`, `measurement_ids`, 
 | `no_config`, `not_used` | Unknown eval or data outside the selected set; excluded. |
 | `missing_scoring_field`, `missing_scoring_setting`, `no_selected_score` | Required metric/protocol unavailable; no alternate substitution. |
 | `missing_suite_data` | A named set has missing requirements; available shared results are reweighted. |
+| `relaxed_shot_setting` | A differing shot count is included under relaxed matching; records expected/actual counts. |
+| `ambiguous_shot_setting` | Equally close alternative shot counts; excluded. |
 | `incomplete_components` | A language/protocol group is incomplete or incompatible; the whole group is excluded. |
 | `comparison_coverage` | Measurements cannot participate in shared coverage; excluded from both scores. |
 | `unknown_language` | Ordinary evals use the English weighting fallback; component groups require explicit language assignments. |
@@ -136,9 +163,11 @@ Print calculated trees for the fictional models:
 quickdash examples/scores.csv \
   --catalogue configs/examples/catalogue.yaml \
   --weights configs/examples/weights.yaml \
-  --eval-set configs/sets/any-available.yaml
+  --eval-set configs/examples/eval-set.yaml
 ```
 
 Add `--compare 'Example A' 'Example B'` for shared-coverage scores, or `--format json` for the complete machine-readable report. `python -m quickdash` provides the same command. Warnings go to stderr; stdout contains only the selected result format.
 
 Exit status is 0 for a successful calculation, including recoverable warnings. `--strict` prints warnings and exits 1 without writing a result. Invalid input exits 2. A score can be unavailable when no valid weighted data remains; inspect diagnostics and coverage or use strict mode when warnings must block a workflow.
+
+Use `--matching relaxed` to allow few-shot differences. This is separate from `--strict`, which makes the CLI fail on diagnostics; it does not choose the matching mode.

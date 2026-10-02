@@ -3,7 +3,8 @@ category: Language
 match:
   regex: multiblimp_.+
 metric: acc_norm
-filter: none
+metric_filter: none
+shots: 0
 score:
   scale: 1
 normalize:

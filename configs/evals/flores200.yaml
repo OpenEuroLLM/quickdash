@@ -3,7 +3,8 @@ category: Translation
 match:
   regex: flores200:.+
 metric: chrf++
-filter: rescored
+metric_filter: rescored
+shots: 4
 score:
   scale: 100
 normalize:

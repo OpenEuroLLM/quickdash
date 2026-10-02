@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def config():
     return dict(version=1, name='Fixture', weights={'C': 1}, evals=[dict(
-        name='Eval', category='C', match={'regex': 'task_.+'}, metric='acc', filter='',
+        name='Eval', category='C', match={'regex': 'task_.+'}, metric='acc', metric_filter='',
         score={'scale': 1}, normalize={'min': .25, 'max': 1})],
         languages=[dict(tasks=['task_en'], scope='single', language='eng_Latn')])
 
@@ -40,7 +40,7 @@ def inputs(folder, c=None):
     profile = {k:v for k,v in c.items() if k in ['version','name','weights','english_weights','aggregate']}
     (folder/'catalogue.yaml').write_text(json.dumps(catalogue))
     (folder/'weights.yaml').write_text(json.dumps(profile))
-    return dict(catalogue_path=folder/'catalogue.yaml', weights_path=folder/'weights.yaml', suite_path=ROOT/'configs/sets/any-available.yaml')
+    return dict(catalogue_path=folder/'catalogue.yaml', weights_path=folder/'weights.yaml', suite_path=ROOT/'configs/examples/eval-set.yaml')
 
 
 class DataContracts(unittest.TestCase):

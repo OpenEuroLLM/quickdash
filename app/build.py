@@ -5,7 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 from quickdash.io import load_csv
-from quickdash.config import classify, task_language, load_catalogue, serialize_catalogue, load_profile, load_suite, resolve_config, scope_rows
+from quickdash.config import classify, task_language, load_catalogue, serialize_catalogue, load_profile, load_suite, resolve_config, resolve_inputs, scope_rows
 from quickdash.analysis import totals, component_coverage, diagnostic, analyze
 
 APP = Path(__file__).resolve().parent
@@ -82,7 +82,8 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
             try: resolve_config(catalogue, entry['config'], profile['config'])
             except ValueError as error: raise ValueError(f'{entry["file"]} / {profile["file"]}: {error}') from error
     suite, profile = suites[0]['config'], profiles[0]['config']
-    config = resolve_config(catalogue, suite, profile)
+    resolved = resolve_inputs(catalogue, suite, profile)
+    config, interpretation, selection = (resolved[k] for k in ("scheme", "catalogue", "suite"))
     paths=[source] if source is not None else directory_files(results_dir,{'.csv'}) if results_dir is not None else []
     using_sample = not paths and sample_csv is not None
     if using_sample: paths = [sample_csv]
@@ -90,14 +91,14 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
     for path in paths:
         try:
             rr=load_csv(path)
-            classified=classify(rr,catalogue)
+            classified=classify(rr,interpretation)
         except ValueError as error:raise ValueError(f'{path.name}: {error}') from error
         for model in {r['checkpoint'] for r in rr}:
             if model in owners:raise ValueError(f'Duplicate model name {model!r} in {owners[model]} and {path.name}; combine its results in one file or rename the checkpoint')
             owners[model]=path.name
         rows.extend(rr);audit.extend(classified)
         sources.append(dict(file=path.name,sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
-    scoped = scope_rows(audit, suite)['rows']
+    scoped = scope_rows(audit, selection)['rows']
     identities = {tuple(r[k] for k in ['checkpoint','task','metric','filter','n_shot','harness','backend']) for r in scoped}
     included = {id(r) for r in audit if tuple(r[k] for k in ['checkpoint','task','metric','filter','n_shot','harness','backend']) in identities}
     scoped_audit = [dict(r, selected=r['selected'] and id(r) in included) for r in audit]

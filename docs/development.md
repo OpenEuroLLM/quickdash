@@ -20,7 +20,7 @@ Run commands from the repository root. Install the Python package with `python -
 ```sh
 python3 -m app.build --results-dir results --sample-csv examples/sample-evals.csv --output output/shared
 python3 -m app.build examples/scores.csv --catalogue configs/examples/catalogue.yaml \
-  --weights configs/examples/weights.yaml --eval-set configs/sets/any-available.yaml --output output/demo
+  --weights configs/examples/weights.yaml --eval-set configs/examples/eval-set.yaml --output output/demo
 ```
 
 Open each generated `index.html` in a browser. The shared build embeds the global catalogue, profiles from `configs/weights/`, and sets from `configs/sets/`. Each selector uses its directory's `default.txt`. See the [build flags](configuration.md#build-defaults-and-browser-imports) to supply other inputs.
@@ -36,7 +36,7 @@ python -m unittest tests.test_data tests.test_engines
 node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs
 ```
 
-The shared suite in `tests/test_engines.py` sends the same input cases to native Python and the real browser engine through `tests/engine_adapter.cjs`. Both must satisfy independently specified expectations, then their complete semantic reports are compared. Diagnostic codes, contexts and actions are checked; presentation text is not. Numerical comparison uses absolute tolerance `1e-9` and relative tolerance `1e-12`. Fixtures vary configuration sizes, contents and ordering. Python tests also exercise warning emission and CLI stdout/stderr without Node on PATH.
+The shared suite in `tests/test_engines.py` sends the same input cases to native Python and the real browser engine through `tests/engine_adapter.cjs`. Both must satisfy independently specified expectations, then their complete semantic reports are compared. Diagnostic codes, contexts and actions are checked; presentation text is not. Numerical comparison uses absolute tolerance `1e-9` and relative tolerance `1e-12`. Fixtures vary configuration sizes, contents and ordering. The sample matrix discovers all shipped sets and profiles and exercises every aggregation in both strict and relaxed matching. Shared cases cover override inheritance, language exclusions (including both translation endpoints), invalid references, missing requirements, component completeness, and warning conditions. Browser checks additionally verify effective settings, unchanged catalogue exports, set switching, and failed-import rollback. Python tests also exercise warning emission and CLI stdout/stderr without Node on PATH.
 
 They cover input validation, normalization, warning/exclusion behavior, failed-build preservation, Python/JavaScript parity, hierarchy sorting, and deterministic randomized scoring comparisons against an independent calculation.
 

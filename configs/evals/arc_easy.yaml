@@ -3,7 +3,8 @@ category: Knowledge
 match:
   name: arc_easy
 metric: acc_norm
-filter: none
+metric_filter: none
+shots: 10
 score:
   scale: 1
 normalize:

@@ -3,7 +3,7 @@ const {diagnosticsFor}=require('./diagnostic_fixture.cjs');
 const test=require('node:test'),assert=require('node:assert/strict');
 const {parseCSV,totals,comparisonRows,comparisonCoverage,languageRoles}=require('../app/analysis.js');
 const {auditRows,normalizeScore,validateConfig}=require('../app/eval_config.js');
-const config=()=>({version:1,name:'Fixture',weights:{C:1},evals:[{name:'Eval',category:'C',match:{regex:'task_.+'},metric:'acc',filter:'',score:{scale:1},normalize:{min:.25,max:1}}],languages:[{tasks:['task_en'],scope:'single',language:'eng_Latn'}]});
+const config=()=>({version:1,name:'Fixture',weights:{C:1},evals:[{name:'Eval',category:'C',match:{regex:'task_.+'},metric:'acc',metric_filter:'',score:{scale:1},normalize:{min:.25,max:1}}],languages:[{tasks:['task_en'],scope:'single',language:'eng_Latn'}]});
 const row=(patch={})=>({checkpoint:'Model A',task:'task_en',metric:'acc',filter:'',n_shot:'0',harness:'test',backend:'cpu',value:'.625',...patch});
 const close=(a,b)=>{assert.ok(Number.isFinite(a)&&Number.isFinite(b));assert.ok(Math.abs(a-b)<1e-9,`${a} != ${b}`);};
 

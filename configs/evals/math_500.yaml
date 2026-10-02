@@ -3,7 +3,8 @@ category: Math
 match:
   name: MATH500
 metric: accuracy
-filter: ''
+metric_filter: ''
+shots: 0
 score:
   scale: 1
 normalize:

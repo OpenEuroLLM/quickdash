@@ -204,7 +204,7 @@ def validate_rules(config):
                 "category",
                 "match",
                 "metric",
-                "filter",
+                "metric_filter",
                 "shots",
                 "select",
                 "score",
@@ -212,7 +212,7 @@ def validate_rules(config):
                 "warning",
                 "aggregation",
             },
-            {"name", "category", "match", "metric", "filter", "score"},
+            {"name", "category", "match", "metric", "metric_filter", "score"},
         )
         if not isinstance(e["name"], str) or not e["name"] or e["name"] in names:
             raise ValueError("Eval names must be unique and nonempty")
@@ -223,7 +223,7 @@ def validate_rules(config):
         if (
             not isinstance(e["metric"], str)
             or not e["metric"]
-            or not isinstance(e["filter"], str)
+            or not isinstance(e["metric_filter"], str)
         ):
             raise ValueError("Metric and filter must be strings")
         validate_match(e["match"])
@@ -494,9 +494,9 @@ def classify(rows, config):
             )
         elif r["metric"] != e["metric"]:
             decision = "Alternate metric; using " + e["metric"]
-        elif r["filter"] != e["filter"]:
+        elif r["filter"] != e["metric_filter"]:
             decision = "Alternate extraction filter; using " + (
-                e["filter"] or "(empty)"
+                e["metric_filter"] or "(empty)"
             )
         elif "shots" in e and str(r["n_shot"]) != str(int(e["shots"])):
             decision = (
@@ -690,10 +690,26 @@ def validate_aggregation_config(config):
     return config
 
 
+def validate_language_exclusions(value):
+    if "exclude_languages" in value:
+        languages = value["exclude_languages"]
+        if (
+            not isinstance(languages, list)
+            or any(
+                not isinstance(x, str) or not LANGUAGE_CODE.fullmatch(x)
+                for x in languages
+            )
+            or len(set(languages)) != len(languages)
+        ):
+            raise ValueError(
+                "exclude_languages must be unique canonical language codes"
+            )
+
+
 def validate_suite(s):
     object_keys(
         s,
-        {"version", "name", "mode", "evals", "exclude", "notes"},
+        {"version", "name", "mode", "evals", "exclude", "exclude_languages", "notes"},
         {"version", "name", "mode"},
     )
     if (
@@ -717,6 +733,7 @@ def validate_suite(s):
         or len(set(s["exclude"])) != len(s["exclude"])
     ):
         raise ValueError("Invalid exclusions")
+    validate_language_exclusions(s)
     if s["mode"] == "available":
         if "evals" in s:
             raise ValueError("Available mode does not declare required evals")
@@ -725,7 +742,31 @@ def validate_suite(s):
         raise ValueError("Fixed suite needs required evals")
     names = set()
     for e in s["evals"]:
-        object_keys(e, {"name", "variants"}, {"name"})
+        object_keys(
+            e,
+            {
+                "name",
+                "variants",
+                "metric",
+                "metric_filter",
+                "shots",
+                "exclude_languages",
+            },
+            {"name"},
+        )
+        validate_language_exclusions(e)
+        if "metric" in e and (
+            not isinstance(e["metric"], str) or not e["metric"].strip()
+        ):
+            raise ValueError("metric must be nonempty text")
+        if "metric_filter" in e and not isinstance(e["metric_filter"], str):
+            raise ValueError("metric_filter must be text")
+        if "shots" in e and (
+            not number(e["shots"])
+            or int(e["shots"]) != e["shots"]
+            or not 0 <= e["shots"] <= 2**53 - 1
+        ):
+            raise ValueError("shots must be a nonnegative integer")
         if (
             not isinstance(e["name"], str)
             or not e["name"].strip()
@@ -801,44 +842,127 @@ def validate_profile(p):
     return p
 
 
-def resolve_config(catalogue, suite, profile):
+def catalogue_tasks(catalogue, e):
+    """Known concrete tasks, independent of which model results happen to be loaded."""
+    tasks = {t for g in catalogue["languages"] for t in g["tasks"]}
+    if "name" in e["match"]:
+        tasks.add(e["match"]["name"])
+    return sorted(
+        t
+        for t in tasks
+        if match_task(e["match"], t) is not None
+        and ("select" not in e or match_task(e["select"], t) is not None)
+    )
+
+
+def effective_catalogue(catalogue, suite):
+    """Apply whole-eval overrides without changing the global interpretation rules."""
     validate_catalogue(catalogue)
     validate_suite(suite)
-    validate_profile(profile)
-    evals = catalogue["evals"]
-    if suite["mode"] == "fixed":
-        evals = []
-        for required in suite["evals"]:
-            e = next(
-                (e for e in catalogue["evals"] if e["name"] == required["name"]), None
-            )
-            if e is None:
+    result = deepcopy(catalogue)
+    by_name = {e["name"]: e for e in result["evals"]}
+    for name in suite.get("exclude", []):
+        if name not in by_name:
+            raise ValueError("Excluded eval has no catalogue rule: " + name)
+    for setting in suite.get("evals", []):
+        if setting["name"] not in by_name:
+            raise ValueError("Suite eval has no catalogue rule: " + setting["name"])
+        e = by_name[setting["name"]]
+        e.update(
+            {
+                k: setting[k]
+                for k in ("metric", "metric_filter", "shots")
+                if k in setting
+            }
+        )
+    return validate_catalogue(result)
+
+
+def resolve_suite(catalogue, suite):
+    """Compile authored membership into concrete requirements and exclusions."""
+    validate_suite(suite)
+    by_name = {e["name"]: e for e in catalogue["evals"]}
+    task_sets = {name: catalogue_tasks(catalogue, e) for name, e in by_name.items()}
+    metadata = {t: g for g in catalogue["languages"] for t in g["tasks"]}
+
+    def excluded(languages, tasks, context):
+        def codes(task):
+            g = metadata.get(task, {})
+            return {
+                g.get(k) for k in ("language", "source_language", "target_language")
+            }
+
+        known = set().union(*(codes(t) for t in tasks))
+        for language in languages:
+            if language not in known:
                 raise ValueError(
-                    "Suite eval has no catalogue rule: " + required["name"]
+                    "Excluded language has no catalogue assignment in "
+                    + context
+                    + ": "
+                    + language
                 )
-            for v in required.get("variants", []):
-                matches = [
-                    r
-                    for r in catalogue["evals"]
-                    if match_task(r["match"], v["task"]) is not None
-                ]
-                if (
-                    len(matches) != 1
-                    or matches[0]["name"] != e["name"]
-                    or ("select" in e and match_task(e["select"], v["task"]) is None)
-                    or ("shots" in e and "n_shot" in v and e["shots"] != v["n_shot"])
-                ):
-                    raise ValueError(
-                        "Required variant is not selected by its catalogue rule: "
-                        + v["task"]
-                    )
-            if "variants" in required:
-                validate_aggregation_selection(e, required["variants"], catalogue)
-            evals.append(e)
+        return {t for t in tasks if codes(t).intersection(languages)}
+
+    all_tasks = set(t for tasks in task_sets.values() for t in tasks)
+    removed = excluded(suite.get("exclude_languages", []), all_tasks, "catalogue")
+    result = deepcopy(suite)
+    if suite["mode"] == "available":
+        for name in suite.get("exclude", []):
+            if name not in by_name:
+                raise ValueError("Excluded eval has no catalogue rule: " + name)
+        result["_excluded_tasks"] = sorted(removed)
+        return result
+    for required in result["evals"]:
+        e = by_name.get(required["name"])
+        if e is None:
+            raise ValueError("Suite eval has no catalogue rule: " + required["name"])
+        tasks = task_sets[e["name"]]
+        local_removed = excluded(
+            required.get("exclude_languages", []), tasks, e["name"]
+        )
+        variants = required.get("variants", [{"task": t} for t in tasks])
+        if not variants:
+            raise ValueError(
+                "Required eval needs known tasks in the catalogue: " + e["name"]
+            )
+        for v in variants:
+            matches = [
+                rule
+                for rule in catalogue["evals"]
+                if match_task(rule["match"], v["task"]) is not None
+            ]
+            if (
+                v["task"] not in tasks
+                or len(matches) != 1
+                or matches[0]["name"] != e["name"]
+                or ("shots" in e and "n_shot" in v and e["shots"] != v["n_shot"])
+            ):
+                raise ValueError(
+                    "Required variant is not selected by its catalogue rule: "
+                    + v["task"]
+                )
+        required["variants"] = [
+            v for v in variants if v["task"] not in removed | local_removed
+        ]
+        validate_aggregation_selection(e, required["variants"], catalogue)
+    return result
+
+
+def resolve_inputs(catalogue, suite, profile):
+    """Resolve once for classification, membership, scoring, and diagnostics."""
+    catalogue = effective_catalogue(catalogue, suite)
+    resolved = resolve_suite(catalogue, suite)
+    validate_profile(profile)
+    names = {e["name"] for e in resolved.get("evals", [])}
+    evals = [
+        e
+        for e in catalogue["evals"]
+        if suite["mode"] == "available" or e["name"] in names
+    ]
     weights = dict(profile["weights"])
     for e in evals:
         weights.setdefault(e["category"], 0)
-    return validate_config(
+    scheme = validate_config(
         dict(
             version=1,
             name=catalogue["name"],
@@ -850,11 +974,18 @@ def resolve_config(catalogue, suite, profile):
             notes=catalogue.get("notes", []) + profile.get("notes", []),
         )
     )
+    return dict(catalogue=catalogue, suite=resolved, profile=profile, scheme=scheme)
+
+
+def resolve_config(catalogue, suite, profile):
+    return resolve_inputs(catalogue, suite, profile)["scheme"]
 
 
 def in_suite(row, suite):
     if suite["mode"] == "available":
-        return row["eval"] not in suite.get("exclude", [])
+        return row["eval"] not in suite.get("exclude", []) and row[
+            "task"
+        ] not in suite.get("_excluded_tasks", [])
     e = next((e for e in suite["evals"] if e["name"] == row["eval"]), None)
     return e is not None and (
         "variants" not in e

@@ -3,7 +3,8 @@ category: Math
 match:
   regex: (?:mgsm_native_cot_.+|global_mgsm_.+)
 metric: exact_match
-filter: flexible-extract
+metric_filter: flexible-extract
+shots: 5
 score:
   scale: 1
 normalize:

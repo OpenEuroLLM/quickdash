@@ -31,34 +31,57 @@ The **Weighting profile** and **Eval set** selectors operate independently. Swit
 
 **Any available** uses recognized selected measurements shared by A and B. Measurements present on only one side generate comparison warnings and are excluded from both scores. Catalogue entries absent from both models do not generate warnings. The supplied freeform set explicitly excludes prompted Global PIQA pending validation; present data for it generates a **Not used** warning.
 
-**flagship-1** names the expected 45 evals and 403 task/shot requirements for the flagship comparison. A required measurement missing from either or both models generates a warning. Extra selected measurements are excluded with warnings, but remain inspectable in **Eval configuration**. The dashboard labels the score **INCOMPLETE**, shows shared/required coverage, and redistributes weights across the shared subset. Do not interpret an incomplete score as covering the full named set. Exact comparison identity still includes metric, filter, shots, harness, and backend; incompatible protocols cannot satisfy shared coverage just by sharing a task name.
+**flagship-1** requires the catalogue's known tasks for each listed eval, excluding Georgian throughout the set because of a vocabulary error and English specifically for X-CSQA. Original and translated tasks stay under their existing eval group (for example ARC Challenge). A missing required result generates a warning even if other languages for that eval are present. The score is labelled **INCOMPLETE** and uses the shared subset with redistributed weights. Excluded tasks are not requirements; present excluded data produces **Not used** warnings and remains inspectable.
 
-A named set can require a whole eval, or exact tasks with optional shot counts:
+A named set can be concise:
 
 ```yaml
 version: 1
 name: Example required set
 mode: fixed
+exclude_languages: [kat_Geor]
 evals:
-  - name: Example eval
-    variants:
-      - {task: example_en, n_shot: 0}
-      - {task: example_fr, n_shot: 0}
+  - name: ARC Challenge
+    shots: 10
+  - name: SIB-200
+    metric: acc
+    metric_filter: none
+  - name: X-CSQA
+    exclude_languages: [eng_Latn]
 ```
 
-Omitting `variants` requires at least one shared selected measurement for that eval and permits all its variants. Omitting `n_shot` accepts any shot count, but A and B must still match each other's protocol. Required tasks must match the named catalogue eval and its `select`/`shots` restrictions. Duplicate or overlapping requirements, unknown eval names, and unknown fields are errors. Metric and normalization choices belong only in the catalogue. Eval sets never contain weights.
+This example requires a catalogue containing those evals and language assignments. `mode: fixed` means a declared set of required evals; `mode: available` means whatever recognized results are shared by the models. This choice is independent of strict/relaxed matching.
 
-Freeform mode needs no required-eval list. It can optionally exclude evals by their exact catalogue names:
+For each named eval, omitted `metric`, `metric_filter`, and `shots` inherit from the catalogue. Set overrides apply to the **whole eval group**, including its translated tasks. They do not alter the global catalogue. Score scale and normalization remain the catalogue's interpretation of that eval; an alternative metric must be compatible with that interpretation. There are no variant-specific setting overrides. **Eval configuration** displays the effective settings and identifies fields overridden by the active set. Changing sets reinterprets loaded results and regenerates synthetic comparisons while preserving weight edits.
+
+Known tasks come from the catalogue's explicit task-language assignments and literal `match.name`, limited by the eval's `match` and optional `select` rules. Required coverage is independent of the CSVs: absence from both models still warns. Updating the catalogue can therefore expand a named set's requirements. An eval using only a regex and no known concrete tasks cannot be required until its task inventory is supplied. A recognized task outside the known inventory is excluded from a fixed set, with a warning. Freeform mode can still use it and report missing language metadata.
+
+`exclude_languages` applies across the entire set or just one eval. Set-wide and local exclusions combine. They use explicit canonical language assignments, not substrings of task names. For translation, either endpoint excludes the pair. Pooled results use their declared language label; exclusions cannot split pooled scores. Excluding a whole component language group is valid; partial component selections are configuration errors. If every task is excluded, the score is unavailable rather than zero.
+
+Unknown eval names and language exclusions with no matching catalogue assignment are configuration errors. A local language exclusion must exist within that eval's eligible catalogue tasks; a set-wide exclusion must exist somewhere in the catalogue's eligible tasks. Duplicate/invalid language codes and misspelled fields also fail. A known selected task missing from the CSV is instead a recoverable warning. Failed imports preserve the active dashboard.
+
+Available-mode sets can exclude entire evals or languages without creating required coverage:
 
 ```yaml
 version: 1
 name: Any available
 mode: available
-exclude:
-  - Global PIQA (prompted)
+exclude: [Global PIQA (prompted)]
 ```
 
-`exclude` is allowed only in available mode and must contain unique names. An excluded name absent from the active catalogue is harmless, so a set can be reused with another catalogue. Fixed sets already exclude everything outside their membership. Exclusions warn whenever matching eval data is present, including rows containing only an alternate metric. Alternate fields or summary children of a selected eval do not generate unused-eval warnings merely because a preferred field or summary is selected.
+`exclude` is allowed only in available mode and contains unique, exact catalogue eval names. All names must exist even if no corresponding model results are loaded. Fixed sets exclude unlisted evals automatically. Exclusions warn when eligible task data is present, including rows with only the wrong metric. Alternate metric rows or summary children of a selected eval do not warn merely because another field or summary was selected.
+
+For an explicitly pinned task inventory, a fixed entry may still use `variants: [{task: example_en}]`, optionally with a hard `n_shot` requirement. Each task must be known and selected by its catalogue rule. These are membership constraints, not setting overrides; a pinned `n_shot` must agree with the effective eval settings and is not loosened by relaxed matching. Ordinary named sets need no `variants` list.
+
+## Strict and relaxed matching
+
+The dashboard starts with **Strict matching**. Expected settings are resolved in this order: catalogue defaults, then optional whole-eval set overrides. Strict matching requires the configured metric, metric filter, and (when specified) shot count. Shared comparisons also require the same harness and backend.
+
+**Relaxed — allow few-shot differences** may select a different shot count for each concrete task. It prefers the expected count; otherwise it uses the uniquely closest available count, independently for each model and task with the same metric/filter/harness/backend. Equally close alternatives are ambiguous and excluded with a warning. Scores never influence that choice. Without a configured shot expectation, shot counts still have to match across models.
+
+Relaxed matching never substitutes a different metric or metric filter, or pairs different harnesses/backends. Component groups must still contain every component at one consistent actual shot count. If per-task selection leaves a mixed-shot or incomplete component group, the group is excluded; the engine does not search for a different combination to rescue it.
+
+When a differing shot count actually contributes, the page prominently reports **INCONSISTENT EVALUATION SETTINGS**. Warnings give the eval, model, tasks, expected count, and actual count. Real measurement identities retain their actual settings. Enabling relaxed mode alone does not label a comparison inconsistent if no mismatched measurements contribute. The shipped working expectations are 10 shots for ARC Challenge and PIQA, and 5 for MGSM; their 0-shot translated/global variants need relaxed matching unless the set overrides the expectation.
 
 A weighting profile works with either mode:
 
@@ -82,16 +105,16 @@ The builder embeds YAML profiles directly in `configs/weights/` and sets directl
 - `--results-dir DIR` embeds CSVs directly in that directory. A checkpoint label may occur in only one file; one file can contain multiple models.
 - `--sample-csv FILE`, used with `--results-dir`, supplies a fallback only if that directory has no CSVs. Invalid shared files stop the build; they never trigger the fallback. Pages uses `examples/sample-evals.csv` for this option.
 
-Every offered set is validated against the catalogue and every profile before writing output. Raw results are classified once by the global catalogue; changing sets only changes comparison membership. An empty results directory starts without models unless `--sample-csv` supplies a fallback. Omitting both input options starts without models.
+Every offered set is validated against the catalogue and every profile before writing output. Raw results are interpreted using the catalogue with the active set’s overrides; changing sets can change both membership and scoring-field selection. An empty results directory starts without models unless `--sample-csv` supplies a fallback. Omitting both input options starts without models.
 
-Under **Eval configuration**, load or export the catalogue, weights, and eval set separately. Uploaded choices are temporary; reload restores published defaults. Catalogue imports reinterpret all loaded real models and regenerate the synthetic comparison. Invalid imports preserve the previous models and settings. If a new catalogue does not contain the active named set's evals, switch to Any available before loading it. **Clear models** retains settings.
+Under **Eval configuration**, load or export the catalogue, weights, and eval set separately. Uploaded choices are temporary; reload restores published defaults. Catalogue and eval-set imports reinterpret all loaded real models and regenerate synthetic comparisons. Invalid imports preserve the previous models and settings. When replacing a catalogue, first load a compatible set. A neutral set with `mode: available` and no exclusions works with any catalogue; the project's supplied Any available set references prompted Global PIQA and requires that catalogue entry. `configs/examples/eval-set.yaml` is a neutral set for the fictional example. **Clear models** retains settings.
 
 `analysis.json` records the catalogue, selected profile and set, available `profiles` and `suites`, and source filenames/hashes. It also contains the resolved internal `scheme` used for arithmetic; that combined object is not a YAML input format. Generated `catalogue.yaml` contains the assembled, portable catalogue, with no `evals_dir` reference. `weights.yaml` and `eval-set.yaml` record the other configuration inputs. Browser export also saves the complete catalogue in one file; browser import accepts complete catalogues, not filesystem manifests.
 
 ## Edit one eval
 
 The repository keeps each eval’s interpretation and language mappings in one file.
-For example, this `evals/example.yaml` selects `acc_norm` for two language variants
+For example, this `evals/example.yaml` selects `acc_norm` with the `none` metric filter for two language variants
 of a four-choice eval:
 
 ```yaml
@@ -99,7 +122,7 @@ name: Example eval
 category: Reasoning
 match: {regex: 'example_(en|fr)'}
 metric: acc_norm
-filter: none
+metric_filter: none
 shots: 0
 score: {scale: 1}
 normalize:
@@ -192,13 +215,15 @@ For an input row with `value=0.625`, the raw score is 62.5 and the normalized sc
 | `category` | Category label used by weighting profiles and breakdowns. |
 | `match` | Exactly one of `{name: exact task name}` or `{regex: 'full-match pattern'}`. Unmatched tasks are excluded and listed in Warnings; overlapping matches are an error. |
 | `metric` | Exact CSV scoring field, such as `acc`, `acc_norm`, or `python_pass@1`. |
-| `filter` | Exact CSV filter string, including `""` if empty. |
+| `metric_filter` | Exact value of the CSV `filter` column, including `""` if empty. |
 | `shots` | Optional nonnegative integer selecting the CSV `n_shot`. Omit to include all shot settings. |
 | `select` | Optional name/regex rule restricting which matched tasks contribute. Useful for selecting summaries while retaining child-task audits. |
 | `score.scale` | Raw metric's upper scale: 1 for fractional accuracy; 100 for percentage or chrF scores. Selected values must be finite and within 0..scale. |
 | `warning` | Optional nonempty text describing an unresolved scoring assumption. Appears once in Warnings when present in the selected comparison and in this eval’s configuration details; it does not change scores. |
 | `aggregation` | Optional component rules with positive relative weights; see [weighted components](#weighted-components-within-an-eval). |
 | `normalize` | Optional object with `min`, `max`, and optional `clip`, `basis`, `note`, and `sources`. Thresholds are fractions after division by `score.scale`. |
+
+`metric_filter` selects the evaluator’s response-processing label recorded beside a metric; Quickdash does not execute that processing. `metric_filter: ''` matches a blank CSV field, while `metric_filter: none` matches the literal text `none`. These are distinct values, and neither means “any filter.”
 
 Use the shared Python/JavaScript regex subset: literal text, character classes, alternatives, capturing/noncapturing groups, and ordinary quantifiers. Patterns match the entire task name. Flags, lookarounds, named groups, backreferences and possessive quantifiers are rejected. `\d` and `\w` use ASCII character classes; `\s` uses ECMAScript whitespace and must not appear inside a character class. Dot excludes line terminators and matches one Unicode code point. Language extraction does not use these patterns. Exact-name rules are available when regexes are unnecessary.
 
@@ -261,7 +286,7 @@ For example, fictional component scores of 60, 30, 15, and 0 produce `(60 + 60 +
 
 **Incompatible aggregation configurations are errors.** Components inherit the parent eval's metric, filter, score scale, normalization, and any fixed shot setting; they cannot override these fields. Catalogue validation checks declared task/language assignments against the component rules and eval selection. Each represented language must have every component available in the configuration, and each task must match exactly one component. An exact component task must be eligible under its parent eval. Entire languages can be omitted; alternate task aliases are permitted in the catalogue.
 
-A named set that lists component tasks must select exactly one task for each component at every chosen language/shot setting. For example, selecting low/medium/high at 0-shot and top at 5-shot is a configuration error, as is omitting top entirely. Omitting shots for every component is allowed; mixing unrestricted and fixed shots is rejected unless the parent eval pins the same shot count. Multiple complete shot settings are allowed. An eval-only requirement or Any available leaves task selection to the catalogue. Missing task-language assignments or duplicate component selections in a named set are errors.
+A named set that lists component tasks must select exactly one task for each component at every chosen language/shot setting. For example, selecting low/medium/high at 0-shot and top at 5-shot is a configuration error, as is omitting top entirely. Omitting shots for every component is allowed; mixing unrestricted and fixed shots is rejected unless the parent eval pins the same shot count. Multiple complete shot settings are allowed. A whole-eval requirement expands to all eligible known tasks, after language exclusions. Any available has no required task inventory. Missing task-language assignments or duplicate component selections in a named set are errors.
 
 These checks run before applying a browser config or replacing build output. Rejected imports preserve active models, settings, and scores. Regex compatibility is checked against declared task names, plus newly observed selected tasks during CSV classification; the validator does not attempt to prove arbitrary regex relationships. An observed selected task matching zero or multiple component rules is also an error.
 

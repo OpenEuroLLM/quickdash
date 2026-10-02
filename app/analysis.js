@@ -5,8 +5,35 @@ const key = r => JSON.stringify(['task','metric','filter','n_shot','harness','ba
 const avg = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : null;
 const fmt = (x,digits=2) => x === null || !Number.isFinite(x) ? '—' : x.toFixed(digits);
 const esc = x => String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const {parseCSV,parseCatalogue,serializeCatalogue,validateCatalogue,normalizeScore,taskLanguage,auditRows,matchTask,demoModel,isDemoModel}=typeof module!=='undefined'?require('./eval_config.js'):EvalConfig;
-const {parseSuite,serializeSuite,parseWeightProfile,serializeWeightProfile,resolveConfig,inSuite,suiteCoverage,scopeRows}=typeof module!=='undefined'?require('./suite_config.js'):SuiteConfig;
+const {compareText,parseCSV,parseCatalogue,serializeCatalogue,validateCatalogue,normalizeScore,taskLanguage,auditRows,matchTask,demoModel,isDemoModel}=typeof module!=='undefined'?require('./eval_config.js'):EvalConfig;
+const {parseSuite,serializeSuite,parseWeightProfile,serializeWeightProfile,resolveInputs,resolveConfig,effectiveCatalogue,resolveSuite,inSuite,suiteCoverage,scopeRows}=typeof module!=='undefined'?require('./suite_config.js'):SuiteConfig;
+function matchingKey(row,config,matching='strict'){
+ const fields=['task','metric','filter','n_shot','harness','backend'],e=matching==='relaxed'?config.evals.find(e=>e.name===row.eval):null;
+ return JSON.stringify(fields.map(k=>k==='n_shot'&&e&&'shots'in e?String(e.shots):row[k]));
+}
+function matchingAudit(audit,catalogue,matching='strict'){
+ if(!['strict','relaxed'].includes(matching))throw Error('Matching must be strict or relaxed');
+ if(matching==='strict')return audit;
+ const result=audit.map(r=>({...r})),evals=new Map(catalogue.evals.map(e=>[e.name,e])),groups=new Map();
+ for(const r of result){
+  const e=evals.get(r.eval);
+  if(!e||!('shots'in e)||r.metric!==e.metric||r.filter!==e.metric_filter||e.select&&!matchTask(e.select,r.task))continue;
+  const id=JSON.stringify(['checkpoint','task','metric','filter','harness','backend'].map(k=>r[k]));
+  if(!groups.has(id))groups.set(id,[]);groups.get(id).push(r);
+ }
+ for(const rr of groups.values()){
+  const e=evals.get(rr[0].eval),distance=Math.min(...rr.map(r=>Math.abs(Number(r.n_shot)-e.shots)));
+  const nearest=[...new Set(rr.filter(r=>Math.abs(Number(r.n_shot)-e.shots)===distance).map(r=>Number(r.n_shot)))].sort((a,b)=>a-b);
+  for(const r of rr){
+   Object.assign(r,{selected:false,raw_score_100:null,score_100:null});delete r.matching_ambiguous_shots;
+   if(nearest.length!==1)Object.assign(r,{decision:'Equally close shot settings; excluded',matching_ambiguous_shots:nearest});
+   else if(Number(r.n_shot)!==nearest[0])r.decision='Alternate shot setting; a closer setting is available';
+   else Object.assign(r,normalizeScore(r.value,e),{selected:true,decision:nearest[0]===e.shots?'Selected for the weighted score':`Using ${nearest[0]} shots despite expected ${e.shots}; relaxed matching`});
+  }
+ }
+ const seen=new Set();for(const r of result)if(r.selected){const id=measurementId(r);if(seen.has(id))throw Error('Duplicate selected measurement: '+r.task);seen.add(id);}
+ return result;
+}
 function selectRows(rows,scheme){const selected=auditRows(rows,scheme).filter(r=>r.selected);if(!selected.length)throw Error('No selected measurements');return selected;}
 function buildCatalogue(rows,scheme){
  return scheme.evals.map(f=>{const tasks=new Map();for(const r of rows.filter(r=>r.eval===f.name)){if(!tasks.has(r.task))tasks.set(r.task,[]);tasks.get(r.task).push(r);}return {...f,tasks:[...tasks].map(([name,rows])=>({name,rows})).sort((a,b)=>a.name.localeCompare(b.name))};}).filter(f=>f.tasks.length);
@@ -105,23 +132,27 @@ function totals(rows,scheme,weights,aggregate='standard',englishWeights=scheme.e
  const valid=Object.values(weights).every(w=>Number.isFinite(w)&&w>=0)&&Math.abs(Object.values(weights).reduce((s,w)=>s+w,0)-1)<1e-8;
  return {evals:fs,categories:cats,rowWeights,score:valid&&availableWeight>0&&cats.filter(c=>!c.excluded).every(c=>c.score!==null)?cats.reduce((s,c)=>s+(c.excluded?0:c.score*c.weight),0):null};
 }
-function pairRows(a,b){const bm=new Map(b.map(r=>[key(r),r]));return a.filter(r=>bm.has(key(r))).map(r=>({...r,a:r.raw_score_100,b:bm.get(key(r)).raw_score_100,delta:r.raw_score_100-bm.get(key(r)).raw_score_100,score_delta:r.score_100-bm.get(key(r)).score_100}));}
+function pairRows(a,b,config=null,matching='strict'){
+ const match=r=>matchingKey(r,config,matching),bm=new Map(b.map(r=>[match(r),r]));
+ return a.filter(r=>bm.has(match(r))).map(r=>{const other=bm.get(match(r));return {...r,a:r.raw_score_100,b:other.raw_score_100,delta:r.raw_score_100-other.raw_score_100,score_delta:r.score_100-other.score_100,n_shot_b:other.n_shot,measurement_b:measurementId(other)};});
+}
 function sampleCount(row){const value=String(row.n_samples??'');return /^[1-9][0-9]*$(?![\s\S])/.test(value)&&Number.isSafeInteger(Number(value))?Number(value):null;}
-function comparisonCoverage(a,b,config){
- const left=componentCoverage(a,config),right=componentCoverage(b,config),initial=pairRows(left.rows,right.rows),shared=new Set(initial.map(key));
- const sharedLeft=componentCoverage(left.rows.filter(r=>shared.has(key(r))),config),sharedRight=componentCoverage(right.rows.filter(r=>shared.has(key(r))),config);
- const aa=sharedLeft.rows,bb=sharedRight.rows,pairs=pairRows(aa,bb),matched=new Set(pairRows(a,b).map(key));
- const onlyA=a.filter(r=>!matched.has(key(r))),onlyB=b.filter(r=>!matched.has(key(r))),warnings=[];
+function comparisonCoverage(a,b,config,matching='strict'){
+ const match=r=>matchingKey(r,config,matching);
+ const left=componentCoverage(a,config),right=componentCoverage(b,config),initial=pairRows(left.rows,right.rows,config,matching),shared=new Set(initial.map(match));
+ const sharedLeft=componentCoverage(left.rows.filter(r=>shared.has(match(r))),config),sharedRight=componentCoverage(right.rows.filter(r=>shared.has(match(r))),config);
+ const aa=sharedLeft.rows,bb=sharedRight.rows,pairs=pairRows(aa,bb,config,matching),matched=new Set(pairRows(a,b,config,matching).map(match));
+ const onlyA=a.filter(r=>!matched.has(match(r))),onlyB=b.filter(r=>!matched.has(match(r))),warnings=[];
  for(const [model,coverage] of [['A',left],['B',right],['Shared A',sharedLeft],['Shared B',sharedRight]])for(const w of coverage.warnings)warnings.push({...w,detail:model+': '+w.detail});
  const excludedA=a.filter(r=>!aa.includes(r)),excludedB=b.filter(r=>!bb.includes(r));
  for(const e of config.evals){const left=onlyA.filter(r=>r.eval===e.name),right=onlyB.filter(r=>r.eval===e.name);if(!left.length&&!right.length)continue;
   const hasShared=pairs.some(r=>r.eval===e.name);
   warnings.push({type:'Comparison coverage',name:e.name,eval:e.name,detail:(hasShared?'Unmatched variants are excluded from both scores.':'No matching scores: this eval is excluded from both scores.')+' '+left.length+' measurement(s) available only in A; '+right.length+' only in B. Remaining evals share their category weight; empty categories are excluded and remaining category weights are rescaled.',variants:[[left,'Available only in A (missing from B)'],[right,'Available only in B (missing from A)']].filter(([rr])=>rr.length).map(([rr,settings])=>({settings,tasks:rr.map(r=>r.task+' · '+r.metric+' / '+(r.filter||'blank filter')+' / '+r.n_shot+' shots / '+r.harness+' / '+r.backend)}))});
  }
- const bm=new Map(bb.map(r=>[key(r),r]));
+ const bm=new Map(bb.map(r=>[match(r),r]));
  for(const e of config.evals){
-  const mismatch=aa.filter(r=>r.eval===e.name&&sampleCount(r)!==null&&sampleCount(bm.get(key(r)))!==null&&sampleCount(r)!==sampleCount(bm.get(key(r))));
-  if(mismatch.length)warnings.push({type:'Sample-count mismatch',name:e.name,eval:e.name,detail:'Matched measurements report different n_samples for A and B. Scores remain included; review dataset coverage before comparing.',variants:[{settings:'Reported sample counts',tasks:mismatch.map(r=>r.task+' · '+r.metric+' · A: '+r.n_samples+' / B: '+bm.get(key(r)).n_samples)}]});
+  const mismatch=aa.filter(r=>r.eval===e.name&&sampleCount(r)!==null&&sampleCount(bm.get(match(r)))!==null&&sampleCount(r)!==sampleCount(bm.get(match(r))));
+  if(mismatch.length)warnings.push({type:'Sample-count mismatch',name:e.name,eval:e.name,detail:'Matched measurements report different n_samples for A and B. Scores remain included; review dataset coverage before comparing.',variants:[{settings:'Reported sample counts',tasks:mismatch.map(r=>r.task+' · '+r.metric+' · A: '+r.n_samples+' / B: '+bm.get(match(r)).n_samples)}]});
  }
  return {a:aa,b:bb,pairs,warnings,onlyA,onlyB,excludedA,excludedB};
 }
@@ -206,17 +237,16 @@ function protocolWarning(rows,evalConfig,config,model){
  return {type:'Inconsistent scoring settings',name:evalConfig.name,eval:evalConfig.name,model,detail:'Selected variants use different settings: '+variants.map(v=>v.settings+' ('+v.tasks.length+' tasks; '+v.tasks.slice(0,2).join(', ')+(v.tasks.length>2?', …':'')+')').join(' versus ')+'. '+(evalConfig.aggregation?'Only complete component groups within each protocol are included.':'These variants are still included in the aggregate.')+' Review the protocol before comparing languages.',variants};
 }
 function normalizationLabel(e){const n=e.normalize;if(!n||n.min===0&&n.max===1)return n?.basis==='unresolved'?'Unresolved · no correction':'No chance correction';return fmt(n.min*100,2)+'% baseline';}
-function sameCoverage(a,b){return a.length===b.length&&pairRows(a,b).length===a.length;}
+function sameCoverage(a,b,config=null,matching='strict'){return a.length===b.length&&pairRows(a,b,config,matching).length===a.length;}
 // Public, serializable analysis boundary used by Python parity tests and the UI.
-function compareText(a,b){const aa=Array.from(a,c=>c.codePointAt(0)),bb=Array.from(b,c=>c.codePointAt(0));for(let i=0;i<Math.min(aa.length,bb.length);i++)if(aa[i]!==bb[i])return aa[i]-bb[i];return aa.length-bb.length;}
 function measurementId(r){return JSON.stringify([r.checkpoint,...['task','metric','filter','n_shot','harness','backend'].map(k=>r[k])]);}
-const diagnosticTitles={config_caveat:'Config caveat',no_config:'No config',not_used:'Not used',unknown_language:'Unknown language',invalid_sample_count:'Invalid sample count',inconsistent_scoring_settings:'Inconsistent scoring settings',missing_scoring_field:'Missing scoring field',missing_scoring_setting:'Missing scoring setting',no_selected_score:'No selected score',missing_suite_data:'Missing suite data',incomplete_components:'Incomplete components',comparison_coverage:'Comparison coverage',sample_count_mismatch:'Sample-count mismatch',no_category_weight:'No category weight'};
+const diagnosticTitles={config_caveat:'Config caveat',no_config:'No config',not_used:'Not used',unknown_language:'Unknown language',invalid_sample_count:'Invalid sample count',relaxed_shot_setting:'Few-shot mismatch allowed',ambiguous_shot_setting:'Ambiguous few-shot setting',inconsistent_scoring_settings:'Inconsistent scoring settings',missing_scoring_field:'Missing scoring field',missing_scoring_setting:'Missing scoring setting',no_selected_score:'No selected score',missing_suite_data:'Missing suite data',incomplete_components:'Incomplete components',comparison_coverage:'Comparison coverage',sample_count_mismatch:'Sample-count mismatch',no_category_weight:'No category weight'};
 function diagnostic(code,model,evalName,rows,detail,effect='included',tasks=null){
  const names=[...new Set(tasks??rows.map(r=>r.task))].sort(compareText);
  return {code,type:diagnosticTitles[code],model,eval:evalName,name:evalName||names[0]||model,tasks:names,measurement_ids:rows.map(measurementId).sort(compareText),effect,detail,variants:names.length?[{settings:detail,tasks:names}]:[]};
 }
-function reportDiagnostics(audits,config,included,comparison=false){
- const {catalogue,suite,profile}=config,scheme=resolveConfig(catalogue,suite,profile),out=[];
+function reportDiagnostics(audits,config,included,comparison=false,matchingMode='strict',resolved=null){
+ const {profile,catalogue,suite,scheme}=resolved||resolveInputs(config.catalogue,config.suite,config.profile),out=[];
  const used=new Set([...included.values()].flat().map(r=>r.eval));
  for(const e of catalogue.evals)if(e.warning&&used.has(e.name))out.push(diagnostic('config_caveat','Selected comparison',e.name,[],e.warning));
  for(const [model,rows] of audits){
@@ -225,6 +255,12 @@ function reportDiagnostics(audits,config,included,comparison=false){
   for(const e of catalogue.evals){
    const all=rows.filter(r=>r.eval===e.name),outside=all.filter(r=>(!e.select||matchTask(e.select,r.task))&&!inSuite(r,suite)),matching=all.filter(r=>inSuite(r,suite)),selected=matching.filter(r=>r.selected);
    const add=(code,rr,detail,effect='included',tasks=null)=>out.push(diagnostic(code,model,e.name,rr,detail,effect,tasks));
+   if(matchingMode==='relaxed'&&'shots'in e){
+    const actuals=[...new Set(selected.filter(r=>acceptedIds.has(measurementId(r))&&Number(r.n_shot)!==e.shots).map(r=>Number(r.n_shot)))].sort((a,b)=>a-b);
+    for(const actual of actuals){const rr=selected.filter(r=>acceptedIds.has(measurementId(r))&&Number(r.n_shot)===actual);out.push({...diagnostic('relaxed_shot_setting',model,e.name,rr,`Using ${actual} shots despite expected ${e.shots}; allowed by relaxed matching.`),expected_shots:e.shots,actual_shots:actual});}
+    const ambiguous=matching.filter(r=>r.matching_ambiguous_shots);
+    if(ambiguous.length)out.push({...diagnostic('ambiguous_shot_setting',model,e.name,ambiguous,`Multiple equally close shot settings for expected ${e.shots}; excluded.`,'excluded'),expected_shots:e.shots,actual_shots:[...new Set(ambiguous.map(r=>Number(r.n_shot)))].sort((a,b)=>a-b)});
+   }
    if(outside.length)add('not_used',outside,'Eval data is present but not selected by '+suite.name+'. Excluded from the calculation.','excluded');
    if(!matching.length)continue;
    const unknown=selected.filter(r=>taskLanguage(r.task,catalogue).status==='unknown');
@@ -235,7 +271,7 @@ function reportDiagnostics(audits,config,included,comparison=false){
    if(protocol)add('inconsistent_scoring_settings',selected,protocol.detail);
    for(const task of [...new Set(matching.filter(r=>!e.select||matchTask(e.select,r.task)).map(r=>r.task))].sort(compareText)){
     const rr=matching.filter(r=>r.task===task);if(rr.some(r=>r.selected))continue;
-    add(rr.some(r=>r.metric===e.metric)?'missing_scoring_setting':'missing_scoring_field',rr,'Excluded: expected '+e.metric+' / '+(e.filter||'(empty)')+('shots'in e?' / '+e.shots+' shots':'')+'.','excluded');
+    add(rr.some(r=>r.metric===e.metric)?'missing_scoring_setting':'missing_scoring_field',rr,'Excluded: expected '+e.metric+' / '+(e.metric_filter||'(empty)')+('shots'in e?' / '+e.shots+' shots':'')+'.','excluded');
    }
    if(!selected.length)add('no_selected_score',matching,'No score matches the configured metric, filter, shots and selection. Excluded.','excluded');
   }
@@ -245,8 +281,8 @@ function reportDiagnostics(audits,config,included,comparison=false){
   if(comparison)for(const name of [...new Set(component.rows.filter(r=>!acceptedIds.has(measurementId(r))).map(r=>r.eval))])out.push(diagnostic('comparison_coverage',model,name,component.rows.filter(r=>r.eval===name&&!acceptedIds.has(measurementId(r))),'Unmatched results are excluded from both scores; weights use shared data only.','excluded'));
  }
  for(const category of [...new Set([...included.values()].flat().map(r=>r.category))])if(!Object.hasOwn(profile.weights,category))out.push({...diagnostic('no_category_weight','Selected comparison',null,[...included.values()].flat().filter(r=>r.category===category),category+' has no category weight and contributes zero.','zero_weight'),name:category,category});
- if(comparison){const entries=[...included],a=entries[0]?.[1]||[],b=entries[1]?.[1]||a,bm=new Map(b.map(r=>[key(r),r]));
-  for(const e of catalogue.evals){const rr=a.filter(r=>r.eval===e.name&&bm.has(key(r))&&sampleCount(r)!==null&&sampleCount(bm.get(key(r)))!==null&&sampleCount(r)!==sampleCount(bm.get(key(r))));if(rr.length)out.push(diagnostic('sample_count_mismatch','Selected comparison',e.name,rr.concat(rr.map(r=>bm.get(key(r)))),'Matched results have different sample counts. Scores remain included.'));}
+ if(comparison){const match=r=>matchingKey(r,scheme,matchingMode),entries=[...included],a=entries[0]?.[1]||[],b=entries[1]?.[1]||a,bm=new Map(b.map(r=>[match(r),r]));
+  for(const e of catalogue.evals){const rr=a.filter(r=>r.eval===e.name&&bm.has(match(r))&&sampleCount(r)!==null&&sampleCount(bm.get(match(r)))!==null&&sampleCount(r)!==sampleCount(bm.get(match(r))));if(rr.length)out.push(diagnostic('sample_count_mismatch','Selected comparison',e.name,rr.concat(rr.map(r=>bm.get(match(r)))),'Matched results have different sample counts. Scores remain included.'));}
  }
  return out;
 }
@@ -268,26 +304,31 @@ function modelReport(model,audit,rows,config,suite){
  const allocation=totals(rows,config,config.weights,config.aggregate,config.english_weights),ids=new Set(rows.map(measurementId));
  return {model,score:allocation.score,tree:allocationTree(rows,config,allocation,model),measurements:audit.map(r=>({...r,id:measurementId(r),language:taskLanguage(r.task,config),included:ids.has(measurementId(r)),exclusion:r.selected?inSuite(r,suite)?ids.has(measurementId(r))?null:'coverage':'eval_set':'interpretation',effective_weight:allocation.rowWeights.get(r)||0,contribution:ids.has(measurementId(r))?r.score_100*(allocation.rowWeights.get(r)||0):0}))};
 }
-function prepareAnalysis(rows,config){
- const scheme=resolveConfig(config.catalogue,config.suite,config.profile),audit=auditRows(rows,config.catalogue),models=[...new Set(audit.map(r=>r.checkpoint))].sort(compareText);
- return {scheme,audits:new Map(models.map(m=>[m,audit.filter(r=>r.checkpoint===m)]))};
+function prepareAnalysis(rows,config,matching='strict'){
+ const resolved=resolveInputs(config.catalogue,config.suite,config.profile),{catalogue,scheme}=resolved,audit=matchingAudit(auditRows(rows,catalogue),catalogue,matching),models=[...new Set(audit.map(r=>r.checkpoint))].sort(compareText);
+ return {resolved,scheme,audits:new Map(models.map(m=>[m,audit.filter(r=>r.checkpoint===m)]))};
 }
-function analyze(rows,config){
- const {scheme,audits}=prepareAnalysis(rows,config),included=new Map([...audits].map(([m,rr])=>[m,componentCoverage(scopeRows(rr,config.suite).rows,scheme).rows]));
- return {models:[...audits].map(([m,rr])=>modelReport(m,rr,included.get(m),scheme,config.suite)),diagnostics:reportDiagnostics(audits,config,included),coverage:[...audits].map(([model,rr])=>{const scope=scopeRows(rr,config.suite);return {model,missing:scope.missing,complete:!scope.missing.length&&scope.rows.length===included.get(model).length};})};
+function analyze(rows,config,matching='strict'){
+ const {resolved,scheme,audits}=prepareAnalysis(rows,config,matching),{suite}=resolved,included=new Map([...audits].map(([m,rr])=>[m,componentCoverage(scopeRows(rr,suite).rows,scheme).rows]));
+ const diagnostics=reportDiagnostics(audits,config,included,false,matching,resolved);
+ return {matching,inconsistent:diagnostics.some(d=>d.code==='relaxed_shot_setting'),models:[...audits].map(([m,rr])=>modelReport(m,rr,included.get(m),scheme,suite)),diagnostics,coverage:[...audits].map(([model,rr])=>{const scope=scopeRows(rr,suite);return {model,missing:scope.missing,complete:!scope.missing.length&&scope.rows.length===included.get(model).length};})};
 }
-function compareAudits(auditA,auditB,config,a,b){
- const scheme=resolveConfig(config.catalogue,config.suite,config.profile),scope=suiteCoverage(auditA,auditB,config.suite),coverage=comparisonCoverage(scope.a,scope.b,scheme),effective=suiteCoverage(coverage.a,coverage.b,config.suite);
- const audits=new Map([[a,auditA],[b,auditB]]),included=new Map([[a,coverage.a],[b,coverage.b]]),left=modelReport(a,auditA,coverage.a,scheme,config.suite),right=modelReport(b,auditB,coverage.b,scheme,config.suite);
+function compareAudits(auditA,auditB,config,a,b,matching='strict',resolved=null){
+ resolved=resolved||resolveInputs(config.catalogue,config.suite,config.profile);
+ const {catalogue,suite,scheme}=resolved;
+ auditA=matchingAudit(auditA,catalogue,matching);auditB=matchingAudit(auditB,catalogue,matching);
+ const scope=suiteCoverage(auditA,auditB,suite,r=>matchingKey(r,scheme,matching)),coverage=comparisonCoverage(scope.a,scope.b,scheme,matching),effective=suiteCoverage(coverage.a,coverage.b,suite,r=>matchingKey(r,scheme,matching));
+ const audits=new Map([[a,auditA],[b,auditB]]),included=new Map([[a,coverage.a],[b,coverage.b]]),left=modelReport(a,auditA,coverage.a,scheme,suite),right=modelReport(b,auditB,coverage.b,scheme,suite);
  const aw=new Map(left.measurements.map(r=>[r.id,r.effective_weight]));
- const result={a:left,b:right,delta:left.score===null||right.score===null?null:left.score-right.score,diagnostics:reportDiagnostics(audits,config,included,true),coverage:{complete:config.suite.mode==='fixed'?effective.complete:!coverage.excludedA.length&&!coverage.excludedB.length,required:scope.required,sharedRequired:effective.sharedRequired,presentA:scope.presentA,presentB:scope.presentB,extrasA:scope.extrasA,extrasB:scope.extrasB},deltas:coverage.pairs.map(r=>({task:r.task,measurement_a:measurementId(r),measurement_b:measurementId({...r,checkpoint:b}),raw_delta:r.delta,score_delta:r.score_delta,effective_weight:aw.get(measurementId(r)),contribution_delta:r.score_delta*aw.get(measurementId(r))}))};
+ const diagnostics=reportDiagnostics(audits,config,included,true,matching,resolved);
+ const result={matching,inconsistent:diagnostics.some(d=>d.code==='relaxed_shot_setting'),a:left,b:right,delta:left.score===null||right.score===null?null:left.score-right.score,diagnostics,coverage:{complete:config.suite.mode==='fixed'?effective.complete:!coverage.excludedA.length&&!coverage.excludedB.length,required:scope.required,sharedRequired:effective.sharedRequired,presentA:scope.presentA,presentB:scope.presentB,extrasA:scope.extrasA,extrasB:scope.extrasB},deltas:coverage.pairs.map(r=>({task:r.task,measurement_a:measurementId(r),measurement_b:r.measurement_b,raw_delta:r.delta,score_delta:r.score_delta,effective_weight:aw.get(measurementId(r)),contribution_delta:r.score_delta*aw.get(measurementId(r))}))};
  return {result,scope:{...scope,complete:effective.complete,sharedRequired:effective.sharedRequired},...coverage};
 }
-function compare(rows,config,a,b){
- const {audits}=prepareAnalysis(rows,config);if(!audits.has(a)||!audits.has(b))throw Error('Unknown comparison model');
- return compareAudits(audits.get(a),audits.get(b),config,a,b).result;
+function compare(rows,config,a,b,matching='strict'){
+ const {audits,resolved}=prepareAnalysis(rows,config);if(!audits.has(a)||!audits.has(b))throw Error('Unknown comparison model');
+ return compareAudits(audits.get(a),audits.get(b),config,a,b,matching,resolved).result;
 }
 
-return {analyze,compare,compareAudits,allocationTree,measurementId,selectRows,buildCatalogue,comparisonRows,weightingLanguage,scoreLanguage,englishAssignment,componentCoverage,evalDistribution,totals,pairRows,sampleCount,comparisonCoverage,synthetic,syntheticOptions,isDemoModel,languageRoles,matchesLanguage,languageCoverage,languageCountLabel,languageLabel,sortBreakdownTree,breakdownAggregate,buildBreakdownTree,protocolWarning,reportDiagnostics,normalizationLabel,sameCoverage,key,avg,fmt,esc,parseCSV,parseCatalogue,serializeCatalogue,validateCatalogue,normalizeScore,taskLanguage,auditRows,matchTask,demoModel,parseSuite,serializeSuite,parseWeightProfile,serializeWeightProfile,resolveConfig,inSuite,suiteCoverage,scopeRows};
+return {analyze,compare,compareAudits,matchingAudit,matchingKey,allocationTree,measurementId,selectRows,buildCatalogue,comparisonRows,weightingLanguage,scoreLanguage,englishAssignment,componentCoverage,evalDistribution,totals,pairRows,sampleCount,comparisonCoverage,synthetic,syntheticOptions,isDemoModel,languageRoles,matchesLanguage,languageCoverage,languageCountLabel,languageLabel,sortBreakdownTree,breakdownAggregate,buildBreakdownTree,protocolWarning,reportDiagnostics,normalizationLabel,sameCoverage,key,avg,fmt,esc,parseCSV,parseCatalogue,serializeCatalogue,validateCatalogue,normalizeScore,taskLanguage,auditRows,matchTask,demoModel,parseSuite,serializeSuite,parseWeightProfile,serializeWeightProfile,resolveInputs,resolveConfig,effectiveCatalogue,resolveSuite,inSuite,suiteCoverage,scopeRows};
 })();
 if(typeof module!=='undefined')module.exports=QuickdashAnalysis;

@@ -3,7 +3,8 @@ category: Math
 match:
   name: bigbench_dyck_languages_generate_until
 metric: exact_match
-filter: strict-match
+metric_filter: strict-match
+shots: 10
 score:
   scale: 1
 normalize:

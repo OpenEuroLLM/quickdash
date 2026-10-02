@@ -108,10 +108,10 @@ const EvalConfig=(()=>{
   if(!Array.isArray(config.evals)||!config.evals.length)throw Error('At least one eval is required');
   const names=new Set();
   for(const e of config.evals){
-   objectKeys(e,['name','category','match','metric','filter','shots','select','score','normalize','warning','aggregation'],['name','category','match','metric','filter','score']);
+   objectKeys(e,['name','category','match','metric','metric_filter','shots','select','score','normalize','warning','aggregation'],['name','category','match','metric','metric_filter','score']);
    if(typeof e.name!=='string'||!e.name||names.has(e.name))throw Error('Eval names must be unique and nonempty');names.add(e.name);
    if(typeof e.category!=='string'||!e.category.trim())throw Error('Eval category must be nonempty text');
-   if(typeof e.metric!=='string'||!e.metric||typeof e.filter!=='string')throw Error('Metric and filter must be strings');
+   if(typeof e.metric!=='string'||!e.metric||typeof e.metric_filter!=='string')throw Error('Metric and filter must be strings');
    validateMatch(e.match);if('select'in e)validateMatch(e.select);
    if('shots'in e&&(!Number.isSafeInteger(e.shots)||e.shots<0))throw Error('shots must be a nonnegative integer');
    objectKeys(e.score,['scale'],['scale']);if(!number(e.score.scale)||e.score.scale<=0)throw Error('Score scale must be positive');
@@ -191,13 +191,14 @@ const EvalConfig=(()=>{
    const matches=config.evals.filter(e=>matchTask(e.match,r.task));if(matches.length>1)throw Error('Ambiguous eval config for task: '+r.task);if(!matches.length)return {...r,eval:'',category:'',selected:false,decision:'No eval config; excluded from scoring',raw_score_100:null,score_100:null};const e=matches[0];let decision='Selected for the weighted score';
    if(e.select&&!matchTask(e.select,r.task))decision='Excluded summary level or alternate protocol; see eval selection rule';
    else if(r.metric!==e.metric)decision='Alternate metric; using '+e.metric;
-   else if(r.filter!==e.filter)decision='Alternate extraction filter; using '+(e.filter||'(empty)');
+   else if(r.filter!==e.metric_filter)decision='Alternate extraction filter; using '+(e.metric_filter||'(empty)');
    else if('shots'in e&&String(r.n_shot)!==String(e.shots))decision='Alternate shot setting; using '+e.shots+' shots';
    const selected=decision==='Selected for the weighted score';let scores={raw_score_100:null,score_100:null};
    if(selected){if(e.aggregation&&e.aggregation.components.filter(c=>matchTask(c.match,r.task)).length!==1)throw Error('Incompatible aggregation config for '+e.name+': '+r.task+' must match exactly one component');try{scores=normalizeScore(r.value,e);}catch(error){throw Error('CSV row '+(index+2)+' · '+r.checkpoint+' · '+r.task+' · '+r.metric+': '+error.message);}const key=JSON.stringify(['checkpoint','task','metric','filter','n_shot','harness','backend'].map(k=>r[k]));if(seen.has(key))throw Error('Duplicate selected measurement: '+r.checkpoint+' · '+r.task+' · '+r.metric);seen.add(key);}
    return {...r,eval:e.name,category:e.category,selected,decision,...scores};
   });
  }
- return {assembleCatalogue,validateAggregationConfig,validateAggregationSelection,parseCatalogue,serializeCatalogue,validateCatalogue,validateWeights,parseCSV,validateConfig,matchTask,normalizeScore,taskLanguage,auditRows,demoModel,isDemoModel};
+function compareText(a,b){const aa=Array.from(a,c=>c.codePointAt(0)),bb=Array.from(b,c=>c.codePointAt(0));for(let i=0;i<Math.min(aa.length,bb.length);i++)if(aa[i]!==bb[i])return aa[i]-bb[i];return aa.length-bb.length;}
+ return {compareText,assembleCatalogue,validateAggregationConfig,validateAggregationSelection,parseCatalogue,serializeCatalogue,validateCatalogue,validateWeights,parseCSV,validateConfig,matchTask,normalizeScore,taskLanguage,auditRows,demoModel,isDemoModel};
 })();
 if(typeof module!=='undefined')module.exports=EvalConfig;

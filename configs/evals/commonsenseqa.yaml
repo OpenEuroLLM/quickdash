@@ -3,7 +3,8 @@ category: Commonsense
 match:
   name: commonsense_qa
 metric: acc
-filter: none
+metric_filter: none
+shots: 10
 score:
   scale: 1
 normalize:

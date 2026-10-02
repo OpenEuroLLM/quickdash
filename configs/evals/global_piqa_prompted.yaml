@@ -3,7 +3,7 @@ category: Commonsense
 match:
   regex: global_piqa_prompted_.+
 metric: exact_match
-filter: strict_match
+metric_filter: strict_match
 score:
   scale: 1
 normalize:

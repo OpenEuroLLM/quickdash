@@ -3,7 +3,8 @@ category: Language
 match:
   name: bigbench_language_identification_multiple_choice
 metric: acc
-filter: none
+metric_filter: none
+shots: 10
 score:
   scale: 1
 normalize:

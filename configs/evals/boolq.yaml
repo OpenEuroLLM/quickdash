@@ -3,7 +3,8 @@ category: Reading
 match:
   name: boolq
 metric: acc
-filter: none
+metric_filter: none
+shots: 10
 score:
   scale: 1
 normalize:

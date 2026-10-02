@@ -7,7 +7,8 @@ from .config import (
     classify,
     in_suite,
     match_task,
-    resolve_config,
+    normalize_score,
+    resolve_inputs,
     scope_rows,
     task_language,
 )
@@ -22,6 +23,75 @@ def encoded(value):
 
 def key(row):
     return tuple(row[k] for k in IDENTITY)
+
+
+def matching_key(row, config, matching="strict"):
+    identity = list(key(row))
+    if matching == "relaxed":
+        e = next((e for e in config["evals"] if e["name"] == row["eval"]), {})
+        if "shots" in e:
+            identity[3] = str(int(e["shots"]))
+    return tuple(identity)
+
+
+def matching_audit(audit, catalogue, matching="strict"):
+    if matching not in {"strict", "relaxed"}:
+        raise ValueError("Matching must be strict or relaxed")
+    if matching == "strict":
+        return audit
+    result = [dict(r) for r in audit]
+    evals = {e["name"]: e for e in catalogue["evals"]}
+    groups = {}
+    for r in result:
+        e = evals.get(r["eval"], {})
+        if (
+            "shots" not in e
+            or r["metric"] != e["metric"]
+            or r["filter"] != e["metric_filter"]
+            or "select" in e
+            and match_task(e["select"], r["task"]) is None
+        ):
+            continue
+        identity = (r["checkpoint"], *[r[k] for k in IDENTITY if k != "n_shot"])
+        groups.setdefault(identity, []).append(r)
+    for rr in groups.values():
+        e = evals[rr[0]["eval"]]
+        distance = min(abs(int(r["n_shot"]) - e["shots"]) for r in rr)
+        nearest = sorted(
+            {
+                int(r["n_shot"])
+                for r in rr
+                if abs(int(r["n_shot"]) - e["shots"]) == distance
+            }
+        )
+        for r in rr:
+            r.update(selected=False, raw_score_100=None, score_100=None)
+            r.pop("matching_ambiguous_shots", None)
+            if len(nearest) != 1:
+                r.update(
+                    decision="Equally close shot settings; excluded",
+                    matching_ambiguous_shots=nearest,
+                )
+            elif int(r["n_shot"]) != nearest[0]:
+                r["decision"] = "Alternate shot setting; a closer setting is available"
+            else:
+                raw, adjusted = normalize_score(r["value"], e)
+                r.update(
+                    selected=True,
+                    raw_score_100=raw,
+                    score_100=adjusted,
+                    decision="Selected for the weighted score"
+                    if nearest[0] == e["shots"]
+                    else f"Using {nearest[0]} shots despite expected {int(e['shots'])}; relaxed matching",
+                )
+    seen = set()
+    for r in result:
+        if r["selected"]:
+            identity = (r["checkpoint"], *key(r))
+            if identity in seen:
+                raise ValueError("Duplicate selected measurement: " + r["task"])
+            seen.add(identity)
+    return result
 
 
 def measurement_id(row):
@@ -316,12 +386,16 @@ def totals(rows, config):
     )
 
 
-def comparison_coverage(a, b, config):
+def comparison_coverage(a, b, config, matching="strict"):
     left = component_coverage(a, config)["rows"]
     right = component_coverage(b, config)["rows"]
-    shared = set(map(key, left)) & set(map(key, right))
-    aa = component_coverage([r for r in left if key(r) in shared], config)["rows"]
-    bb = component_coverage([r for r in right if key(r) in shared], config)["rows"]
+
+    def match(r):
+        return matching_key(r, config, matching)
+
+    shared = set(map(match, left)) & set(map(match, right))
+    aa = component_coverage([r for r in left if match(r) in shared], config)["rows"]
+    bb = component_coverage([r for r in right if match(r) in shared], config)["rows"]
     return aa, bb
 
 
@@ -351,6 +425,8 @@ TITLES = dict(
     unknown_language="Unknown language",
     invalid_sample_count="Invalid sample count",
     inconsistent_scoring_settings="Inconsistent scoring settings",
+    relaxed_shot_setting="Few-shot mismatch allowed",
+    ambiguous_shot_setting="Ambiguous few-shot setting",
     missing_scoring_field="Missing scoring field",
     missing_scoring_setting="Missing scoring setting",
     no_selected_score="No selected score",
@@ -378,9 +454,15 @@ def diagnostic(code, model, eval_name, rows, detail, effect="included", tasks=No
     )
 
 
-def report_diagnostics(audits, config, included, comparison=False):
-    catalogue, suite, profile = config["catalogue"], config["suite"], config["profile"]
-    scheme = resolve_config(catalogue, suite, profile)
+def report_diagnostics(
+    audits, config, included, comparison=False, matching_mode="strict", resolved=None
+):
+    resolved = resolved or resolve_inputs(
+        config["catalogue"], config["suite"], config["profile"]
+    )
+    catalogue, suite, scheme, profile = (
+        resolved[k] for k in ("catalogue", "suite", "scheme", "profile")
+    )
     out = []
     used = {r["eval"] for rr in included.values() for r in rr}
     for e in catalogue["evals"]:
@@ -418,6 +500,44 @@ def report_diagnostics(audits, config, included, comparison=False):
             def add(code, rr, detail, effect="included"):
                 out.append(diagnostic(code, model, e["name"], rr, detail, effect))
 
+            if matching_mode == "relaxed" and "shots" in e:
+                for actual in sorted(
+                    {
+                        int(r["n_shot"])
+                        for r in selected
+                        if measurement_id(r) in accepted
+                        and int(r["n_shot"]) != e["shots"]
+                    }
+                ):
+                    rr = [
+                        r
+                        for r in selected
+                        if measurement_id(r) in accepted and int(r["n_shot"]) == actual
+                    ]
+                    item = diagnostic(
+                        "relaxed_shot_setting",
+                        model,
+                        e["name"],
+                        rr,
+                        f"Using {actual} shots despite expected {e['shots']}; allowed by relaxed matching.",
+                    )
+                    item.update(expected_shots=e["shots"], actual_shots=actual)
+                    out.append(item)
+                ambiguous = [r for r in matching if r.get("matching_ambiguous_shots")]
+                if ambiguous:
+                    item = diagnostic(
+                        "ambiguous_shot_setting",
+                        model,
+                        e["name"],
+                        ambiguous,
+                        f"Multiple equally close shot settings for expected {e['shots']}; excluded.",
+                        "excluded",
+                    )
+                    item.update(
+                        expected_shots=e["shots"],
+                        actual_shots=sorted({int(r["n_shot"]) for r in ambiguous}),
+                    )
+                    out.append(item)
             if outside:
                 add(
                     "not_used",
@@ -477,7 +597,8 @@ def report_diagnostics(audits, config, included, comparison=False):
                     "Excluded: expected "
                     + e["metric"]
                     + " / "
-                    + (e["filter"] or "(empty)")
+                    + (e["metric_filter"] or "(empty)")
+                    + (f" / {e['shots']} shots" if "shots" in e else "")
                     + ".",
                     "excluded",
                 )
@@ -550,16 +671,20 @@ def report_diagnostics(audits, config, included, comparison=False):
         entries = list(included.values())
         a = entries[0] if entries else []
         b = entries[1] if len(entries) > 1 else a
-        bm = {key(r): r for r in b}
+
+        def match(r):
+            return matching_key(r, scheme, matching_mode)
+
+        bm = {match(r): r for r in b}
         for e in catalogue["evals"]:
             rr = [
                 r
                 for r in a
                 if r["eval"] == e["name"]
-                and key(r) in bm
+                and match(r) in bm
                 and sample_count(r) is not None
-                and sample_count(bm[key(r)]) is not None
-                and sample_count(r) != sample_count(bm[key(r)])
+                and sample_count(bm[match(r)]) is not None
+                and sample_count(r) != sample_count(bm[match(r)])
             ]
             if rr:
                 out.append(
@@ -567,7 +692,7 @@ def report_diagnostics(audits, config, included, comparison=False):
                         "sample_count_mismatch",
                         "Selected comparison",
                         e["name"],
-                        rr + [bm[key(r)] for r in rr],
+                        rr + [bm[match(r)] for r in rr],
                         "Matched results have different sample counts. Scores remain included.",
                     )
                 )
@@ -747,25 +872,27 @@ def model_report(model, audit, rows, config, suite):
     )
 
 
-def prepare(rows, config):
-    scheme = resolve_config(config["catalogue"], config["suite"], config["profile"])
-    audit = classify(rows, config["catalogue"])
-    return scheme, {
+def prepare(rows, config, matching="strict"):
+    resolved = resolve_inputs(config["catalogue"], config["suite"], config["profile"])
+    catalogue = resolved["catalogue"]
+    audit = matching_audit(classify(rows, catalogue), catalogue, matching)
+    return resolved, {
         m: [r for r in audit if r["checkpoint"] == m]
         for m in sorted({r["checkpoint"] for r in audit})
     }
 
 
-def analyze(results, config, *, diagnostics="warn"):
+def analyze(results, config, *, diagnostics="warn", matching="strict"):
     """Score each model on its own available data; emit recoverable warnings by default."""
-    scheme, audits = prepare(results, config)
+    resolved, audits = prepare(results, config, matching)
+    scheme, suite = resolved["scheme"], resolved["suite"]
     included = {
-        m: component_coverage(scope_rows(rr, config["suite"])["rows"], scheme)["rows"]
+        m: component_coverage(scope_rows(rr, suite)["rows"], scheme)["rows"]
         for m, rr in audits.items()
     }
     coverage = []
     for model, rr in audits.items():
-        scope = scope_rows(rr, config["suite"])
+        scope = scope_rows(rr, suite)
         coverage.append(
             dict(
                 model=model,
@@ -774,29 +901,36 @@ def analyze(results, config, *, diagnostics="warn"):
                 and len(scope["rows"]) == len(included[model]),
             )
         )
+    diagnostics_list = report_diagnostics(
+        audits, config, included, matching_mode=matching, resolved=resolved
+    )
     return finish(
         dict(
+            matching=matching,
+            inconsistent=any(
+                d["code"] == "relaxed_shot_setting" for d in diagnostics_list
+            ),
             models=[
-                model_report(m, rr, included[m], scheme, config["suite"])
+                model_report(m, rr, included[m], scheme, suite)
                 for m, rr in audits.items()
             ],
-            diagnostics=report_diagnostics(audits, config, included),
+            diagnostics=diagnostics_list,
             coverage=coverage,
         ),
         diagnostics,
     )
 
 
-def compare(results, config, *, a, b, diagnostics="warn"):
+def compare(results, config, *, a, b, diagnostics="warn", matching="strict"):
     """Score both models on the same valid measurements, with symmetric exclusions."""
-    scheme, all_audits = prepare(results, config)
+    resolved, all_audits = prepare(results, config, matching)
+    scheme, suite = resolved["scheme"], resolved["suite"]
     if a not in all_audits or b not in all_audits:
         raise ValueError("Unknown comparison model")
     audits = {a: all_audits[a], b: all_audits[b]}
-    suite = config["suite"]
     sa = scope_rows(audits[a], suite)
     sb = scope_rows(audits[b], suite)
-    aa, bb = comparison_coverage(sa["rows"], sb["rows"], scheme)
+    aa, bb = comparison_coverage(sa["rows"], sb["rows"], scheme, matching)
     effective = scope_rows(aa, suite)
     left = model_report(a, audits[a], aa, scheme, suite)
     right = model_report(b, audits[b], bb, scheme, suite)
@@ -818,29 +952,40 @@ def compare(results, config, *, a, b, diagnostics="warn"):
         extrasA=len(sa["extras"]),
         extrasB=len(sb["extras"]),
     )
-    bm = {key(r): r for r in bb}
+
+    def match(r):
+        return matching_key(r, scheme, matching)
+
+    bm = {match(r): r for r in bb}
     aw = {r["id"]: r["effective_weight"] for r in left["measurements"]}
     deltas = [
         dict(
             task=r["task"],
             measurement_a=measurement_id(r),
-            measurement_b=measurement_id(bm[key(r)]),
-            raw_delta=r["raw_score_100"] - bm[key(r)]["raw_score_100"],
-            score_delta=r["score_100"] - bm[key(r)]["score_100"],
+            measurement_b=measurement_id(bm[match(r)]),
+            raw_delta=r["raw_score_100"] - bm[match(r)]["raw_score_100"],
+            score_delta=r["score_100"] - bm[match(r)]["score_100"],
             effective_weight=aw[measurement_id(r)],
-            contribution_delta=(r["score_100"] - bm[key(r)]["score_100"])
+            contribution_delta=(r["score_100"] - bm[match(r)]["score_100"])
             * aw[measurement_id(r)],
         )
         for r in aa
     ]
+    diagnostics_list = report_diagnostics(
+        audits, config, {a: aa, b: bb}, True, matching, resolved
+    )
     return finish(
         dict(
+            matching=matching,
+            inconsistent=any(
+                d["code"] == "relaxed_shot_setting" for d in diagnostics_list
+            ),
             a=left,
             b=right,
             delta=left["score"] - right["score"]
             if left["score"] is not None and right["score"] is not None
             else None,
-            diagnostics=report_diagnostics(audits, config, {a: aa, b: bb}, True),
+            diagnostics=diagnostics_list,
             coverage=coverage,
             deltas=deltas,
         ),

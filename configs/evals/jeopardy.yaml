@@ -3,7 +3,8 @@ category: Knowledge
 match:
   name: jeopardy
 metric: exact_match
-filter: strict-match
+metric_filter: strict-match
+shots: 10
 score:
   scale: 1
 normalize:

@@ -3,7 +3,8 @@ category: Reading
 match:
   regex: belebele_.+
 metric: acc_norm
-filter: none
+metric_filter: none
+shots: 5
 score:
   scale: 1
 normalize:
