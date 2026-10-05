@@ -4,7 +4,7 @@ import csv
 import hashlib
 import json
 from pathlib import Path
-from quickdash.io import load_csv
+from quickdash.io import load_csv, parse_yaml
 from quickdash.config import classify, task_language, load_catalogue, serialize_catalogue, load_profile, load_suite, resolve_config, resolve_inputs, scope_rows
 from quickdash.analysis import totals, component_coverage, diagnostic, analyze
 
@@ -69,6 +69,22 @@ def config_choices(path, directory, kind, default_directory):
     return path, choices
 
 
+def default_comparison(directory, models):
+    """Read optional dashboard startup choices, using exact checkpoint labels."""
+    if directory is None or not (directory/'default.yaml').exists(): return None
+    path = directory/'default.yaml'
+    try:
+        selected = parse_yaml(path.read_text(encoding='utf-8'))
+        if not isinstance(selected, dict) or set(selected) != {'a', 'b'}:
+            raise ValueError('expected a mapping with exactly a and b checkpoint labels')
+        for side, model in selected.items():
+            if not isinstance(model, str) or model not in models:
+                raise ValueError(f'{side}: unknown checkpoint label {model!r}')
+    except ValueError as error:
+        raise ValueError(f'{path}: {error}') from error
+    return selected
+
+
 def build(source, output, catalogue_path=None, results_dir=None, *, weights_path=None, weights_dir=None, suite_path=None, sets_dir=None, sample_csv=None):
     if source is not None and results_dir is not None: raise ValueError('Choose a CSV or --results-dir, not both')
     if sample_csv is not None and results_dir is None: raise ValueError('--sample-csv requires --results-dir')
@@ -98,6 +114,7 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
             owners[model]=path.name
         rows.extend(rr);audit.extend(classified)
         sources.append(dict(file=path.name,sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
+    comparison = default_comparison(results_dir, owners)
     scoped = scope_rows(audit, selection)['rows']
     identities = {tuple(r[k] for k in ['checkpoint','task','metric','filter','n_shot','harness','backend']) for r in scoped}
     included = {id(r) for r in audit if tuple(r[k] for k in ['checkpoint','task','metric','filter','n_shot','harness','backend']) in identities}
@@ -117,7 +134,7 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
     if metadata:write_csv(output/'language-metadata.csv', metadata)
     payload = dict(diagnostics=diagnostics,catalogue=catalogue, catalogue_file=catalogue_path.name, suite=suite, suite_file=suite_path.name,
                    profile=profile, profile_file=weights_path.name, suites=suites, profiles=profiles,
-                   sample_models=sorted(owners) if using_sample else [], metadata=metadata, scheme=config, models=summary, aggregates=aggregates, rows=audit, sources=sources,
+                   default_comparison=comparison, sample_models=sorted(owners) if using_sample else [], metadata=metadata, scheme=config, models=summary, aggregates=aggregates, rows=audit, sources=sources,
                    source=source.name if source else results_dir.name if results_dir else '', sha256=sources[0]['sha256'] if len(sources)==1 else None)
     (output/'catalogue.yaml').write_text(serialize_catalogue(catalogue))
     (output/'weights.yaml').write_text(weights_path.read_text())

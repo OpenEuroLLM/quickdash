@@ -113,6 +113,23 @@ try{
  assert.equal(await evaluate("document.querySelector('#modelB').value"),'Example B');
  for(const view of ['score','categories','languages','comparisons','config','warnings'])await click('[data-view='+view+']');
  assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+ // Explicit defaults can select any embedded pair without hiding older models.
+ const preferred=path.join(temporary,'preferred');
+ fs.writeFileSync(path.join(results,'alternative.csv'),fs.readFileSync(path.join(root,'examples/scores.csv'),'utf8').replaceAll('Example A','Alternative A').replaceAll('Example B','Alternative B'));
+ fs.writeFileSync(path.join(results,'default.yaml'),'a: Example B\nb: Alternative A\n');
+ execFileSync('python3',['-m','app.build','--results-dir',results,'--catalogue',path.join(root,'configs/examples/catalogue.yaml'),'--weights',path.join(root,'configs/examples/weights.yaml'),'--eval-set',path.join(root,'configs/examples/eval-set.yaml'),'--output',preferred],{cwd:root,stdio:'pipe'});
+ await navigate(pathToFileURL(path.join(preferred,'index.html')).href);
+ assert.equal(await evaluate("document.querySelector('#modelA').value"),'Example B');
+ assert.equal(await evaluate("document.querySelector('#modelB').value"),'Alternative A');
+ assert.equal(await evaluate("document.querySelector('#cards .score-card:last-child strong').textContent"),'2.50');
+ assert.ok(await evaluate("[...document.querySelector('#modelA').options].some(o=>o.value==='Example A')"));
+ await click('#swap');await click('[data-view=categories]');
+ assert.equal(await evaluate("document.querySelector('#modelA').value"),'Alternative A');
+ await click('#clearModels');
+ await upload('#modelFile',fs.readFileSync(path.join(root,'examples/scores.csv'),'utf8'),'scores.csv');
+ assert.equal(await evaluate("document.querySelector('#modelA').value"),'Example A');
+ assert.equal(await evaluate("document.querySelector('#modelB').value"),'Example B');
+ fs.unlinkSync(path.join(results,'default.yaml'));fs.unlinkSync(path.join(results,'alternative.csv'));
  // Starting directly on a named subset must retain out-of-set data, including the demo.
  const subset=path.join(temporary,'subset.yaml');
  fs.writeFileSync(subset,serializeSuite({version:1,name:'Reasoning only',mode:'fixed',evals:[{name:'Example reasoning'}]}));

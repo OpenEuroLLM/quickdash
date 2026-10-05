@@ -301,5 +301,7 @@ function start(){
  }catch(err){$('error').textContent=err.message;}finally{e.target.value='';}};
  function filterOptions(){$('category').innerHTML=options([['','All categories'],...[...new Set([...Object.keys(weights),...catalogue.evals.map(e=>e.category)])].map(k=>[k,k])],'');
  $('eval').innerHTML=options([['','All evals'],...catalogue.evals.map(f=>[f.name,f.name])],'');}
- filterOptions();modelOptions();languageOptions();render();
+ filterOptions();modelOptions();
+ if(DATA.default_comparison){$('modelA').value=DATA.default_comparison.a;$('modelB').value=DATA.default_comparison.b;}
+ languageOptions();render();
 }

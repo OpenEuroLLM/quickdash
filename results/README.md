@@ -2,7 +2,16 @@
 
 Add a CSV directly to this directory to make its models available on the [shared dashboard](https://openeurollm.github.io/quickdash/). You can use GitHub’s **Add file → Upload files** or submit a pull request. After the change reaches `main`, the Pages workflow validates the inputs and rebuilds the site.
 
-Until this directory contains a CSV, Pages shows the [sample dataset and synthetic comparisons](../examples/README.md). Adding the first shared CSV replaces the sample; removing all shared CSVs restores it on the next successful build.
+When this directory contains no CSVs, Pages shows the [sample dataset and synthetic comparisons](../examples/README.md). Adding the first shared CSV replaces the sample. Remove `default.yaml` as well when removing all shared CSVs, so stale model references do not prevent the fallback build.
+
+Choose the models shown on first opening the dashboard in [default.yaml](default.yaml):
+
+```yaml
+a: v1annealC_120k_l0fix
+b: v2anneal_120k
+```
+
+Use exact `checkpoint` labels from the CSVs, not filenames. All other models remain selectable. This file only sets the initial A/B selection; it does not change scoring, user selections, or temporary imports. Missing labels, extra keys, and malformed defaults fail the build before replacing output. Without this optional file, the dashboard starts with the first two checkpoint labels alphabetically (or a synthetic comparison when only one model is loaded). Direct single-CSV builds do not read this file.
 
 **This repository and its dashboard are public.** Commit only results you intend to share publicly, including any source paths or metadata in the CSV. For private comparisons, use the dashboard’s **Add model CSV** button instead; those files stay in your browser. The ignored `data/` directory is for local exports.
 

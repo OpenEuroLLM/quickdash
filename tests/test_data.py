@@ -260,6 +260,45 @@ class DataContracts(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'Duplicate model'):build(None,out,**kw,results_dir=results)
             self.assertEqual((out/'index.html').read_bytes(),previous)
 
+    def test_default_comparison_selects_models_without_changing_scores(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);kw=inputs(folder);results=folder/'results';results.mkdir();out=folder/'out'
+            for name in ['Old', 'Preferred', 'Reference']:
+                r=row(checkpoint=name)
+                (results/(name+'.csv')).write_text(','.join(r)+'\n'+','.join(r.values()))
+            with contextlib.redirect_stdout(io.StringIO()):build(None,out,**kw,results_dir=results)
+            original=json.loads((out/'analysis.json').read_text())
+            self.assertIsNone(original['default_comparison'])
+            (results/'default.yaml').write_text('a: Preferred\nb: Reference\n')
+            with contextlib.redirect_stdout(io.StringIO()):build(None,out,**kw,results_dir=results)
+            data=json.loads((out/'analysis.json').read_text())
+            self.assertEqual(data['default_comparison'],dict(a='Preferred',b='Reference'))
+            self.assertEqual(data['models'],original['models'])
+            self.assertEqual(data['rows'],original['rows'])
+            # A direct CSV build does not inherit directory startup preferences.
+            with contextlib.redirect_stdout(io.StringIO()):build(results/'Old.csv',out,**kw)
+            self.assertIsNone(json.loads((out/'analysis.json').read_text())['default_comparison'])
+
+    def test_invalid_default_comparison_preserves_existing_build(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp);kw=inputs(folder);results=folder/'results';results.mkdir();out=folder/'out'
+            r=row();(results/'scores.csv').write_text(','.join(r)+'\n'+','.join(r.values()))
+            with contextlib.redirect_stdout(io.StringIO()):build(None,out,**kw,results_dir=results)
+            previous=(out/'index.html').read_bytes()
+            for source in ['', '[]', 'a: Model A', 'a: Missing\nb: Model A',
+                           'a: 1\nb: Model A', 'a: Model A\nb: Model A\nc: extra',
+                           'a: Model A\na: duplicate\nb: Model A']:
+                with self.subTest(source=source):
+                    (results/'default.yaml').write_text(source)
+                    with self.assertRaisesRegex(ValueError,'default.yaml'):
+                        build(None,out,**kw,results_dir=results)
+                    self.assertEqual((out/'index.html').read_bytes(),previous)
+            # Stale references must not silently select a fallback sample.
+            (results/'scores.csv').rename(folder/'sample.csv')
+            (results/'default.yaml').write_text('a: Missing\nb: Model A')
+            with self.assertRaisesRegex(ValueError,'default.yaml'):
+                build(None,out,**kw,results_dir=results,sample_csv=folder/'sample.csv')
+
     def test_sample_is_used_only_for_an_empty_results_directory(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder=Path(tmp);kw=inputs(folder);results=folder/'results';results.mkdir();out=folder/'out'

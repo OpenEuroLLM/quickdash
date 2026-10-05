@@ -4,7 +4,7 @@ A standalone, offline dashboard for comparing model evaluation scores. Explore c
 
 **[Open the dashboard](https://openeurollm.github.io/quickdash/)** or **[try the fictional example](https://openeurollm.github.io/quickdash/demo.html)**. No installation is needed to use either page.
 
-The main page opens with **v1anneal_120k** as A and **v2anneal_120k** as B, using the exports in [results/](results/README.md). Synthetic comparison choices remain available for exploring the interface. The default strict matching excludes results whose few-shot settings differ from the catalogue; review **Warnings**, or explicitly select relaxed matching to include them.
+The main page opens with **v1annealC_120k_l0fix** as A and **v2anneal_120k** as B, using the exports in [results/](results/README.md). The earlier v1 run and synthetic comparisons remain selectable. The startup pair is configured in [results/default.yaml](results/default.yaml). The default strict matching excludes results whose few-shot settings differ from the catalogue; review **Warnings**, or explicitly select relaxed matching to include them.
 
 ## Compare models
 
