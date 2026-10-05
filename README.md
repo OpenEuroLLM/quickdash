@@ -63,7 +63,7 @@ The builder replaces the files it generates in the chosen output directory, incl
 
 ## Review scores
 
-- **Weighted score:** switch between original averaging, English balance per eval, and English balance per category. Inspect contributions and adjust category weights and English shares. The [worked example](docs/configuration.md#choosing-an-aggregate) explains how the two balance modes differ.
+- **Weighted score:** switch between original averaging, English balance per eval, and English balance per category. Inspect category and eval scores with colored A − B differences alongside their weighted contributions, and adjust category weights and English shares. The [worked example](docs/configuration.md#choosing-an-aggregate) explains how the two balance modes differ.
 - **Categories:** expand `category → eval → language → variants`.
 - **Languages:** expand `language → category → eval → variants`. Click any column heading to sort within each level; click again to reverse. Expanded sections and scroll position are preserved. Translation expands into source/target directions and language pairs in both breakdowns.
 - **Delta comparisons:** sortable bars for raw A − B or weighted contribution differences. Start with one row per eval, then expand languages or show all variants.

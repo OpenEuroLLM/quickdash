@@ -61,6 +61,30 @@ try{
  assert.equal(await evaluate("document.querySelector('#modelB').value"),'Example B');
  assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'0');
  assert.equal(await evaluate("document.querySelector('#cards .score-card:last-child strong').textContent"),'-2.50');
+ // Category score deltas sit before weighted contributions and use sign colors.
+ await click('[data-view=score]');
+ const categoryCells=()=>evaluate("[...document.querySelector('#view table').tBodies[0].rows].map(r=>[...r.cells].map(c=>({text:c.textContent,classes:c.className})))");
+ assert.deepEqual(await evaluate("[...document.querySelector('#view table').tHead.rows[0].cells].map(c=>c.textContent)"),['Category','Weight','A','B','A − B','A contribution','B contribution','Contribution Δ','Explore']);
+ let cells=await categoryCells();
+ assert.equal(cells[0][4].text,'5.00');assert.match(cells[0][4].classes,/positive/);
+ assert.equal(cells[1][4].text,'-10.00');assert.match(cells[1][4].classes,/negative/);
+ assert.equal(cells[0][7].text,'2.5000');assert.equal(cells[1][7].text,'-5.0000');
+ await click('#swap');cells=await categoryCells();
+ assert.equal(cells[0][4].text,'-5.00');assert.match(cells[0][4].classes,/negative/);
+ assert.equal(cells[1][4].text,'10.00');assert.match(cells[1][4].classes,/positive/);
+ await click('#swap');await change('#modelB','Example A');cells=await categoryCells();
+ assert.equal(cells[0][4].text,'0.00');assert.doesNotMatch(cells[0][4].classes,/positive|negative/);
+ await change('#modelB','Example B');
+ const evalTable=()=>evaluate("[...document.querySelectorAll('#view table')].find(t=>t.tHead.rows[0].cells[0].textContent==='Eval').outerHTML");
+ const evalDelta=()=>evaluate("(()=>{const t=[...document.querySelectorAll('#view table')].find(t=>t.tHead.rows[0].cells[0].textContent==='Eval');const c=t.tBodies[0].rows[0].cells[5];return {text:c.textContent,classes:c.className};})()");
+ await click('[data-score-category=Reasoning]');
+ assert.match(await evalTable(),/A − B<\/th><th[^>]*>Effective weight/);
+ assert.deepEqual(await evalDelta(),{text:'5.00',classes:'num positive'});
+ await click('[data-score-category=Math]');
+ assert.deepEqual(await evalDelta(),{text:'-10.00',classes:'num negative'});
+ await change('#modelB','Example A');assert.deepEqual(await evalDelta(),{text:'0.00',classes:'num '});
+ await change('#modelB','Example B');
+ await click('[data-view=config]');
  const original=await evaluate("document.querySelector('#cards').textContent");
  // A catalogue without loaded data is not a coverage requirement.
  const extended=structuredClone(fixture);extended.evals.push({...extended.evals[0],name:'Unused eval',match:{name:'unused'}});
@@ -76,6 +100,8 @@ try{
  assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
  assert.match(await evaluate("document.querySelector('#coverage').textContent"),/INCOMPLETE.*1\/2 requirements shared.*4 extra/);
  assert.equal(await evaluate("document.querySelector('#weightPreset').value"),'1');
+ await click('[data-view=score]');cells=await categoryCells();
+ assert.equal(cells[1][4].text,'—');assert.doesNotMatch(cells[1][4].classes,/positive|negative/);
  await click('[data-view=warnings]');
  assert.match(await evaluate("document.querySelector('#view').textContent"),/Missing suite data.*example_reasoning_de/s);
  assert.match(await evaluate("document.querySelector('#view').textContent"),/Not used/);
@@ -278,6 +304,9 @@ try{
  const shotCSV=(value='0.625')=>'checkpoint,task,metric,filter,n_shot,harness,backend,value\nShots A,example_reasoning_en,acc_norm,none,5,test,cpu,1\nShots B,example_reasoning_en,acc_norm,none,0,test,cpu,'+value;
  await upload('#modelFile',shotCSV(),'shots.csv');
  const noShared=await evaluate("document.querySelector('#cards').textContent");
+ await click('[data-view=score]');await click('[data-score-category=Reasoning]');
+ assert.deepEqual(await evalDelta(),{text:'—',classes:'num '});
+ await click('[data-view=config]');
  await change('#matching','relaxed');
  assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
  assert.match(await evaluate("document.querySelector('#matchingNotice').textContent"),/INCONSISTENT/);
