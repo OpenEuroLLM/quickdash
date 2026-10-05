@@ -1,1 +1,1 @@
-any-available.yaml
+flagship-1.yaml

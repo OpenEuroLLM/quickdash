@@ -50,7 +50,7 @@ try{
  assert.equal(await evaluate("document.querySelector('#cards').hidden"),true);
  assert.match(await evaluate("document.querySelector('#view').textContent"),/Compare your evaluation results/);
  assert.equal(await evaluate("document.querySelector('#suitePreset').options.length"),2);
- assert.equal(await evaluate("document.querySelector('#suitePreset').selectedOptions[0].textContent"),'Any available');
+ assert.equal(await evaluate("document.querySelector('#suitePreset').selectedOptions[0].textContent"),'flagship-1');
  for(const view of ['categories','languages','comparisons','config','warnings','score'])await click('[data-view='+view+']');
  const upload=async(selector,content,name)=>evaluate(`(async()=>{const dt=new DataTransfer();dt.items.add(new File([${JSON.stringify(content)}],${JSON.stringify(name)}));const e=document.querySelector(${JSON.stringify(selector)});e.files=dt.files;if(e.id==='modelFile')await e.onchange({target:e});else await document.querySelector('#view').onchange({target:e});})()`);
  await click('[data-view=config]');await upload('#suiteFile',serializeSuite({version:1,name:'Any example',mode:'available'}),'any.yaml');await upload('#configFile',serializeCatalogue(fixture),'catalogue.yaml');
@@ -217,6 +217,8 @@ try{
  execFileSync('python3',['-m','app.build','--results-dir',resultsDir,'--sample-csv','examples/sample-evals.csv','--output',sample],{cwd:root,stdio:'pipe'});
  await navigate(pathToFileURL(path.join(sample,'index.html')).href);
  assert.match(await evaluate("document.querySelector('#modelA').value"),/^SAMPLE/);
+ assert.equal(await evaluate("document.querySelector('#suitePreset').selectedOptions[0].textContent"),'flagship-1');
+ await change('#suitePreset',await evaluate("String(DATA.suites.findIndex(s=>s.file==='any-available.yaml'))"));
  // The generated catalogue contains every eval and language, with no filesystem dependency.
  const exportedCatalogue=fs.readFileSync(path.join(sample,'catalogue.yaml'),'utf8');
  assert.deepEqual(parseCatalogue(exportedCatalogue),require('../app/catalogue_io.cjs').loadCatalogue(path.join(root,'configs/catalogue.yaml')));
@@ -233,7 +235,7 @@ try{
  assert.equal(await evaluate("document.querySelector('#cards').hidden"),false);
  const strictSampleCards=await evaluate("document.querySelector('#cards').textContent");
  // Strict shot mismatches collapse per eval, including duplicate missing-set warnings.
- await change('#suitePreset','1');await click('[data-view=warnings]');
+ await change('#suitePreset',await evaluate("String(DATA.suites.findIndex(s=>s.file==='flagship-1.yaml'))"));await click('[data-view=warnings]');
  const arcWarnings=await evaluate("[...document.querySelectorAll('#view tbody tr')].filter(r=>r.cells[1]?.textContent==='ARC Challenge').map(r=>r.textContent)");
  assert.equal(arcWarnings.length,1);
  assert.match(arcWarnings[0],/Few-shot mismatch excluded.*\d+ tasks use 0 shots; expected 10/s);
@@ -243,7 +245,7 @@ try{
  await evaluate("document.querySelector('.catalogue-eval[data-eval=\"ARC Challenge\"]').open=true");
  await new Promise(r=>setTimeout(r,50));
  assert.ok(await evaluate("document.querySelectorAll('.catalogue-eval[data-eval=\"ARC Challenge\"] .has-missing-field').length>0"));
- await change('#suitePreset','0');
+ await change('#suitePreset',await evaluate("String(DATA.suites.findIndex(s=>s.file==='any-available.yaml'))"));
  assert.equal(await evaluate("document.querySelector('#cards').textContent"),strictSampleCards);
 
  await change('#matching','relaxed');

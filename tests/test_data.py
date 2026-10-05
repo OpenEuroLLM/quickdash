@@ -179,11 +179,12 @@ class DataContracts(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError,'default.txt'):build(None,out,**kw,weights_dir=profiles)
                     self.assertEqual((out/'index.html').read_text(),'keep')
 
-    def test_cli_defaults_to_any_available_and_separate_weight_profile(self):
+    def test_builder_defaults_to_flagship_and_separate_weight_profile(self):
         with tempfile.TemporaryDirectory() as tmp:
             subprocess.run([sys.executable,'-m','app.build','--output',tmp],cwd=ROOT,check=True,stdout=subprocess.DEVNULL)
             data=json.loads((Path(tmp)/'analysis.json').read_text())
-            self.assertEqual(data['suite']['mode'],'available')
+            self.assertEqual(data['suite']['mode'],'fixed')
+            self.assertEqual(data['suite']['name'],'flagship-1')
             self.assertEqual(data['profile']['name'],'Original')
             self.assertEqual([p['config']['name'] for p in data['profiles']],['Original','Code & math emphasis'])
             self.assertEqual(data['profiles'][1]['config']['weights'],{'Code':.2,'Math':.2,'Reasoning':.1,'Knowledge':.125,'Commonsense':.125,'Reading':.15,'Translation':.1/3,'Language':.1/3,'Instruction following':.1/3})

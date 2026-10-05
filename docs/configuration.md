@@ -27,7 +27,7 @@ Two profiles are supplied. **Original** is selected on startup; **Code & math em
 
 Both profiles default to the standard calculation and store an English share of 0.5 per category, which applies only when an English-balance calculation is selected.
 
-The **Weighting profile** and **Eval set** selectors operate independently. Switching a profile resets category weights, English shares, and the calculation to that profile's values, leaving the eval set unchanged. Switching eval sets preserves your current weights and calculation. Export edits before switching profiles if you want to keep them.
+**flagship-1** is the startup eval set. The **Weighting profile** and **Eval set** selectors operate independently. Switching a profile resets category weights, English shares, and the calculation to that profile's values, leaving the eval set unchanged. Switching eval sets preserves your current weights and calculation. Export edits before switching profiles if you want to keep them.
 
 **Any available** uses recognized selected measurements shared by A and B. Measurements present on only one side generate comparison warnings and are excluded from both scores. Catalogue entries absent from both models do not generate warnings. The supplied freeform set explicitly excludes prompted Global PIQA pending validation; present data for it generates a **Not used** warning.
 
