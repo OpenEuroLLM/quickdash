@@ -14,7 +14,9 @@ The main page opens with **v1annealC_120k_l0fix** as A and **v2anneal_120k** as 
 
 **Original** is the startup weighting profile. **Code & math emphasis** gives Code and Math 20% each, with the other category weights adjusted as shown in the [configuration reference](docs/configuration.md#choose-weights-and-expected-coverage).
 
-Files opened here stay in your browser; they are not uploaded. Changes last until reload. **Clear models** removes the loaded models while keeping settings. Under **Eval configuration**, load or export the catalogue, weights, and eval set as separate YAML files. Weight exports include your edits and active score calculation.
+Copy the browser address to share the current view. The URL anchor records the tab, model comparison, selected configs, calculation, edited weights, filters, sorting, and expanded details. Opening it restores those settings against the data published on that page. **Original** and **Code & math emphasis** remain selectable independently of the eval set.
+
+Files opened here stay in your browser; they are not uploaded or included in links. Views using temporary CSV/config uploads show a notice: recipients need those files separately. **Clear models** removes the loaded models while keeping settings. Under **Eval configuration**, load or export the catalogue, weights, and eval set as separate YAML files. Weight exports include your edits and active score calculation. See [sharing a view](docs/configuration.md#share-a-view) for restoration behavior and limitations.
 
 ## Share results and scoring configs
 
@@ -96,7 +98,7 @@ Application code lives in `app/` and `quickdash/`, tests in `tests/`, and contri
 
 ```sh
 python -m unittest tests.test_data tests.test_engines
-node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs
+node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs tests/test_view_links.cjs
 ```
 
 See [development and publishing](docs/development.md) for the source layout, browser tests, and GitHub Pages workflow.

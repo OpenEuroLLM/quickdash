@@ -28,7 +28,7 @@ Run the shared contract and scoring checks before publishing:
 
 ```sh
 python -m unittest tests.test_data tests.test_engines
-node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs
+node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs tests/test_view_links.cjs
 ```
 
 See [development and publishing](docs/development.md) for browser checks and

@@ -355,6 +355,70 @@ try{
  assert.equal(await evaluate("document.querySelector('#matching').value"),'strict');
  assert.match(await evaluate("document.querySelector('#error').textContent"),/Invalid score/);
  assert.equal(await evaluate("document.querySelector('#cards').textContent"),beforeRelax);
+ // Address fragments restore a complete published comparison without storing CSVs.
+ const waitFor=async expression=>{for(let i=0;i<100;i++){if(await evaluate(expression))return;await new Promise(r=>setTimeout(r,50));}assert.fail('Timed out: '+expression);};
+ const openLink=async url=>{await send('Page.navigate',{url:'about:blank'});await new Promise(r=>setTimeout(r,100));await navigate(url);};
+ await openLink(pathToFileURL(path.join(shared,'index.html')).href);
+ await click('#swap');await change('#matching','relaxed');await click('[data-aggregate=english_eval]');
+ await change('[data-weight=Reasoning]','0.6');await change('[data-weight=Math]','0.4');await change('[data-english-weight=Reasoning]','0.7');
+ await click('[data-view=comparisons]');await change('#category','Reasoning');await change('#language','eng_Latn');
+ await change('#compareMeasure','weighted');await click('[data-sort-column=weightedDelta]');await click('[data-expand-eval="Example reasoning"]');
+ const link=await evaluate('location.href'),linkedCards=await evaluate("document.querySelector('#cards').textContent"),linkedView=await evaluate("document.querySelector('#view').textContent");
+ assert.equal(new URL(link).search,'');assert.ok(new URL(link).hash.includes('view=comparisons'));
+ await openLink(link);
+ assert.equal(await evaluate("document.querySelector('#linkNotice').hidden"),true);
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),linkedCards);
+ assert.equal(await evaluate("document.querySelector('#view').textContent"),linkedView);
+ assert.equal(await evaluate("document.querySelector('#modelA').value"),'Example B');
+ assert.equal(await evaluate("document.querySelector('#category').value"),'Reasoning');
+ assert.equal(await evaluate("document.querySelector('#language').value"),'eng_Latn');
+ assert.equal(await evaluate("document.querySelector('#matching').value"),'relaxed');
+ // Tab navigation supplies useful browser history; in-tab edits replace that entry.
+ await click('[data-view=languages]');await click('[data-language-sort=delta]');
+ await evaluate("document.querySelector('.breakdown-node').open=true");
+ await waitFor("new URLSearchParams(location.hash.slice(1)).has('open')");
+ const languageLink=await evaluate('location.href');
+ await click('[data-view=categories]');await evaluate('history.back()');
+ await waitFor("document.querySelector('[data-view=languages]').classList.contains('active')");
+ assert.ok(await evaluate("document.querySelectorAll('.breakdown-node[open]').length>0"));
+ await evaluate('history.forward()');await waitFor("document.querySelector('[data-view=categories]').classList.contains('active')");
+ await openLink(languageLink);assert.ok(await evaluate("document.querySelectorAll('.breakdown-node[open]').length>0"));
+ await click('[data-view=config]');
+ await evaluate("document.querySelector('.catalogue-eval').open=true");
+ await waitFor("!!document.querySelector('.catalogue-variant')");
+ await evaluate("document.querySelector('.catalogue-variant').open=true");
+ await waitFor("JSON.parse(new URLSearchParams(location.hash.slice(1)).get('open')||'[]').some(k=>k.startsWith('task:'))");
+ await openLink(await evaluate('location.href'));
+ assert.ok(await evaluate("!!document.querySelector('.catalogue-eval[open] .catalogue-variant[open] .task-details').textContent"));
+ // Stale or malformed links retain the live comparison and remain visible as errors.
+ const beforeBad=await evaluate("document.querySelector('#cards').textContent");
+ await evaluate("location.hash='#view=score&modelA=missing-model'");
+ await waitFor("!document.querySelector('#linkNotice').hidden");
+ assert.match(await evaluate("document.querySelector('#linkNotice').textContent"),/missing-model/);
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),beforeBad);
+ await new Promise(r=>setTimeout(r,100));assert.ok(await evaluate("location.hash.includes('missing-model')"));
+ for(const parameter of ['suite','profile','category','language']){
+  await evaluate(`location.hash='#view=score&${parameter}=missing-${parameter}'`);
+  await waitFor(`document.querySelector('#linkNotice').textContent.includes(${JSON.stringify(parameter==='suite'||parameter==='profile'?'not available on this page':'missing-'+parameter)})`);
+  assert.equal(await evaluate("document.querySelector('#cards').textContent"),beforeBad);
+ }
+ await click('[data-view=score]');
+ await click('[data-view=config]');await upload('#configFile',fs.readFileSync(path.join(root,'configs/examples/catalogue.yaml'),'utf8'),'temporary.yaml');
+ assert.ok(await evaluate("new URLSearchParams(location.hash.slice(1)).get('local')==='1'"));
+ assert.match(await evaluate("document.querySelector('#linkNotice').textContent"),/temporary uploads/);
+ await openLink(await evaluate('location.href'));
+ assert.match(await evaluate("document.querySelector('#linkNotice').textContent"),/Could not restore.*temporary uploads/);
+ // Profile and suite references use filenames, independent of selector order.
+ await openLink(pathToFileURL(path.join(sample,'index.html')).href);
+ await change('#weightPreset',await evaluate("String(DATA.profiles.findIndex(p=>p.file==='code-math.yaml'))"));
+ await change('#suitePreset',await evaluate("String(DATA.suites.findIndex(s=>s.file==='any-available.yaml'))"));
+ await click('[data-view=score]');await change('#scoreCategory','Math');
+ const presetLink=await evaluate('location.href'),presetCards=await evaluate("document.querySelector('#cards').textContent");
+ await openLink(presetLink);
+ assert.equal(await evaluate("document.querySelector('#weightPreset').selectedOptions[0].textContent"),'Code & math emphasis');
+ assert.equal(await evaluate("document.querySelector('#suitePreset').selectedOptions[0].textContent"),'Any available');
+ assert.equal(await evaluate("document.querySelector('#scoreCategory').value"),'Math');
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),presetCards);
  assert.deepEqual(errors,[]);assert.deepEqual(network,[],'Loading and comparing local files must not send HTTP requests');
  console.log('Public browser checks passed: empty start, shared models, independent weights and eval sets, required coverage, temporary uploads, rollback, Pages sample, synthetic choices, clear models and no uploads.');
 }finally{

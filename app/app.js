@@ -12,6 +12,72 @@ function start(){
  function addSynthetic(target,config,audits=sourceAudits,matching='strict'){if(!audits.size)return;const rows=matchingAudit([...audits.values()][0],config,matching).filter(r=>r.selected);for(const option of syntheticOptions)target.set(option.name,synthetic(rows,config,option));}
  addSynthetic(models,interpretation);
  const state={matching:'strict',aggregate:scheme.aggregate||'standard',view:'score',scoreCategory:Object.keys(weights)[0],group:'eval',expandedComparisons:new Set(),measure:'raw',sort:'descending',sortBy:'delta',languageSort:'label',languageOrder:'ascending'};
+ const linkStateKeys=['view','matching','aggregate','scoreCategory','group','measure','sort','sortBy','languageSort','languageOrder'];
+ const linkControls=['modelA','modelB','category','eval','language','direction','search'];
+ let linkReady=false,linkRestoring=false,linkBlocked=false,linkHistory='replace',renderedView=null,pendingOpen=null,startupLink;
+ let temporaryCatalogue=false,modelsCleared=false,embeddedModels=new Set(DATA.models.map(m=>m.model));
+ function detailKey(node){return node.id?'id:'+node.id:node.dataset.nodeKey?'node:'+node.dataset.nodeKey:node.dataset.eval?'eval:'+node.dataset.eval:node.dataset.task?'task:'+node.dataset.task:null;}
+ function openDetails(){return [...$('view').querySelectorAll('details[open]')].map(detailKey).filter(Boolean);}
+ function restoreDetails(keys){
+  const opened=new Set(keys);
+  // Eval parents create their task details lazily; restore parents before children.
+  for(let pass=0;pass<2;pass++)for(const node of $('view').querySelectorAll('details')){
+   const key=detailKey(node);if(!key)continue;
+   node.open=opened.has(key);if(node.open)populateCatalogue(node);
+  }
+ }
+ function captureLink(){
+  const result=Object.fromEntries(linkStateKeys.map(k=>[k,state[k]]));
+  for(const id of linkControls)result[id]=$(id).value;
+  result.suite=suites[Number(activeSuite)]?.file||'custom';result.profile=profiles[Number(activeProfile)]?.file||'custom';
+  result.expandedComparisons=[...state.expandedComparisons];result.open=openDetails();
+  for(const [key,current,original] of [['weights',weights,scheme.weights],['englishWeights',englishWeights,scheme.english_weights]]){
+   if(Object.keys(current).some(k=>current[k]!==original[k])||Object.keys(original).some(k=>!Object.hasOwn(current,k)))result[key]={...current};
+  }
+  const selectedModels=[result.modelA,result.modelB].filter(Boolean);
+  const local=temporaryCatalogue||activeSuite==='custom'||activeProfile==='custom'||modelsCleared&&DATA.models.length||selectedModels.some(m=>isDemoModel(m)?!embeddedModels.has(sourceAudits.keys().next().value):!embeddedModels.has(m));
+  if(local)result.local='1';
+  return result;
+ }
+ function syncLink(){
+  if(!linkReady||linkRestoring||linkBlocked)return;
+  try{
+   const current=captureLink(),hash=QuickdashViewLinks.serializeViewHash(current);
+   if(location.hash!==hash)history[linkHistory==='push'?'pushState':'replaceState'](null,'',hash);
+   $('linkNotice').textContent=current.local?'This view uses temporary uploads or cleared models. The address records view settings, but does not include those files; share the CSV/config files separately.':'';
+  }catch(error){$('linkNotice').textContent='The address has not been updated: '+error.message;}
+  $('linkNotice').hidden=!$('linkNotice').textContent;linkHistory='replace';
+ }
+ function restoreLink(){
+  linkRestoring=true;
+  try{
+   const requested={...startupLink,...QuickdashViewLinks.parseViewHash(location.hash)};
+   if(requested.local)throw Error('This link needs temporary uploads that are not included. Load the same files and select the view manually.');
+   const nextSuite=suites.findIndex(s=>s.file===requested.suite),nextProfile=profiles.findIndex(p=>p.file===requested.profile);
+   if(nextSuite<0||nextProfile<0)throw Error('The linked eval set or weighting profile is not available on this page.');
+   const nextCatalogue=DATA.catalogue,profileConfig=profiles[nextProfile].config,suiteConfig=suites[nextSuite].config;
+   const resolved=resolveInputs(nextCatalogue,suiteConfig,profileConfig),nextScheme=resolved.scheme;
+   const nextWeights={...nextScheme.weights,...requested.weights},nextEnglish={...nextScheme.english_weights,...requested.englishWeights};
+   for(const values of [nextWeights,nextEnglish])if(Object.keys(values).some(k=>!Object.hasOwn(nextScheme.weights,k)))throw Error('The link contains an unknown weight category.');
+   const nextAudits=new Map(),nextModels=new Map(),nextMetadata=new Map();
+   for(const m of DATA.models){const audit=auditRows(DATA.rows.filter(r=>r.checkpoint===m.model),resolved.catalogue);matchingAudit(audit,resolved.catalogue,requested.matching);nextAudits.set(m.model,audit);nextModels.set(m.model,audit.filter(r=>r.selected));for(const row of audit)nextMetadata.set(row.task,taskLanguage(row.task,nextCatalogue));}
+   addSynthetic(nextModels,resolved.catalogue,nextAudits,requested.matching);
+   for(const side of ['modelA','modelB'])if(requested[side]&&!nextModels.has(requested[side]))throw Error('Linked model is not available: '+requested[side]);
+   const allowed={category:new Set([...Object.keys(nextScheme.weights),...nextCatalogue.evals.map(e=>e.category)]),eval:new Set(nextCatalogue.evals.map(e=>e.name)),language:new Set([...nextAudits.values()].flat().flatMap(r=>languageRoles(r,nextMetadata).map(m=>m.language))),scoreCategory:new Set(Object.keys(nextScheme.weights))};
+   for(const key of Object.keys(allowed))if(requested[key]&&!allowed[key].has(requested[key]))throw Error('Linked '+key+' is not available: '+requested[key]);
+   if(requested.expandedComparisons.some(e=>!allowed.eval.has(e)))throw Error('An expanded eval in the link is not available.');
+   // All referenced inputs validate before replacing the live comparison.
+   catalogue=nextCatalogue;suite=suiteConfig;profile=profileConfig;scheme=nextScheme;interpretation=resolved.catalogue;selection=resolved.suite;
+   sourceAudits=nextAudits;models=nextModels;metadata=nextMetadata;weights={...nextWeights};englishWeights={...nextEnglish};
+   activeSuite=String(nextSuite);activeProfile=String(nextProfile);temporaryCatalogue=false;modelsCleared=false;embeddedModels=new Set(DATA.models.map(m=>m.model));
+   for(const key of linkStateKeys)state[key]=requested[key];state.expandedComparisons=new Set(requested.expandedComparisons);
+   filterOptions();modelOptions();languageOptions();for(const id of linkControls)$(id).value=requested[id];$('matching').value=state.matching;
+   pendingOpen=requested.open;render();linkBlocked=false;$('error').textContent='';$('linkNotice').textContent='';$('linkNotice').hidden=true;
+  }catch(error){
+   if(renderedView===null)render();
+   linkBlocked=true;$('linkNotice').textContent='Could not restore this link. '+error.message+' The displayed comparison has not been changed.';$('linkNotice').hidden=false;
+  }finally{linkRestoring=false;}
+ }
  const languages=r=>languageRoles(r,metadata).map(m=>m.language);
  const td=x=>'<td>'+esc(x)+'</td>';
  const num=(x,digits=2)=>'<td class="num">'+fmt(x,digits)+'</td>';
@@ -177,6 +243,8 @@ function start(){
  }
  function render(){
   comparisonCache=null;
+  if(!linkRestoring)linkBlocked=false;
+  const detailsToOpen=pendingOpen??(renderedView===state.view?openDetails():null);pendingOpen=null;
   const weightOpen=$('weightEditor')?.open,englishOpen=$('englishComponents')?.open;
   const {a,b,pairs,shown,excludedA,excludedB,scope}=selected(),ta=totals(a,scheme,weights,state.aggregate,englishWeights,metadata),tb=totals(b,scheme,weights,state.aggregate,englishWeights,metadata),valid=sameCoverage(a,b,scheme,state.matching)&&ta.score!==null&&tb.score!==null;
   const demo=[$('modelA').value,$('modelB').value].some(isDemoModel);
@@ -200,6 +268,7 @@ function start(){
   if(weightOpen&&$('weightEditor'))$('weightEditor').open=true;if(englishOpen&&$('englishComponents'))$('englishComponents').open=true;
   markHorizontalScroll();
   if(!shown.length&&['categories','languages','comparisons'].includes(state.view))$('view').insertAdjacentHTML('beforeend','<p>No matched variants pass these filters.</p>');
+  if(detailsToOpen!==null)restoreDetails(detailsToOpen);renderedView=state.view;syncLink();
  }
  function refreshConfig(){state.scoreCategory=Object.keys(weights)[0];filterOptions();clearFilters();languageOptions();}
  function reinterpret(nextCatalogue,nextSuite){
@@ -210,7 +279,7 @@ function start(){
   catalogue=nextCatalogue;suite=nextSuite;scheme=nextScheme;interpretation=nextInterpretation;selection=nextSelection;sourceAudits=audits;models=nextModels;metadata=nextMetadata;
   weights={...nextScheme.weights,...weights};refreshConfig();
  }
- function importCatalogue(config){reinterpret(config,suite);}
+ function importCatalogue(config){reinterpret(config,suite);temporaryCatalogue=true;}
  function importSuite(config,preset='custom'){reinterpret(catalogue,config);activeSuite=preset;}
  function importWeights(config,preset='custom'){
   const next=resolveConfig(catalogue,suite,config);profile=config;scheme=next;activeProfile=preset;
@@ -241,7 +310,7 @@ function start(){
  }
  window.addEventListener('resize',markHorizontalScroll);
  let scrollHintFrame;
- $('view').addEventListener('toggle',e=>{if(e.target.open)populateCatalogue(e.target);if(scrollHintFrame)cancelAnimationFrame(scrollHintFrame);scrollHintFrame=requestAnimationFrame(markHorizontalScroll);},true);
+ $('view').addEventListener('toggle',e=>{if(!e.target.isConnected)return;if(e.target.open)populateCatalogue(e.target);if(scrollHintFrame)cancelAnimationFrame(scrollHintFrame);scrollHintFrame=requestAnimationFrame(()=>{markHorizontalScroll();syncLink();});},true);
  function toggleComparison(name,button){
   const box=button.closest('.table-scroll'),position={x:window.scrollX,y:window.scrollY,top:box.scrollTop,left:box.scrollLeft,rowY:button.closest('tr').getBoundingClientRect().top};
   if(state.expandedComparisons.has(name))state.expandedComparisons.delete(name);else state.expandedComparisons.add(name);
@@ -275,7 +344,7 @@ function start(){
   else if(e.target.id==='resetWeights'){weights={...scheme.weights};englishWeights={...scheme.english_weights};render();}
   else if(['exportConfig','exportWeights','exportSuite'].includes(e.target.id)){try{if(e.target.id==='exportConfig')exportConfig();else if(e.target.id==='exportWeights')exportWeights();else exportFile(serializeSuite(suite),'eval-set.yaml');$('error').textContent='';}catch(err){$('error').textContent=err.message;}}
  };
- document.querySelectorAll('[data-view]').forEach(e=>e.onclick=()=>{state.view=e.dataset.view;render();});
+ document.querySelectorAll('[data-view]').forEach(e=>e.onclick=()=>{if(state.view!==e.dataset.view)linkHistory='push';state.view=e.dataset.view;render();});
  for(const id of ['modelA','modelB','category','eval','language','direction'])$(id).onchange=render;
  document.querySelectorAll('[data-aggregate]').forEach(button=>button.onclick=()=>{state.aggregate=button.dataset.aggregate;render();});
  $('search').oninput=render;$('clear').onclick=()=>{clearFilters();render();};
@@ -286,7 +355,7 @@ function start(){
   const nextModels=new Map(models);addSynthetic(nextModels,interpretation,sourceAudits,next);
   state.matching=next;models=nextModels;render();$('error').textContent='';
  }catch(error){state.matching=previous;$('matching').value=previous;render();$('error').textContent=error.message;}};
- $('clearModels').onclick=()=>{models=new Map();sourceAudits=new Map();metadata=new Map();modelOptions();clearFilters();languageOptions();state.view='score';$('error').textContent='';render();};
+ $('clearModels').onclick=()=>{models=new Map();sourceAudits=new Map();metadata=new Map();embeddedModels=new Set();modelsCleared=true;modelOptions();clearFilters();languageOptions();state.view='score';$('error').textContent='';render();};
  $('modelFile').onchange=async e=>{try{
   const file=e.target.files[0];if(!file)return;
   const audit=auditRows(parseCSV(await file.text()),interpretation),rows=audit.filter(r=>r.selected),names=[...new Set(audit.map(r=>r.checkpoint))];
@@ -303,5 +372,7 @@ function start(){
  $('eval').innerHTML=options([['','All evals'],...catalogue.evals.map(f=>[f.name,f.name])],'');}
  filterOptions();modelOptions();
  if(DATA.default_comparison){$('modelA').value=DATA.default_comparison.a;$('modelB').value=DATA.default_comparison.b;}
- languageOptions();render();
+ languageOptions();startupLink=captureLink();linkReady=true;
+ window.addEventListener('hashchange',restoreLink);
+ if(location.hash)restoreLink();else render();
 }

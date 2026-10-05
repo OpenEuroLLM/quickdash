@@ -33,7 +33,7 @@ These tests use small fixtures and run from a fresh checkout without private eva
 
 ```sh
 python -m unittest tests.test_data tests.test_engines
-node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs
+node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs tests/test_view_links.cjs
 ```
 
 The shared suite in `tests/test_engines.py` sends the same input cases to native Python and the real browser engine through `tests/engine_adapter.cjs`. Both must satisfy independently specified expectations, then their complete semantic reports are compared. Diagnostic codes, contexts and actions are checked; presentation text is not. Numerical comparison uses absolute tolerance `1e-9` and relative tolerance `1e-12`. Fixtures vary configuration sizes, contents and ordering. The sample matrix discovers all shipped sets and profiles and exercises every aggregation in both strict and relaxed matching. Shared cases cover override inheritance, language exclusions (including both translation endpoints), invalid references, missing requirements, component completeness, and warning conditions. Browser checks additionally verify effective settings, unchanged catalogue exports, set switching, and failed-import rollback. Python tests also exercise warning emission and CLI stdout/stderr without Node on PATH.
@@ -61,7 +61,7 @@ The full-export regression tests require the original private CSV at `data/v2zlo
 ```sh
 python3 -m app.build data/v2zloss_86k.flag-evals-436.tasks.csv
 python3 -m unittest tests.test_analysis tests.test_data
-node --test tests/test_app.cjs tests/test_english.cjs tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs
+node --test tests/test_app.cjs tests/test_english.cjs tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs tests/test_view_links.cjs
 ```
 
 With the isolated Chrome session above running, use `node tests/test_browser.mjs` for the full-export browser checks: filtering, sortable hierarchies, scroll preservation, warnings, model swapping, header alignment, and mobile layouts. Screenshots go into the ignored `output/` directory.

@@ -113,6 +113,29 @@ Under **Eval configuration**, load or export the catalogue, weights, and eval se
 
 `analysis.json` records the catalogue, selected profile and set, available `profiles` and `suites`, and source filenames/hashes. It also contains the resolved internal `scheme` used for arithmetic; that combined object is not a YAML input format. Generated `catalogue.yaml` contains the assembled, portable catalogue, with no `evals_dir` reference. `weights.yaml` and `eval-set.yaml` record the other configuration inputs. Browser export also saves the complete catalogue in one file; browser import accepts complete catalogues, not filesystem manifests.
 
+## Share a view
+
+The browser address updates as you use the dashboard. Copy that address to reopen
+or share the current view. A short link such as `#view=languages` opens a tab with
+the page's defaults. Generated links also record A/B checkpoint labels, the eval
+set and weighting profile filenames, strict/relaxed matching, calculation mode,
+edited category weights and English shares, filters, search, sorting, the category
+being explored, and expanded eval/language details. Switching tabs adds a browser
+history entry; edits within a tab update its entry. Back and Forward restore them.
+
+Links use the CSVs and configs embedded in the page being opened; they do not pin
+a historical dataset or config version. They contain settings and labels, not CSV
+contents or uploaded YAML. A view using temporary uploads is marked as requiring
+those files; its link cannot reproduce the comparison by itself. Share the files
+separately. A local `file:` address also needs the same HTML file at that path;
+use the hosted page for links to other people, or share a standalone HTML build.
+
+Malformed links and unavailable model/config references show a notice without
+changing the current comparison. On first load, the page's defaults remain visible
+with that notice. The invalid anchor is retained so it can be inspected; choosing
+a new view or changing a control resumes address updates. Display settings in a
+link do not alter the scoring rules or suppress data warnings.
+
 ## Edit one eval
 
 The repository keeps each eval’s interpretation and language mappings in one file.

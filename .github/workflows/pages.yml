@@ -29,7 +29,7 @@ jobs:
       - name: Check scoring, imports, and configuration
         run: |
           python3 -m unittest tests.test_data tests.test_engines
-          node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs
+          node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs tests/test_view_links.cjs
       - name: Check the installed package without Node on PATH
         run: |
           python3 -m pip wheel . --wheel-dir "$RUNNER_TEMP/quickdash-wheels"

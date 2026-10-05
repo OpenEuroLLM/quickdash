@@ -141,7 +141,7 @@ def build(source, output, catalogue_path=None, results_dir=None, *, weights_path
     (output/'eval-set.yaml').write_text(suite_path.read_text())
     (output/'analysis.json').write_text(json.dumps(payload, indent=2))
     template = (APP/'template.html').read_text()
-    (output/'index.html').write_text(template.replace('__APP__', (APP/'vendor/js-yaml.js').read_text()+'\n'+(APP/'eval_config.js').read_text()+'\n'+(APP/'suite_config.js').read_text()+'\n'+(APP/'analysis.js').read_text()+'\n'+(APP/'app.js').read_text()).replace('__PAYLOAD__', json.dumps(payload).replace('<', '\\u003c')))
+    (output/'index.html').write_text(template.replace('__APP__', (APP/'vendor/js-yaml.js').read_text()+'\n'+(APP/'eval_config.js').read_text()+'\n'+(APP/'suite_config.js').read_text()+'\n'+(APP/'analysis.js').read_text()+'\n'+(APP/'view_links.js').read_text()+'\n'+(APP/'app.js').read_text()).replace('__PAYLOAD__', json.dumps(payload).replace('<', '\\u003c')))
     print(json.dumps(dict(models=summary, rows=len(audit), selected=sum(r['selected'] for r in scoped_audit)), indent=2))
 
 
