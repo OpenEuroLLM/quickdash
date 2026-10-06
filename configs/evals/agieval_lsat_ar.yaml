@@ -1,4 +1,4 @@
-name: LSAT AR
+name: agieval_lsat_ar
 category: Reasoning
 match:
   name: agieval_lsat_ar

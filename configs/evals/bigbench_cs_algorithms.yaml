@@ -1,4 +1,4 @@
-name: CS Algorithms
+name: bigbench_cs_algorithms
 category: Code
 match:
   name: bigbench_cs_algorithms_generate_until

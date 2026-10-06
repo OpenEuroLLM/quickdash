@@ -1,4 +1,4 @@
-name: Global PIQA (prompted)
+name: global_piqa_prompted
 category: Commonsense
 match:
   regex: global_piqa_prompted_.+

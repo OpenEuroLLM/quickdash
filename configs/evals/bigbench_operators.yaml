@@ -1,4 +1,4 @@
-name: Operators
+name: bigbench_operators
 category: Math
 match:
   name: bigbench_operators_generate_until

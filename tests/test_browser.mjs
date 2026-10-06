@@ -58,7 +58,7 @@ assert.equal(await evaluate("document.querySelector('#cards strong').textContent
 assert.equal(await evaluate("document.querySelectorAll('svg').length"),0);
 await click('[data-score-category="Reading"]');
 assert.equal(await evaluate("document.querySelector('#scoreCategory').value"),'Reading');
-assert.match(await evaluate("document.querySelector('#view').textContent"),/SQuAD v2/);
+assert.match(await evaluate("document.querySelector('#view').textContent"),/squadv2/);
 await evaluate("document.querySelector('#weightEditor').open=true");
 await change('[data-weight="Code"]','.2');
 assert.equal(await evaluate("document.querySelector('#cards strong').textContent"),'—');
@@ -116,7 +116,7 @@ await click('#clear');
 await click('[data-view=comparisons]');
 assert.equal(await evaluate("document.querySelector('#compareGroup').value"),'eval');
 assert.equal(await evaluate("document.querySelectorAll('.comparison-row').length"),usedEvals);
-assert.ok(await evaluate("!!document.querySelector('[data-chart-eval=\"Global MMLU\"]')&&!!document.querySelector('[data-chart-eval=MMLU]')"));
+assert.ok(await evaluate("!!document.querySelector('[data-chart-eval=\"global_mmlu\"]')&&!!document.querySelector('[data-chart-eval=mmlu]')"));
 // Clickable headers sort every displayed value and expose their active direction.
 for(const [field,index] of [['label',0],['category',1],['a',2],['b',3],['rawDelta',4],['weightedDelta',5],['languageCount',6]]){
  for(let clickCount=0;clickCount<2;clickCount++){
@@ -131,21 +131,21 @@ for(const [field,index] of [['label',0],['category',1],['a',2],['b',3],['rawDelt
 assert.equal(await evaluate("document.querySelector('[data-chart-eval=HumanEval]').cells[1].textContent"),'Code');
 // Sections use page scrolling; expanding retains the row position without a nested vertical scroller.
 await change('#compareSort','name');
-await evaluate(`{const button=document.querySelector('[data-expand-eval="HellaSwag"]'),box=button.closest('.table-scroll');button.scrollIntoView({block:'center'});window.scrollBefore={top:box.scrollTop,left:box.scrollLeft,page:scrollY,button:button.getBoundingClientRect().top};}`);
+await evaluate(`{const button=document.querySelector('[data-expand-eval="hellaswag"]'),box=button.closest('.table-scroll');button.scrollIntoView({block:'center'});window.scrollBefore={top:box.scrollTop,left:box.scrollLeft,page:scrollY,button:button.getBoundingClientRect().top};}`);
 assert.ok(await evaluate('scrollBefore.page>100'));
-await click('[data-expand-eval="HellaSwag"]');
-assert.ok(await evaluate(`(()=>{const button=document.querySelector('[data-expand-eval="HellaSwag"]'),box=button.closest('.table-scroll');return Math.abs(button.getBoundingClientRect().top-scrollBefore.button)<2&&Math.abs(scrollY-scrollBefore.page)<2&&box.scrollTop===0})()`),'expansion moved the clicked row');
+await click('[data-expand-eval="hellaswag"]');
+assert.ok(await evaluate(`(()=>{const button=document.querySelector('[data-expand-eval="hellaswag"]'),box=button.closest('.table-scroll');return Math.abs(button.getBoundingClientRect().top-scrollBefore.button)<2&&Math.abs(scrollY-scrollBefore.page)<2&&box.scrollTop===0})()`),'expansion moved the clicked row');
 assert.ok(await evaluate("document.querySelectorAll('.comparison-detail').length>1"));
 assert.match(await evaluate("document.querySelector('.comparison-detail').textContent"),/Latn|Cyrl/);
-await click('[data-expand-eval="HellaSwag"]');
+await click('[data-expand-eval="hellaswag"]');
 assert.equal(await evaluate("document.querySelectorAll('.comparison-row').length"),usedEvals);
-assert.ok(await evaluate(`Math.abs(document.querySelector('[data-expand-eval="HellaSwag"]').getBoundingClientRect().top-scrollBefore.button)<2`),'collapse moved the clicked row');
+assert.ok(await evaluate(`Math.abs(document.querySelector('[data-expand-eval="hellaswag"]').getBoundingClientRect().top-scrollBefore.button)<2`),'collapse moved the clicked row');
 assert.equal(await evaluate(`document.querySelector('[data-chart-eval="HumanEval"] .language-count').textContent`),'1');
-assert.ok(await evaluate(`Number(document.querySelector('[data-chart-eval="FLORES200"] .language-count').textContent)>30`));
-assert.equal(await evaluate(`document.querySelector('[data-chart-eval="Language ID"] .language-count').textContent`),'1 pooled');
+assert.ok(await evaluate(`Number(document.querySelector('[data-chart-eval="flores200"] .language-count').textContent)>30`));
+assert.equal(await evaluate(`document.querySelector('[data-chart-eval="bigbench_language_identification"] .language-count').textContent`),'1 pooled');
 await change('#language','fin_Latn');
-assert.equal(await evaluate(`document.querySelector('[data-chart-eval="Belebele"] .language-count').textContent`),'1');
-assert.equal(await evaluate(`document.querySelector('[data-chart-eval="FLORES200"] .language-count').textContent`),'2');
+assert.equal(await evaluate(`document.querySelector('[data-chart-eval="belebele"] .language-count').textContent`),'1');
+assert.equal(await evaluate(`document.querySelector('[data-chart-eval="flores200"] .language-count').textContent`),'2');
 await click('#clear');await change('#compareSort','descending');
 await change('#compareGroup','variant');
 assert.equal(await evaluate("document.querySelectorAll('.comparison-row').length"),usedRows);
@@ -180,7 +180,7 @@ assert.equal(await evaluate("document.querySelectorAll('.catalogue-task').length
 assert.ok((await evaluate("document.querySelector('#filterStatus').textContent")).startsWith(`${new Set(payload.rows.map(r=>r.task)).size} of ${new Set(payload.rows.map(r=>r.task)).size} task names · ${payload.rows.length} metric rows`));
 assert.ok(await evaluate("document.querySelectorAll('#view *').length<2500"),'collapsed catalogue rendered too much content');
 assert.equal(await evaluate("document.querySelectorAll('.catalogue-metric').length"),0);
-assert.match(await evaluate("document.querySelector('[data-eval=\"ARC Challenge\"] > summary .scoring-options').textContent"),/Selected: acc_norm.*Other available metrics: acc/);
+assert.match(await evaluate("document.querySelector('[data-eval=\"arc_challenge\"] > summary .scoring-options').textContent"),/Selected: acc_norm.*Other available metrics: acc/);
 
 const humanSummary=await evaluate("document.querySelector('[data-eval=HumanEval] > summary').textContent");
 assert.match(humanSummary,/Selected: python_pass@1.*0-shot · no examples.*Other available metrics: sh_pass@1/);
@@ -203,7 +203,7 @@ assert.match(await evaluate("document.querySelector('#view').textContent"),/Excl
 await click('#clear');
 // Config import changes metric/category/normalization/languages atomically.
 await evaluate(`window.loadTestConfig=async config=>{for(const [selector,object] of [['#weightsFile',Object.fromEntries(Object.entries(config).filter(([k])=>['version','name','weights','english_weights','aggregate'].includes(k)))],['#configFile',Object.fromEntries(Object.entries(config).filter(([k])=>!['weights','english_weights','aggregate'].includes(k)))]]){const dt=new DataTransfer();dt.items.add(new File([jsyaml.dump(object,{schema:jsyaml.CORE_SCHEMA})],'config.yaml'));const e=document.querySelector(selector);e.files=dt.files;await document.querySelector('#view').onchange({target:e});if(document.querySelector('#error').textContent)break;}};`);
-await evaluate(`(async()=>{const c=structuredClone(DATA.scheme);c.name='Browser custom config';const he=c.evals.find(e=>e.name==='HumanEval');he.metric='sh_pass@1';he.category='Math';c.evals.find(e=>e.name==='HellaSwag').normalize={min:.25,max:1};const group=c.languages.find(g=>g.tasks.includes('AIME24'));group.tasks=group.tasks.filter(t=>t!=='AIME24');c.languages=c.languages.filter(g=>g.tasks.length);c.languages.push({tasks:['AIME24'],scope:'single',language:'fin_Latn'});await loadTestConfig(c);})()`);
+await evaluate(`(async()=>{const c=structuredClone(DATA.scheme);c.name='Browser custom config';const he=c.evals.find(e=>e.name==='HumanEval');he.metric='sh_pass@1';he.category='Math';c.evals.find(e=>e.name==='hellaswag').normalize={min:.25,max:1};const group=c.languages.find(g=>g.tasks.includes('AIME24'));group.tasks=group.tasks.filter(t=>t!=='AIME24');c.languages=c.languages.filter(g=>g.tasks.length);c.languages.push({tasks:['AIME24'],scope:'single',language:'fin_Latn'});await loadTestConfig(c);})()`);
 assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
 assert.notEqual(await evaluate("document.querySelector('#cards strong').textContent"),initialScore);
 assert.match(await evaluate("document.querySelector('[data-eval=HumanEval] > summary').textContent"),/Math.*sh_pass@1/);
@@ -224,20 +224,20 @@ assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
 await evaluate(`(async()=>{const rows=DATA.rows.filter(r=>!(r.task==='arc_challenge_mt_cs'&&r.metric==='acc_norm')).map(r=>({...r,checkpoint:'Missing Czech metric'}));const fields=Object.keys(rows[0]);const csv=[fields,...rows.map(r=>fields.map(f=>r[f]))].map(row=>row.map(v=>JSON.stringify(String(v??''))).join(',')).join('\\n');const dt=new DataTransfer();dt.items.add(new File([csv],'missing.csv'));const e=document.querySelector('#modelFile');e.files=dt.files;await e.onchange({target:e});})()`);
 assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
 assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'11');
-assert.match(await evaluate("document.querySelector('[data-eval=\"ARC Challenge\"] > summary').textContent"),/1 missing scoring/);
-await click('[data-eval="ARC Challenge"] > summary');
+assert.match(await evaluate("document.querySelector('[data-eval=\"arc_challenge\"] > summary').textContent"),/1 missing scoring/);
+await click('[data-eval="arc_challenge"] > summary');
 await click('[data-task=arc_challenge_mt_cs] > summary');
 assert.match(await evaluate("document.querySelector('.has-missing-field').textContent"),/arc_challenge_mt_cs.*Missing Czech metric.*expected acc_norm/s);
 assert.notEqual(await evaluate("document.querySelector('#cards strong').textContent"),'—');
 assert.match(await evaluate("document.querySelector('#coverage').textContent"),/excluded: 1 from A, 0 from B/);
 await click('[data-view=warnings]');
 assert.match(await evaluate("document.querySelector('#view').textContent"),/Missing scoring field.*arc_challenge_mt_cs/s);
-assert.match(await evaluate("document.querySelector('#view').textContent"),/Comparison coverage.*ARC Challenge/s);
-await evaluate(`(async()=>{const fields=['checkpoint','task','metric','filter','n_shot','harness','backend','value'];const rows=DATA.rows.filter(r=>r.eval!=='IFEval').map(r=>({...r,checkpoint:'Missing IFEval'}));const csv=[fields.join(','),...rows.map(r=>fields.map(f=>r[f]).join(','))].join('\\n');const dt=new DataTransfer();dt.items.add(new File([csv],'missing-eval.csv'));const e=document.querySelector('#modelFile');e.files=dt.files;await e.onchange({target:e});})()`);
+assert.match(await evaluate("document.querySelector('#view').textContent"),/Comparison coverage.*arc_challenge/s);
+await evaluate(`(async()=>{const fields=['checkpoint','task','metric','filter','n_shot','harness','backend','value'];const rows=DATA.rows.filter(r=>r.eval!=='ifeval').map(r=>({...r,checkpoint:'Missing ifeval'}));const csv=[fields.join(','),...rows.map(r=>fields.map(f=>r[f]).join(','))].join('\\n');const dt=new DataTransfer();dt.items.add(new File([csv],'missing-eval.csv'));const e=document.querySelector('#modelFile');e.files=dt.files;await e.onchange({target:e});})()`);
 assert.notEqual(await evaluate("document.querySelector('#cards strong').textContent"),'—');
 assert.equal(await evaluate("document.querySelector('#cards .score-card:last-child strong').textContent"),'0.00');
 assert.doesNotMatch(await evaluate("document.querySelector('#view').textContent"),/No eval data/);
-assert.match(await evaluate("document.querySelector('#view').textContent"),/Comparison coverage.*IFEval/s);
+assert.match(await evaluate("document.querySelector('#view').textContent"),/Comparison coverage.*ifeval/s);
 for(const mode of ['standard','english_eval','english_category']){await click('[data-aggregate='+mode+']');assert.equal(await evaluate("document.querySelector('#cards .score-card:last-child strong').textContent"),'0.00');}
 // Reload restores the original export before the remaining import checks.
 await send('Page.reload');
@@ -279,40 +279,40 @@ assert.equal(await evaluate("document.querySelector('#warningCount').textContent
 assert.equal(await evaluate("document.querySelector('#warningCount').classList.contains('has-warnings')"),true);
 // Warnings expose concrete settings and editable config caveats.
 await click('[data-view=warnings]');
-assert.match(await evaluate("document.querySelector('#view').textContent"),/Inconsistent scoring settings.*MGSM.*0 shots.*5 shots/s);
-assert.match(await evaluate("document.querySelector('#view').textContent"),/Not used.*Global PIQA \(prompted\)/s);
+assert.match(await evaluate("document.querySelector('#view').textContent"),/Inconsistent scoring settings.*mgsm.*0 shots.*5 shots/s);
+assert.match(await evaluate("document.querySelector('#view').textContent"),/Not used.*global_piqa_prompted/s);
 await click('[data-view=config]');
-assert.match(await evaluate(`document.querySelector('[data-eval="ARC Challenge"] > summary').textContent`),/Inconsistent scoring settings/);
-assert.doesNotMatch(await evaluate(`document.querySelector('[data-eval="SIB-200"] .normalization-info').textContent`),/Metric-selection exception/);
+assert.match(await evaluate(`document.querySelector('[data-eval="arc_challenge"] > summary').textContent`),/Inconsistent scoring settings/);
+assert.doesNotMatch(await evaluate(`document.querySelector('[data-eval="sib200"] .normalization-info').textContent`),/Metric-selection exception/);
 assert.match(await evaluate(`document.querySelector('[data-eval="JEEBench"] > summary').textContent`),/10.55% baseline/);
 assert.match(await evaluate(`document.querySelector('[data-eval="JEEBench"] .normalization-info').textContent`),/Table 2/);
-assert.match(await evaluate(`document.querySelector('[data-eval="FLORES200"] .normalization-info').textContent`),/0–100 points/g);
-assert.match(await evaluate(`document.querySelector('[data-eval="OpenSubtitles"] .normalization-info').textContent`),/0–100 points/g);
-await click('[data-eval="Language ID"] > summary');
+assert.match(await evaluate(`document.querySelector('[data-eval="flores200"] .normalization-info').textContent`),/0–100 points/g);
+assert.match(await evaluate(`document.querySelector('[data-eval="opensubtitles_multi40"] .normalization-info').textContent`),/0–100 points/g);
+await click('[data-eval="bigbench_language_identification"] > summary');
 await click('[data-task="bigbench_language_identification_multiple_choice"] > summary');
 assert.match(await evaluate(`document.querySelector('[data-task="bigbench_language_identification_multiple_choice"] .task-details').textContent`),/English-balance group: English \(fallback/);
 assert.match(await evaluate(`document.querySelector('[data-task="bigbench_language_identification_multiple_choice"]').closest('tr').textContent`),/Multilingual \(pooled\)/);
-await click('[data-eval="MultiBlimp"] > summary');
+await click('[data-eval="multiblimp"] > summary');
 await click('[data-task="multiblimp_hbs"] > summary');
 assert.match(await evaluate(`document.querySelector('[data-task="multiblimp_hbs"] .task-details').textContent`),/English-balance group: Other languages/);
 assert.match(await evaluate(`document.querySelector('[data-task="multiblimp_hbs"]').closest('tr').textContent`),/srp_Latn/);
-assert.match(await evaluate(`document.querySelector('[data-eval="MultiBlimp"] .normalization-info').textContent`),/Language-grouping approximation.*more speakers/);
+assert.match(await evaluate(`document.querySelector('[data-eval="multiblimp"] .normalization-info').textContent`),/Language-grouping approximation.*more speakers/);
 
-await click('[data-eval="Language ID"] > summary');
-await click('[data-eval="MultiBlimp"] > summary');
+await click('[data-eval="bigbench_language_identification"] > summary');
+await click('[data-eval="multiblimp"] > summary');
 
 for(const name of ['AIME24','AIME25'])assert.match(await evaluate(`document.querySelector('[data-eval="${name}"] .normalization-info').textContent`),/random_score = 0/);
 // Custom caveats survive import/export and can be removed when resolved.
-await evaluate(`(async()=>{const c=structuredClone(DATA.scheme);delete c.evals.find(e=>e.name==='MultiBlimp').warning;await loadTestConfig(c);})()`);
+await evaluate(`(async()=>{const c=structuredClone(DATA.scheme);delete c.evals.find(e=>e.name==='multiblimp').warning;await loadTestConfig(c);})()`);
 assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'4');
 await evaluate(`loadTestConfig(DATA.scheme)`);
 // Normalization is visible without opening individual language variants.
-assert.match(await evaluate(`document.querySelector('[data-eval="SIB-200"] > summary').textContent`),/14.29% baseline/);
-await click('[data-eval="SIB-200"] > summary');
-assert.match(await evaluate(`document.querySelector('[data-eval="SIB-200"] .normalization-info').textContent`),/seven topic choices/);
-assert.ok(await evaluate(`document.querySelector('[data-eval="SIB-200"] .normalization-info a').href.startsWith('https://github.com/')`));
-assert.match(await evaluate(`document.querySelector('[data-eval="ARC Challenge"] > summary').textContent`),/25.00% baseline/);
-await click('[data-eval="SIB-200"] > summary');
+assert.match(await evaluate(`document.querySelector('[data-eval="sib200"] > summary').textContent`),/14.29% baseline/);
+await click('[data-eval="sib200"] > summary');
+assert.match(await evaluate(`document.querySelector('[data-eval="sib200"] .normalization-info').textContent`),/seven topic choices/);
+assert.ok(await evaluate(`document.querySelector('[data-eval="sib200"] .normalization-info a').href.startsWith('https://github.com/')`));
+assert.match(await evaluate(`document.querySelector('[data-eval="arc_challenge"] > summary').textContent`),/25.00% baseline/);
+await click('[data-eval="sib200"] > summary');
 // Header and cell alignment must agree, including the catalogue grid.
 assert.ok(await evaluate(`(()=>{const headers=[...document.querySelector('.catalogue-head').children],cells=[...document.querySelector('.catalogue-summary').children];return headers.every((h,i)=>Math.abs(h.getBoundingClientRect().x-cells[i].getBoundingClientRect().x)<1)})()`));
 await evaluate("document.querySelector('#view').scrollIntoView()");await screenshot('config-preview');

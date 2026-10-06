@@ -94,14 +94,16 @@ Add `--format json` for a complete report. Diagnostics go to stderr. Python and 
 
 ## Development
 
-Application code lives in `app/` and `quickdash/`, tests in `tests/`, and contributor documentation in `docs/`. Common checks:
+Application code lives in `app/` and `quickdash/`, tests in `tests/`, and contributor documentation in `docs/`. Before opening a PR, run the same public checks as CI:
 
 ```sh
-python -m unittest tests.test_data tests.test_engines
-node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs tests/test_view_links.cjs
+python3 -m tests.check
 ```
 
-See [development and publishing](docs/development.md) for the source layout, browser tests, and GitHub Pages workflow.
+This requires the Python package installed in your active environment, Node.js 22+,
+and Chrome. It includes an automatically managed browser session; set `CHROME_BIN`
+for a custom Chrome executable. See [development and publishing](docs/development.md)
+for setup, focused checks, and the GitHub Pages workflow.
 
 ## License
 

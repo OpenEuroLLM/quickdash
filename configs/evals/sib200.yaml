@@ -1,4 +1,4 @@
-name: SIB-200
+name: sib200
 category: Reading
 match:
   regex: sib200_.+

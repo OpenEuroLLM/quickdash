@@ -1,4 +1,4 @@
-name: Global MMLU
+name: global_mmlu
 category: Knowledge
 match:
   regex: global_mmlu_.+

@@ -32,19 +32,19 @@ class AnalysisTests(unittest.TestCase):
   keys=[tuple(r[k] for k in ['task','metric','filter','n_shot','harness','backend']) for r in rr]
   self.assertEqual(len(keys),len(set(keys)))
  def test_summaries_replace_children(self):
-  rr=[r for r in DATA['rows'] if r['selected'] and r['eval'] in ['MMLU','Global MMLU','INCLUDE']]
+  rr=[r for r in DATA['rows'] if r['selected'] and r['eval'] in ['mmlu','global_mmlu','include_base_44']]
   self.assertTrue(all(r['is_group']=='yes' for r in rr))
-  self.assertEqual(sum(r['eval']=='MMLU' for r in rr),1)
-  self.assertEqual(sum(r['eval']=='Global MMLU' for r in rr),16)
-  self.assertEqual(sum(r['eval']=='INCLUDE' for r in rr),21)
+  self.assertEqual(sum(r['eval']=='mmlu' for r in rr),1)
+  self.assertEqual(sum(r['eval']=='global_mmlu' for r in rr),16)
+  self.assertEqual(sum(r['eval']=='include_base_44' for r in rr),21)
  def test_scale_and_protocol(self):
   rr=[r for r in DATA['rows'] if r['selected']]
   squad=next(r for r in rr if r['task']=='squadv2')
   self.assertEqual(squad['score_100'],float(squad['value']))
-  self.assertTrue(all(r['n_shot']=='0' for r in rr if r['eval']=='HellaSwag'))
-  self.assertFalse(any('prompted' in r['task'] for r in rr if r['eval']=='PIQA'))
+  self.assertTrue(all(r['n_shot']=='0' for r in rr if r['eval']=='hellaswag'))
+  self.assertFalse(any('prompted' in r['task'] for r in rr if r['eval']=='piqa'))
  def test_missing_eval_is_excluded_and_reweighted(self):
-  result=summarize([r for r in DATA['rows'] if r['eval']!='IFEval'],CONFIG)
+  result=summarize([r for r in DATA['rows'] if r['eval']!='ifeval'],CONFIG)
   self.assertIsNotNone(result[0]['score'])
   self.assertTrue(next(c for c in result[0]['categories'] if c['name']=='Instruction following')['excluded'])
  def test_duplicate_rejected(self):
@@ -133,13 +133,13 @@ class AnalysisTests(unittest.TestCase):
   self.assertIsNone(result['score_100']);self.assertIn('No eval config',result['decision'])
  def test_chance_baselines_and_raw_score_preservation(self):
   evals={e['name']:e for e in CONFIG['evals']}
-  expected={'SIB-200':1/7,'Language ID':1/11,'Social IQa':1/3,'HellaSwag':.25,'PIQA':.5,'CommonsenseQA':.2,'AIME24':0,'AIME25':0,'JEEBench':.1055,'ARC Easy':.25}
+  expected={'sib200':1/7,'bigbench_language_identification':1/11,'social_iqa':1/3,'hellaswag':.25,'piqa':.5,'commonsense_qa':.2,'AIME24':0,'AIME25':0,'JEEBench':.1055,'arc_easy':.25}
   for name,chance in expected.items():
    e=evals[name];self.assertEqual(e['normalize']['min'],chance)
    self.assertAlmostEqual(normalize_score(chance*e['score']['scale'],e)[1],0)
    self.assertTrue(e['normalize']['sources'])
-  self.assertEqual(evals['ARC Challenge']['normalize']['min'],.25)
-  self.assertIn('approximation',evals['ARC Challenge']['normalize']['note'])
+  self.assertEqual(evals['arc_challenge']['normalize']['min'],.25)
+  self.assertIn('approximation',evals['arc_challenge']['normalize']['note'])
   self.assertNotEqual(evals['JEEBench']['normalize'].get('basis'),'unresolved')
   self.assertEqual(evals['AMC23']['normalize']['min'],0)
   c=deepcopy(CONFIG)
@@ -149,7 +149,7 @@ class AnalysisTests(unittest.TestCase):
   from statistics import mean
   def raw_eval(name):
    rr=[r for r in scoped if r['eval']==name]
-   if name!='PolyMath':return mean(r['raw_score_100'] for r in rr)
+   if name!='polymath':return mean(r['raw_score_100'] for r in rr)
    levels={'low':1,'medium':2,'high':4,'top':8}
    languages={r['task'].split('_')[1] for r in rr}
    return mean(sum(r['raw_score_100']*levels[r['task'].split('_')[-1]] for r in rr if r['task'].split('_')[1]==lang)/15 for lang in languages)

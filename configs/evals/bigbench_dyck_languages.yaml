@@ -1,4 +1,4 @@
-name: Dyck languages
+name: bigbench_dyck_languages
 category: Math
 match:
   name: bigbench_dyck_languages_generate_until

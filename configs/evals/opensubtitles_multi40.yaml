@@ -1,4 +1,4 @@
-name: OpenSubtitles
+name: opensubtitles_multi40
 category: Translation
 match:
   regex: opensubtitles_.+

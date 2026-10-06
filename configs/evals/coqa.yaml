@@ -1,4 +1,4 @@
-name: CoQA
+name: coqa
 category: Reading
 match:
   name: coqa

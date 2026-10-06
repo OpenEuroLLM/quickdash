@@ -26,10 +26,8 @@ jobs:
           node-version: '22'
       - name: Install the native Python library
         run: python3 -m pip install -e .
-      - name: Check scoring, imports, and configuration
-        run: |
-          python3 -m unittest tests.test_data tests.test_engines
-          node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs tests/test_view_links.cjs
+      - name: Run public checks (same command as local development)
+        run: python3 -m tests.check
       - name: Check the installed package without Node on PATH
         run: |
           python3 -m pip wheel . --wheel-dir "$RUNNER_TEMP/quickdash-wheels"
@@ -48,16 +46,6 @@ jobs:
             --weights "$GITHUB_WORKSPACE/configs/weights/oellm.yaml" \
             --eval-set "$GITHUB_WORKSPACE/configs/sets/any-available.yaml" \
             --format json > quickdash-installed-sample.json
-      - name: Check the browser with public fixtures
-        run: |
-          google-chrome --headless --no-sandbox --disable-gpu \
-            --no-first-run --no-default-browser-check \
-            --remote-debugging-port=9227 \
-            --user-data-dir="$RUNNER_TEMP/quickdash-chrome" about:blank \
-            > "$RUNNER_TEMP/quickdash-chrome.log" 2>&1 &
-          quickdash_chrome_pid=$!
-          trap 'kill "$quickdash_chrome_pid" 2>/dev/null || true' EXIT
-          node tests/test_public_browser.mjs || { cat "$RUNNER_TEMP/quickdash-chrome.log"; exit 1; }
       - name: Build shared results and the fictional demo
         run: |
           python3 -m app.build --results-dir results --sample-csv examples/sample-evals.csv \

@@ -1,4 +1,4 @@
-name: MGSM
+name: mgsm
 category: Math
 match:
   regex: (?:mgsm_native_cot_.+|global_mgsm_.+)
