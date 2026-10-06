@@ -24,12 +24,18 @@ configuration parsers. Neither implementation is the reference for the other.
   exercises the actual browser calculation module; browser tests check that the
   UI supplies and renders those calculations correctly.
 
-Run the shared contract and scoring checks before publishing:
+Run the full public checks before publishing, using the same command as CI:
 
 ```sh
-python -m unittest tests.test_data tests.test_engines
-node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs tests/test_view_links.cjs
+python3 -m tests.check
 ```
+
+This requires the installed Python package, Node.js 22+, and Chrome. It runs the
+shared Python/JavaScript contract tests and public browser tests, starting and
+stopping an isolated Chrome process automatically. Missing prerequisites fail
+rather than silently skipping browser coverage. Use `CHROME_BIN` for a custom
+Chrome executable. Smaller test commands are useful while developing but do not
+replace this pre-PR check.
 
 See [development and publishing](docs/development.md) for browser checks and
 standalone builds. Keep README setup and common commands accurate, and update the

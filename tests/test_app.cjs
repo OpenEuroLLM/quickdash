@@ -5,7 +5,7 @@ const {scopeRows,inSuite}=require('../app/suite_config.js');
 const selected=scopeRows(selectRows(data.rows,scheme),data.suite).rows;
 assert.ok(selected.length);
 assert.ok(Math.abs(totals(selected,scheme,scheme.weights).score-data.models[0].score)<1e-10);
-const withoutIF=totals(selected.filter(r=>r.eval!=='IFEval'),scheme,scheme.weights);
+const withoutIF=totals(selected.filter(r=>r.eval!=='ifeval'),scheme,scheme.weights);
 assert.ok(Number.isFinite(withoutIF.score));assert.equal(withoutIF.categories.find(c=>c.name==='Instruction following').excluded,true);
 assert.equal(totals(selected,scheme,{...scheme.weights,Code:.2}).score,null);
 assert.throws(()=>selectRows([selected[0],selected[0]],scheme),/Duplicate/);
@@ -36,13 +36,13 @@ const he=catalogue.find(f=>f.name==='HumanEval').tasks[0];
 assert.equal(he.rows.find(r=>r.metric==='python_pass@1').selected,true);
 assert.equal(he.rows.find(r=>r.metric==='sh_pass@1').selected,false);
 assert.match(he.rows.find(r=>r.metric==='sh_pass@1').decision,/python_pass@1/);
-const hs=catalogue.find(f=>f.name==='HellaSwag').tasks.find(t=>t.name==='hellaswag');
+const hs=catalogue.find(f=>f.name==='hellaswag').tasks.find(t=>t.name==='hellaswag');
 assert.equal(hs.rows.length,4);
 assert.equal(hs.rows.filter(r=>r.selected).length,1);
 assert.equal(hs.rows.find(r=>r.selected).n_shot,'0');
-const mmlu=catalogue.find(f=>f.name==='MMLU');
+const mmlu=catalogue.find(f=>f.name==='mmlu');
 assert.ok(mmlu.tasks.every(t=>!t.name.startsWith('global_')));
-assert.ok(catalogue.find(f=>f.name==='Global MMLU').tasks.every(t=>t.name.startsWith('global_mmlu_')));
+assert.ok(catalogue.find(f=>f.name==='global_mmlu').tasks.every(t=>t.name.startsWith('global_mmlu_')));
 assert.ok(mmlu.tasks.some(t=>t.name==='mmlu_abstract_algebra'&&t.rows.every(r=>!r.selected)));
 const imported=[...data.rows,{...data.rows.find(r=>r.task==='HumanEval'),checkpoint:'second real model'}];
 const union=buildCatalogue(auditRows(imported,scheme),scheme);
@@ -119,8 +119,8 @@ console.log('Hierarchy checks passed: category/eval/language and language/catego
 
 const {diagnosticsFor}=require('./diagnostic_fixture.cjs');
 const baselineWarnings=diagnosticsFor(new Map([['real',audited]]),scheme,'standard',{},data.suite);
-assert.deepEqual(baselineWarnings.filter(w=>w.type==='Inconsistent scoring settings').map(w=>w.name).sort(),['ARC Challenge','MGSM','PIQA']);
-assert.deepEqual(baselineWarnings.filter(w=>w.type==='Config caveat').map(w=>w.name).sort(),['MultiBlimp']);
+assert.deepEqual(baselineWarnings.filter(w=>w.type==='Inconsistent scoring settings').map(w=>w.name).sort(),['arc_challenge','mgsm','piqa']);
+assert.deepEqual(baselineWarnings.filter(w=>w.type==='Config caveat').map(w=>w.name).sort(),['multiblimp']);
 const unknown=auditRows([{...data.rows[0],task:'new_task_without_config'}],scheme)[0];
 assert.equal(unknown.selected,false);assert.equal(unknown.eval,'');assert.equal(unknown.score_100,null);
 const warningRows=audited.filter(r=>r.eval!=='HumanEval').concat(unknown);
@@ -152,7 +152,7 @@ assert.deepEqual(arcWarnings[0].tasks,['arc_challenge_mt_cs']);
 assert.match(arcWarnings[0].detail,/expected acc_norm/);
 const wrongFilter=data.rows.map(r=>r.task==='arc_challenge_mt_cs'&&r.metric==='acc_norm'?{...r,filter:'wrong'}:r);
 assert.ok(diagnosticsFor(new Map([['real',auditRows(wrongFilter,scheme)]]),scheme).some(w=>w.type==='Missing scoring setting'));
-// MMLU child tasks are intentionally excluded, so missing summary metrics there are not warnings.
+// mmlu child tasks are intentionally excluded, so missing summary metrics there are not warnings.
 assert.ok(!diagnosticsFor(new Map([['real',audited]]),scheme).some(w=>w.name==='mmlu_abstract_algebra'));
 console.log('Column sort and per-task missing metric/setting checks passed.');
 // Grouped multilingual scores must expose differences in the selected protocol.
@@ -163,19 +163,19 @@ assert.deepEqual(diagnosticsFor(new Map([['real',consistent]]),protocolConfig),[
 for(const field of ['n_shot','filter','metric','harness','backend']){
  const changed=consistent.map(r=>r.task==='arc_challenge_mt_cs'&&r.selected?{...r,[field]:field==='n_shot'?'5':'different'}:r);
  const issues=diagnosticsFor(new Map([['real',changed]]),protocolConfig).filter(w=>w.type==='Inconsistent scoring settings');
- assert.equal(issues.length,1,field);assert.equal(issues[0].name,'ARC Challenge');assert.match(issues[0].detail,/arc_challenge_mt_cs/);assert.match(issues[0].detail,/ces_Latn/);
+ assert.equal(issues.length,1,field);assert.equal(issues[0].name,'arc_challenge');assert.match(issues[0].detail,/arc_challenge_mt_cs/);assert.match(issues[0].detail,/ces_Latn/);
 }
 // Alternate, excluded measurements do not change the protocol used in aggregates.
 const excludedChange=consistent.map(r=>!r.selected?{...r,n_shot:'99'}:r);
 assert.deepEqual(diagnosticsFor(new Map([['real',excludedChange]]),protocolConfig),[]);
-const repeated=consistent.concat(consistent.filter(r=>r.eval==='ARC Challenge'&&r.selected).map(r=>({...r,n_shot:'5'})));
+const repeated=consistent.concat(consistent.filter(r=>r.eval==='arc_challenge'&&r.selected).map(r=>({...r,n_shot:'5'})));
 assert.deepEqual(diagnosticsFor(new Map([['real',repeated]]),protocolConfig),[],'same settings set for every task is consistent');
-const noteConfig=structuredClone(protocolConfig);noteConfig.evals.find(e=>e.name==='FLORES200').warning='Review language-pair calibration.';
+const noteConfig=structuredClone(protocolConfig);noteConfig.evals.find(e=>e.name==='flores200').warning='Review language-pair calibration.';
 const noteWarnings=diagnosticsFor(new Map([['first',consistent],['second',consistent]]),noteConfig).filter(w=>w.type==='Config caveat');
 assert.equal(noteWarnings.length,1,'config notes are not duplicated for each model');assert.match(noteWarnings[0].detail,/language-pair/);
 assert.throws(()=>validateConfig({...noteConfig,evals:noteConfig.evals.map(e=>({...e,warning:17}))}),/warning/i);
 console.log('Protocol consistency and editable normalization warning checks passed.');
 
-for(const name of ['LSAT AR','X-CSQA','Belebele','MultiBlimp'])assert.equal(scheme.evals.find(e=>e.name===name).metric,'acc_norm');
-assert.equal(scheme.evals.find(e=>e.name==='SIB-200').metric,'acc');
-assert.equal(scheme.evals.find(e=>e.name==='SIB-200').warning,undefined);
+for(const name of ['agieval_lsat_ar','xcsqa','belebele','multiblimp'])assert.equal(scheme.evals.find(e=>e.name===name).metric,'acc_norm');
+assert.equal(scheme.evals.find(e=>e.name==='sib200').metric,'acc');
+assert.equal(scheme.evals.find(e=>e.name==='sib200').warning,undefined);

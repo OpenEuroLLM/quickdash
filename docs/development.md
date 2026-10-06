@@ -29,18 +29,36 @@ Check the views affected by your change, including their warnings and failed-inp
 
 ## Run tests
 
-These tests use small fixtures and run from a fresh checkout without private evaluation data:
+Before opening or updating a PR, run the same public checks as CI from your activated Python environment:
 
 ```sh
-python -m unittest tests.test_data tests.test_engines
+python3 -m tests.check
+```
+
+Install the package with `python3 -m pip install -e .` first. The command requires
+Node.js 22+ and Chrome, runs the Python/JavaScript suites, and launches an isolated
+headless Chrome session for the browser tests. It stops Chrome and removes the
+temporary profile afterward. Missing Chrome is an error, not a skipped test.
+On macOS it discovers the standard Google Chrome application; on Linux it checks
+Chrome/Chromium executables on `PATH`. Set `CHROME_BIN` to override the executable.
+No private evaluation exports are needed. The command builds local test dashboards
+but does not publish a site or push commits.
+
+For faster iteration, run individual suites:
+
+```sh
+python3 -m unittest tests.test_data tests.test_engines
 node --test tests/test_data.cjs tests/test_yaml.cjs tests/test_suites.cjs tests/test_warning_policy.cjs tests/test_components.cjs tests/test_view_links.cjs
 ```
+
+These narrower commands do not replace the full pre-PR check: catalogue renames,
+for example, can pass scoring tests while breaking browser selectors.
 
 The shared suite in `tests/test_engines.py` sends the same input cases to native Python and the real browser engine through `tests/engine_adapter.cjs`. Both must satisfy independently specified expectations, then their complete semantic reports are compared. Diagnostic codes, contexts and actions are checked; presentation text is not. Numerical comparison uses absolute tolerance `1e-9` and relative tolerance `1e-12`. Fixtures vary configuration sizes, contents and ordering. The sample matrix discovers all shipped sets and profiles and exercises every aggregation in both strict and relaxed matching. Shared cases cover override inheritance, language exclusions (including both translation endpoints), invalid references, missing requirements, component completeness, and warning conditions. Browser checks additionally verify effective settings, unchanged catalogue exports, set switching, and failed-import rollback. Python tests also exercise warning emission and CLI stdout/stderr without Node on PATH.
 
 They cover input validation, normalization, warning/exclusion behavior, failed-build preservation, Python/JavaScript parity, hierarchy sorting, and deterministic randomized scoring comparisons against an independent calculation.
 
-The public browser suite also checks empty startup, shared models, independent profile/set selection, missing requirements, temporary uploads, rollback, and that file imports make no network requests. It requires Node.js 22+ and Chrome. Start an isolated browser session, then run the suite in another terminal:
+The public browser suite also checks empty startup, shared models, independent profile/set selection, missing requirements, temporary uploads, rollback, and that file imports make no network requests. To run just that browser suite manually, start an isolated browser session, then run the suite in another terminal:
 
 ```sh
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
@@ -51,7 +69,7 @@ The public browser suite also checks empty startup, shared models, independent p
 node tests/test_public_browser.mjs
 ```
 
-Adjust the Chrome executable path for your platform. Stop that isolated Chrome process when finished. GitHub Actions runs these public tests automatically.
+Adjust the Chrome executable path for your platform. Stop that isolated Chrome process when finished. GitHub Actions runs `python3 -m tests.check` automatically, including this browser suite.
 
 <details>
 <summary>Additional regression tests using the private full export</summary>

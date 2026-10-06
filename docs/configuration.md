@@ -31,7 +31,7 @@ Both profiles default to the standard calculation and store an English share of 
 
 **Any available** uses recognized selected measurements shared by A and B. Measurements present on only one side generate comparison warnings and are excluded from both scores. Catalogue entries absent from both models do not generate warnings. The supplied freeform set explicitly excludes prompted Global PIQA pending validation; present data for it generates a **Not used** warning.
 
-**flagship-1** requires the catalogue's known tasks for each listed eval, excluding Georgian throughout the set because of a vocabulary error and English specifically for X-CSQA. Original and translated tasks stay under their existing eval group (for example ARC Challenge). A missing required result generates a warning even if other languages for that eval are present. The score is labelled **INCOMPLETE** and uses the shared subset with redistributed weights. Excluded tasks are not requirements; present excluded data produces **Not used** warnings and remains inspectable.
+**flagship-1** requires the catalogue's known tasks for each listed eval, excluding Georgian throughout the set because of a vocabulary error and English specifically for X-CSQA. Original and translated tasks stay under their existing eval group (for example `arc_challenge`). A missing required result generates a warning even if other languages for that eval are present. The score is labelled **INCOMPLETE** and uses the shared subset with redistributed weights. Excluded tasks are not requirements; present excluded data produces **Not used** warnings and remains inspectable.
 
 A named set can be concise:
 
@@ -41,12 +41,12 @@ name: Example required set
 mode: fixed
 exclude_languages: [kat_Geor]
 evals:
-  - name: ARC Challenge
+  - name: arc_challenge
     shots: 10
-  - name: SIB-200
+  - name: sib200
     metric: acc
     metric_filter: none
-  - name: X-CSQA
+  - name: xcsqa
     exclude_languages: [eng_Latn]
 ```
 
@@ -66,7 +66,7 @@ Available-mode sets can exclude entire evals or languages without creating requi
 version: 1
 name: Any available
 mode: available
-exclude: [Global PIQA (prompted)]
+exclude: [global_piqa_prompted]
 ```
 
 `exclude` is allowed only in available mode and contains unique, exact catalogue eval names. All names must exist even if no corresponding model results are loaded. Fixed sets exclude unlisted evals automatically. Exclusions warn when eligible task data is present, including rows with only the wrong metric. Alternate metric rows or summary children of a selected eval do not warn merely because another field or summary was selected.

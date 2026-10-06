@@ -25,10 +25,10 @@ try{
  // A cold CI runner can take longer than five seconds to launch Chrome.
  const startupDeadline=Date.now()+30_000;
  while(Date.now()<startupDeadline){
-  try{tabs=await(await fetch('http://127.0.0.1:9227/json/list')).json();if(tabs.some(t=>t.type==='page'))break;}catch{}
+  try{tabs=await(await fetch(`http://127.0.0.1:${process.env.QUICKDASH_CHROME_PORT || 9227}/json/list`)).json();if(tabs.some(t=>t.type==='page'))break;}catch{}
   await new Promise(r=>setTimeout(r,200));
  }
- assert.ok(tabs?.some(t=>t.type==='page'),'Start an isolated Chrome session on port 9227');
+ assert.ok(tabs?.some(t=>t.type==='page'),'Start an isolated Chrome session on QUICKDASH_CHROME_PORT (default 9227)');
  ws=new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl);
  await new Promise(r=>ws.addEventListener('open',r,{once:true}));
  let id=0;const pending=new Map(),errors=[],network=[];
@@ -262,15 +262,15 @@ try{
  const strictSampleCards=await evaluate("document.querySelector('#cards').textContent");
  // Strict shot mismatches collapse per eval, including duplicate missing-set warnings.
  await change('#suitePreset',await evaluate("String(DATA.suites.findIndex(s=>s.file==='flagship-1.yaml'))"));await click('[data-view=warnings]');
- const arcWarnings=await evaluate("[...document.querySelectorAll('#view tbody tr')].filter(r=>r.cells[1]?.textContent==='ARC Challenge').map(r=>r.textContent)");
+ const arcWarnings=await evaluate("[...document.querySelectorAll('#view tbody tr')].filter(r=>r.cells[1]?.textContent==='arc_challenge').map(r=>r.textContent)");
  assert.equal(arcWarnings.length,1);
  assert.match(arcWarnings[0],/Few-shot mismatch excluded.*\d+ tasks use 0 shots; expected 10/s);
  assert.match(arcWarnings[0],/arc_challenge_mt_cs/);
  assert.match(await evaluate("document.querySelector('#coverage').textContent"),/INCOMPLETE/);
  await click('[data-view=config]');
- await evaluate("document.querySelector('.catalogue-eval[data-eval=\"ARC Challenge\"]').open=true");
+ await evaluate("document.querySelector('.catalogue-eval[data-eval=\"arc_challenge\"]').open=true");
  await new Promise(r=>setTimeout(r,50));
- assert.ok(await evaluate("document.querySelectorAll('.catalogue-eval[data-eval=\"ARC Challenge\"] .has-missing-field').length>0"));
+ assert.ok(await evaluate("document.querySelectorAll('.catalogue-eval[data-eval=\"arc_challenge\"] .has-missing-field').length>0"));
  await change('#suitePreset',await evaluate("String(DATA.suites.findIndex(s=>s.file==='any-available.yaml'))"));
  assert.equal(await evaluate("document.querySelector('#cards').textContent"),strictSampleCards);
 
