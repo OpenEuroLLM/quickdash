@@ -1,4 +1,4 @@
-name: HellaSwag
+name: hellaswag
 category: Commonsense
 match:
   regex: hellaswag(?:_.+)?

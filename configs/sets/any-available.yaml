@@ -2,6 +2,6 @@ version: 1
 name: Any available
 mode: available
 exclude:
-  - Global PIQA (prompted)
+  - global_piqa_prompted
 notes:
   - Compare recognized measurements shared by both models; warn about differences.

@@ -1,4 +1,4 @@
-name: QA Wikidata
+name: bigbench_qa_wikidata
 category: Knowledge
 match:
   name: bigbench_qa_wikidata_generate_until

@@ -1,4 +1,4 @@
-name: MultiBlimp
+name: multiblimp
 category: Language
 match:
   regex: multiblimp_.+

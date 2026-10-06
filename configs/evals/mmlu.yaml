@@ -1,4 +1,4 @@
-name: MMLU
+name: mmlu
 category: Knowledge
 match:
   regex: mmlu(?:_.+)?

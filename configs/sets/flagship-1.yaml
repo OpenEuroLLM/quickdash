@@ -6,50 +6,50 @@ notes:
   - Require the catalogue tasks for each listed eval, inheriting its scoring defaults.
   - Exclude Georgian results because of a vocabulary error. Exclude English X-CSQA to avoid overlap with CommonsenseQA.
 evals:
-  - name: CS Algorithms
+  - name: bigbench_cs_algorithms
   - name: HumanEval
   - name: LiveCodeBench
-  - name: MBPP
-  - name: Dyck languages
-  - name: Operators
-  - name: Repeat Copy Logic
-  - name: GSM8K
-  - name: MGSM
-  - name: MATH-500
+  - name: mbpp
+  - name: bigbench_dyck_languages
+  - name: bigbench_operators
+  - name: bigbench_repeat_copy_logic
+  - name: gsm8k
+  - name: mgsm
+  - name: MATH500
   - name: AIME24
   - name: AIME25
   - name: AMC23
   - name: JEEBench
-  - name: LSAT AR
-  - name: PolyMath
-  - name: ARC Challenge
-  - name: ARC Easy
-  - name: GPQA Diamond
-  - name: INCLUDE
-  - name: Jeopardy
-  - name: MMLU
-  - name: Global MMLU
-  - name: OpenBookQA
-  - name: QA Wikidata
-  - name: CommonsenseQA
-  - name: COPA
-  - name: HellaSwag
-  - name: PIQA
-  - name: Social IQa
-  - name: WSC273
-  - name: WinoGrande
-  - name: X-CSQA
+  - name: agieval_lsat_ar
+  - name: polymath
+  - name: arc_challenge
+  - name: arc_easy
+  - name: GPQADiamond
+  - name: include_base_44
+  - name: jeopardy
+  - name: mmlu
+  - name: global_mmlu
+  - name: openbookqa
+  - name: bigbench_qa_wikidata
+  - name: commonsense_qa
+  - name: copa
+  - name: hellaswag
+  - name: piqa
+  - name: social_iqa
+  - name: wsc273
+  - name: winogrande
+  - name: xcsqa
     exclude_languages:
       - eng_Latn
-  - name: XCOPA
-  - name: Belebele
-  - name: BoolQ
-  - name: CoQA
-  - name: LAMBADA
-  - name: SIB-200
-  - name: SQuAD v2
-  - name: FLORES200
-  - name: OpenSubtitles
-  - name: Language ID
-  - name: MultiBlimp
-  - name: IFEval
+  - name: xcopa
+  - name: belebele
+  - name: boolq
+  - name: coqa
+  - name: lambada_openai
+  - name: sib200
+  - name: squadv2
+  - name: flores200
+  - name: opensubtitles_multi40
+  - name: bigbench_language_identification
+  - name: multiblimp
+  - name: ifeval

@@ -1,4 +1,4 @@
-name: Language ID
+name: bigbench_language_identification
 category: Language
 match:
   name: bigbench_language_identification_multiple_choice

@@ -1,4 +1,4 @@
-name: CommonsenseQA
+name: commonsense_qa
 category: Commonsense
 match:
   name: commonsense_qa

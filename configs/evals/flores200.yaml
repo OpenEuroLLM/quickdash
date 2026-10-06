@@ -1,4 +1,4 @@
-name: FLORES200
+name: flores200
 category: Translation
 match:
   regex: flores200:.+

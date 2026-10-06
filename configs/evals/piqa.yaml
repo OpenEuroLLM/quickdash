@@ -1,4 +1,4 @@
-name: PIQA
+name: piqa
 category: Commonsense
 match:
   regex: (?:piqa|global_piqa_completions_.+)

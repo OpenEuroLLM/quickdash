@@ -1,4 +1,4 @@
-name: ARC Challenge
+name: arc_challenge
 category: Knowledge
 match:
   regex: arc_challenge(?:_mt_.+)?

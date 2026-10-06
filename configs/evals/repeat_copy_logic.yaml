@@ -1,4 +1,4 @@
-name: Repeat Copy Logic
+name: bigbench_repeat_copy_logic
 category: Math
 match:
   name: bigbench_repeat_copy_logic_generate_until

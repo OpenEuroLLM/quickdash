@@ -1,4 +1,4 @@
-name: XCOPA
+name: xcopa
 category: Commonsense
 match:
   regex: xcopa:.+

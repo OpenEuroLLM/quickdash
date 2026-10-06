@@ -1,4 +1,4 @@
-name: IFEval
+name: ifeval
 category: Instruction following
 match:
   name: ifeval

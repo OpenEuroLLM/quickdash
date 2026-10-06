@@ -1,4 +1,4 @@
-name: LAMBADA
+name: lambada_openai
 category: Reading
 match:
   name: lambada_openai
