@@ -4,6 +4,15 @@ Add a CSV directly to this directory to make its models available on the [shared
 
 When this directory contains no CSVs, Pages shows the [sample dataset and synthetic comparisons](../examples/README.md). Adding the first shared CSV replaces the sample. Remove `default.yaml` as well when removing all shared CSVs, so stale model references do not prevent the fallback build.
 
+The shared files are `flag-evals-471` exports retrieved on 2026-10-09 from
+`/scratch/project_465002530/poppelko/flag-evals/results/` on LUMI. Each contains
+2,123 measurement rows, including 101 rows for 33 `_cot` reasoning and `_cont`
+code-continuation tasks. These protocol variants have distinct task identifiers;
+their raw rows are available for inspection but are not selected by the shipped
+scoring rules. Dedicated catalogue rules are needed before these new metrics can
+contribute to composite scores. The exports retain their original metric values,
+shot counts, checkpoint labels, and source metadata.
+
 Choose the models shown on first opening the dashboard in [default.yaml](default.yaml):
 
 ```yaml
