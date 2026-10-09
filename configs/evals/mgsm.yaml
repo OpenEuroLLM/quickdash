@@ -2,8 +2,6 @@ name: mgsm
 category: Math
 match:
   regex: (?:mgsm_native_cot_.+|global_mgsm_.+)
-select:
-  regex: global_mgsm_[a-z]+
 metric: exact_match
 metric_filter: flexible-extract
 shots: 5

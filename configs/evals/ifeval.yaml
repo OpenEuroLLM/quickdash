@@ -1,5 +1,5 @@
 name: ifeval
-category: Instruction
+category: Instruction following
 match:
   name: ifeval
 metric: prompt_level_strict_acc

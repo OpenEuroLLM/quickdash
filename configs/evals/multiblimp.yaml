@@ -48,7 +48,7 @@ languages:
     tasks: [multiblimp_gle]
   - language: glg_Latn
     tasks: [multiblimp_glg]
-  - language: hbs_Latn
+  - language: srp_Latn
     tasks: [multiblimp_hbs]
     evidence: https://huggingface.co/datasets/jumelet/multiblimp/blob/main/hbs/data.tsv
     note: 'Grouping convention: assign the pooled Croatian/Serbian score to Serbian, the language with more
