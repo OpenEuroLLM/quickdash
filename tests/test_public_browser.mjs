@@ -163,6 +163,38 @@ try{
  assert.equal(await evaluate("document.querySelector('#modelA').value"),'Example B');
  assert.equal(await evaluate("document.querySelector('#modelB').value"),'Alternative A');
  assert.equal(await evaluate("document.querySelector('#cards .score-card:last-child strong').textContent"),'2.50');
+ // Published preview links resolve to their own dashboard; production stays separate.
+ const previewSite=path.join(temporary,'preview-site');
+ execFileSync('python3',['-c',`
+from pathlib import Path
+import sys
+from scripts.pages_preview import reconcile
+from tests.test_pages_preview import Source, archive, pull
+source = Source()
+source.open = [pull(11, title='<script>window.injected=true</script>')]
+source.previews = {11: source.previews[11]}
+source.main['bundle'] = archive(files={'index.html': Path(sys.argv[1]).read_bytes()})
+source.previews[11]['bundle'] = archive(files={'index.html': Path(sys.argv[2]).read_bytes()})
+reconcile(Path(sys.argv[3]), source)
+ `,path.join(shared,'index.html'),path.join(preferred,'index.html'),previewSite],{cwd:root,stdio:'pipe'});
+ await send('Page.navigate',{url:pathToFileURL(path.join(previewSite,'pr-preview/index.html')).href});
+ for(let i=0;i<50;i++){
+  if(await evaluate("document.title==='Quickdash PR previews' && !!document.querySelector('tbody tr')"))break;
+  await new Promise(r=>setTimeout(r,50));
+ }
+ assert.equal(await evaluate('document.title'),'Quickdash PR previews');
+ assert.equal(await evaluate('window.injected===undefined'),true);
+ assert.match(await evaluate('document.body.textContent'),/Current/);
+ const previewLinks=await evaluate("({main:document.querySelector('a[href=\"../index.html\"]').href,pr:document.querySelector('a[href=\"pr-11/index.html\"]').href})");
+ await navigate(previewLinks.pr);
+ assert.equal(await evaluate("document.querySelector('#modelA').value"),'Example B');
+ assert.equal(await evaluate("document.querySelector('#modelB').value"),'Alternative A');
+ assert.equal(await evaluate("document.querySelector('#cards .score-card:last-child strong').textContent"),'2.50');
+ await navigate(previewLinks.main);
+ assert.equal(await evaluate("document.querySelector('#modelA').value"),'Example A');
+ assert.equal(await evaluate("document.querySelector('#modelB').value"),'Example B');
+ assert.equal(await evaluate("document.querySelector('#cards .score-card:last-child strong').textContent"),'-2.50');
+ await navigate(pathToFileURL(path.join(preferred,'index.html')).href);
  assert.ok(await evaluate("[...document.querySelector('#modelA').options].some(o=>o.value==='Example A')"));
  await click('#swap');await click('[data-view=categories]');
  assert.equal(await evaluate("document.querySelector('#modelA').value"),'Alternative A');
