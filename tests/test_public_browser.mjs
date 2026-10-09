@@ -50,13 +50,44 @@ try{
  const navigate=async url=>{await send('Page.navigate',{url});for(let i=0;i<50;i++){await new Promise(r=>setTimeout(r,50));if(await evaluate("document.querySelector('#view')?.textContent.length>0"))return;}throw Error('Dashboard did not render');};
  await send('Runtime.discardConsoleEntries');
  await send('Runtime.enable');await send('Network.enable');await send('Page.enable');
- await navigate(pathToFileURL(path.join(empty,'index.html')).href);
+ const standaloneEmpty=path.join(temporary,'standalone-empty');fs.mkdirSync(standaloneEmpty);
+ fs.copyFileSync(path.join(empty,'index.html'),path.join(standaloneEmpty,'index.html'));
+ await navigate(pathToFileURL(path.join(standaloneEmpty,'index.html')).href);
  assert.equal(await evaluate("document.querySelector('#modelA').options.length"),0);
  assert.equal(await evaluate("document.querySelector('#cards').hidden"),true);
  assert.match(await evaluate("document.querySelector('#view').textContent"),/Compare your evaluation results/);
  assert.equal(await evaluate("document.querySelector('#suitePreset').options.length"),shippedSets.files.length);
  assert.equal(await evaluate("DATA.suites[Number(document.querySelector('#suitePreset').value)].file"),shippedSets.defaultFile);
  for(const view of ['categories','languages','comparisons','config','warnings','score'])await click('[data-view='+view+']');
+ // Audit downloads must work with only index.html, including empty builds.
+ const checkBuildDownloads=async()=>{
+  const previousView=await evaluate("document.querySelector('.tabs button.active').dataset.view");
+  await click('[data-view=config]');
+  assert.equal(await evaluate("document.querySelectorAll('a[href=\"row-audit.csv\"],a[href=\"language-metadata.csv\"],a[href=\"analysis.json\"]').length"),0);
+  const expected=await evaluate('DATA');
+  assert.equal(await evaluate("document.querySelector('[data-build-download=\"row-audit.csv\"]').disabled"),!expected.rows.length);
+  assert.equal(await evaluate("document.querySelector('[data-build-download=\"language-metadata.csv\"]').disabled"),!expected.metadata.length);
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('#buildSources tbody tr')].map(r=>[...r.cells].map(c=>c.textContent))"),expected.sources.map(s=>[s.file,s.sha256]));
+  await evaluate(`window.originalCreate=URL.createObjectURL;window.originalClick=HTMLAnchorElement.prototype.click;URL.createObjectURL=b=>{window.exportBlob=b;return 'blob:test'};HTMLAnchorElement.prototype.click=function(){window.downloadName=this.download;window.downloadHref=this.href};`);
+  const download=async(name,type)=>{
+   await click('[data-build-download="'+name+'"]');
+   assert.equal(await evaluate('downloadName'),name);
+   assert.equal(await evaluate('downloadHref'),'blob:test');
+   assert.equal(await evaluate('exportBlob.type'),type);
+   return evaluate('exportBlob.text()');
+  };
+  assert.deepEqual(JSON.parse(await download('analysis.json','application/json')),expected);
+  const csvValue=v=>v===true?'True':v===false?'False':v==null?'':String(v);
+  for(const [name,rows] of [['row-audit.csv',expected.rows],['language-metadata.csv',expected.metadata]]){
+   if(!rows.length)continue;
+   const text=await download(name,'text/csv;charset=utf-8');
+   const parsed=require('../app/eval_config.js').parseCSV(text);
+   assert.deepEqual(parsed,rows.map(row=>Object.fromEntries(Object.entries(row).map(([k,v])=>[k,csvValue(v)]))));
+  }
+  await evaluate('URL.createObjectURL=originalCreate;HTMLAnchorElement.prototype.click=originalClick');
+  await click('[data-view='+previousView+']');
+ };
+ await checkBuildDownloads();
  const upload=async(selector,content,name)=>evaluate(`(async()=>{const dt=new DataTransfer();dt.items.add(new File([${JSON.stringify(content)}],${JSON.stringify(name)}));const e=document.querySelector(${JSON.stringify(selector)});e.files=dt.files;if(e.id==='modelFile')await e.onchange({target:e});else await document.querySelector('#view').onchange({target:e});})()`);
  await click('[data-view=config]');await upload('#suiteFile',serializeSuite({version:1,name:'Any example',mode:'available'}),'any.yaml');await upload('#configFile',serializeCatalogue(fixture),'catalogue.yaml');
  await change('#weightPreset','1');
@@ -91,6 +122,8 @@ try{
  await change('#modelB','Example B');
  await click('[data-view=config]');
  const original=await evaluate("document.querySelector('#cards').textContent");
+ // Downloads describe the original build even after temporary CSV/config imports.
+ await checkBuildDownloads();
  // A catalogue without loaded data is not a coverage requirement.
  const extended=structuredClone(fixture);extended.evals.push({...extended.evals[0],name:'Unused eval',match:{name:'unused'}});
  await upload('#configFile',serializeCatalogue(extended),'extended.yaml');
@@ -137,10 +170,22 @@ try{
  assert.equal(await evaluate("document.querySelector('#modelA').options.length"),0);
  // A shared-results build embeds both models and defaults to the real comparison.
  const results=path.join(temporary,'results');fs.mkdirSync(results);
- fs.copyFileSync(path.join(root,'examples/scores.csv'),path.join(results,'example.csv'));
+ // Include commas, quotes and newlines in audit-only metadata to exercise CSV downloads.
+ execFileSync('python3',['-c',`
+import csv, sys
+with open(sys.argv[1], newline='') as source:
+    rows = list(csv.DictReader(source))
+for row in rows:
+    row['source_note'] = 'A "quoted", multiline\\nnote'
+with open(sys.argv[2], 'w', newline='') as target:
+    writer = csv.DictWriter(target, fieldnames=list(rows[0]))
+    writer.writeheader()
+    writer.writerows(rows)
+`,path.join(root,'examples/scores.csv'),path.join(results,'example.csv')],{cwd:root,stdio:'pipe'});
  const shared=path.join(temporary,'shared');
  execFileSync('python3',['-m','app.build','--results-dir',results,'--catalogue',path.join(root,'configs/examples/catalogue.yaml'),'--weights',path.join(root,'configs/examples/weights.yaml'),'--eval-set',path.join(root,'configs/examples/eval-set.yaml'),'--output',shared],{cwd:root,stdio:'pipe'});
  await navigate(pathToFileURL(path.join(shared,'index.html')).href);
+ await checkBuildDownloads();
  assert.equal(await evaluate("document.querySelector('#modelB').value"),'Example B');
  for(const view of ['score','categories','languages','comparisons','config','warnings'])await click('[data-view='+view+']');
  assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
@@ -156,10 +201,11 @@ try{
  assert.equal(new Set(syntheticScores).size,syntheticNames.length);
  // Explicit defaults can select any embedded pair without hiding older models.
  const preferred=path.join(temporary,'preferred');
- fs.writeFileSync(path.join(results,'alternative.csv'),fs.readFileSync(path.join(root,'examples/scores.csv'),'utf8').replaceAll('Example A','Alternative A').replaceAll('Example B','Alternative B'));
+ fs.writeFileSync(path.join(results,'alternative.csv'),fs.readFileSync(path.join(results,'example.csv'),'utf8').replaceAll('Example A','Alternative A').replaceAll('Example B','Alternative B'));
  fs.writeFileSync(path.join(results,'default.yaml'),'a: Example B\nb: Alternative A\n');
  execFileSync('python3',['-m','app.build','--results-dir',results,'--catalogue',path.join(root,'configs/examples/catalogue.yaml'),'--weights',path.join(root,'configs/examples/weights.yaml'),'--eval-set',path.join(root,'configs/examples/eval-set.yaml'),'--output',preferred],{cwd:root,stdio:'pipe'});
  await navigate(pathToFileURL(path.join(preferred,'index.html')).href);
+ await checkBuildDownloads();
  assert.equal(await evaluate("document.querySelector('#modelA').value"),'Example B');
  assert.equal(await evaluate("document.querySelector('#modelB').value"),'Alternative A');
  assert.equal(await evaluate("document.querySelector('#cards .score-card:last-child strong').textContent"),'2.50');
@@ -187,6 +233,7 @@ reconcile(Path(sys.argv[3]), source)
  assert.match(await evaluate('document.body.textContent'),/Current/);
  const previewLinks=await evaluate("({main:document.querySelector('a[href=\"../index.html\"]').href,pr:document.querySelector('a[href=\"pr-11/index.html\"]').href})");
  await navigate(previewLinks.pr);
+ await checkBuildDownloads();
  assert.match(await evaluate('document.title'),/^\[DEV PREVIEW\] PR #11 · /);
  assert.equal(await evaluate("document.querySelectorAll('#quickdash-dev-preview').length"),1);
  assert.match(await evaluate("document.querySelector('#quickdash-dev-preview').textContent"),/DEV PREVIEW.*Unmerged changes.*PR #11.*Main dashboard/);

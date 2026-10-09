@@ -28,6 +28,14 @@ Open each generated `index.html` in a browser. The shared build embeds the globa
 
 Check the views affected by your change, including their warnings and failed-input behavior. Generated output is self-contained; do not commit it. Private exports belong in `data/`, never in the public `results/` directory.
 
+Under **Eval configuration → Scoring assumptions and source files**, the audit
+CSV, language-assignment CSV, and analysis JSON download from the original data
+embedded in the HTML. They work when only `index.html` is shared or published.
+These downloads describe the original build, before browser uploads or edits;
+the YAML export controls save the active configurations. Source CSV filenames
+and their individual SHA-256 hashes identify the build inputs. Empty builds
+provide analysis JSON and disable the CSV downloads.
+
 ## Run tests
 
 Before opening or updating a PR, run the same public checks as CI from your activated Python environment:
