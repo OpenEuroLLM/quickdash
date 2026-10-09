@@ -15,11 +15,11 @@
       "sha": "9234f84ec9ac95c85f29a85876f0aa8bd8b18db6"
     },
     "13": {
-      "artifact_id": 11606549496,
+      "artifact_id": 11607299305,
       "run_attempt": 1,
-      "run_id": 37911836158,
-      "run_url": "https://github.com/OpenEuroLLM/quickdash/actions/runs/37911836158",
-      "sha": "13aaf5a19af2e4dd5849e7e4d4874c04eb13f683"
+      "run_id": 37913032534,
+      "run_url": "https://github.com/OpenEuroLLM/quickdash/actions/runs/37913032534",
+      "sha": "85978adb03686a256756af67e996eecc352c7fa4"
     }
   }
 }
