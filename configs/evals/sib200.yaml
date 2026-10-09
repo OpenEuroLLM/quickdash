@@ -71,7 +71,7 @@ languages:
     tasks: [sib200_mlt_Latn]
   - language: nld_Latn
     tasks: [sib200_nld_Latn]
-  - language: nor_Latn
+  - language: nob_Latn
     tasks: [sib200_nob_Latn]
   - language: pol_Latn
     tasks: [sib200_pol_Latn]

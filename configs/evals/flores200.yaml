@@ -119,7 +119,7 @@ languages:
     target_language: nld_Latn
     tasks: ['flores200:eng_Latn-nld_Latn']
   - source_language: eng_Latn
-    target_language: nor_Latn
+    target_language: nob_Latn
     tasks: ['flores200:eng_Latn-nob_Latn']
   - source_language: eng_Latn
     target_language: pol_Latn
@@ -199,7 +199,7 @@ languages:
   - source_language: nld_Latn
     target_language: eng_Latn
     tasks: ['flores200:nld_Latn-eng_Latn']
-  - source_language: nor_Latn
+  - source_language: nob_Latn
     target_language: eng_Latn
     tasks: ['flores200:nob_Latn-eng_Latn']
   - source_language: pol_Latn
