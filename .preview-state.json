@@ -6,7 +6,21 @@
     "run_url": "https://github.com/OpenEuroLLM/quickdash/actions/runs/37920769089",
     "sha": "53c9babfc3280d2e30c247f04ebc812a5e38d1fa"
   },
-  "preview_access": {},
-  "previews": {},
+  "preview_access": {
+    "17": {
+      "allowed": true,
+      "sha": "6d7c4b2477a139ca07a40d6fc99b54b080fe7b1d",
+      "source": "owner"
+    }
+  },
+  "previews": {
+    "17": {
+      "artifact_id": 11614454491,
+      "run_attempt": 1,
+      "run_id": 37927856958,
+      "run_url": "https://github.com/OpenEuroLLM/quickdash/actions/runs/37927856958",
+      "sha": "6d7c4b2477a139ca07a40d6fc99b54b080fe7b1d"
+    }
+  },
   "retired_previews": []
 }
