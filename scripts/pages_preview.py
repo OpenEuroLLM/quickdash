@@ -18,6 +18,7 @@ STATE_BRANCH = "pages-content"
 # The current dashboard is about 14 MiB. Bound both archive layers before reading.
 MAX_BYTES = 100 * 1024 * 1024
 BUILD_FIELDS = ("run_id", "run_attempt", "sha", "artifact_id", "run_url")
+COMMENT_MARKER = "<!-- quickdash-pages-preview -->"
 
 
 def read_bundle(data):
@@ -70,6 +71,16 @@ class GitHub:
         page = 1
         while True:
             batch = self.get(f"pulls?state=open&per_page=100&page={page}")
+            results.extend(batch)
+            if len(batch) < 100:
+                return results
+            page += 1
+
+    def comments(self, number):
+        results = []
+        page = 1
+        while True:
+            batch = self.get(f"issues/{number}/comments?per_page=100&page={page}")
             results.extend(batch)
             if len(batch) < 100:
                 return results
@@ -147,12 +158,17 @@ def reconcile(site, source):
 
     pulls = source.pulls()
     open_numbers = {str(pr["number"]) for pr in pulls}
+    retired = set(state.get("retired_previews", [])) - open_numbers
     preview_dir = site / "pr-preview"
     preview_dir.mkdir(exist_ok=True)
     for number in list(state["previews"]):
         if number not in open_numbers:
             shutil.rmtree(preview_dir / ("pr-" + number))
             del state["previews"][number]
+            retired.add(number)
+    # Persist cleanup until post-deployment reporting succeeds, including retries
+    # and coalesced close events. A reopened PR no longer needs a closed notice.
+    state["retired_previews"] = sorted(retired)
     warnings = []
     for pr in pulls:
         number = str(pr["number"])
@@ -192,7 +208,7 @@ The commit link identifies the build being served. Closed PRs are removed.</p>
 
 
 def report_checks(state, api, base_url):
-    """Attach the deployed URL to the PR's commit as a check, without PR comments."""
+    """Attach the deployed URL to the PR's commit as a check."""
     for pr in api.pulls():
         number = str(pr["number"])
         preview = state["previews"].get(number)
@@ -210,6 +226,40 @@ def report_checks(state, api, base_url):
             api.write("PATCH", f"check-runs/{existing['id']}", payload)
         else:
             api.write("POST", "check-runs", dict(payload, head_sha=preview["sha"]))
+
+
+def update_comment(api, number, body, create=True):
+    existing = next((comment for comment in api.comments(number)
+                     if comment.get("user", {}).get("login") == "github-actions[bot]"
+                     and comment["user"].get("type") == "Bot"
+                     and (comment.get("body") or "").startswith(COMMENT_MARKER)), None)
+    if existing:
+        if existing["body"] != body:
+            api.write("PATCH", f"issues/comments/{existing['id']}", {"body": body})
+    elif create:
+        api.write("POST", f"issues/{number}/comments", {"body": body})
+
+
+def report_comments(state, api, base_url):
+    """Keep one discoverable preview link in each PR conversation."""
+    open_prs = {str(pr["number"]): pr for pr in api.pulls()}
+    for number, pr in open_prs.items():
+        preview = state["previews"].get(number)
+        if not preview:
+            continue
+        url = f"{base_url.rstrip('/')}/pr-preview/pr-{number}/"
+        body = (f"{COMMENT_MARKER}\n"
+                f"**🚀 [Open preview]({url})**\n\n"
+                f"Built from `{preview['sha'][:12]}` · [Build details]({preview['run_url']})\n\n")
+        if preview["sha"] != pr["head"]["sha"]:
+            body += "This preview is from a previous successful build; it does not include the latest PR commit.\n\n"
+        body += "This link updates after successful builds. The preview is removed when this PR closes."
+        update_comment(api, number, body)
+    for number in state.get("retired_previews", []):
+        if number not in open_prs:
+            update_comment(api, number, f"{COMMENT_MARKER}\n**Preview closed**\n\n"
+                           "This PR is closed and its preview has been removed.", create=False)
+    state["retired_previews"] = []
 
 
 def git(*args, **kwargs):
@@ -248,7 +298,12 @@ def main():
     args = parser.parse_args()
     api = GitHub(args.repository, args.default_branch)
     if args.command == "report":
-        report_checks(json.loads((args.site / STATE_FILE).read_text()), api, args.base_url)
+        state_path = args.site / STATE_FILE
+        state = json.loads(state_path.read_text())
+        report_checks(state, api, args.base_url)
+        report_comments(state, api, args.base_url)
+        state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
+        save_worktree(args.site)
     else:
         if args.command == "assemble":
             prepare_worktree(args.site)

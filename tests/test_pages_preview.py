@@ -176,6 +176,69 @@ class PagesPreview(unittest.TestCase):
             pages.report_checks(state, api, "https://org.github.io/repo/")
             self.assertEqual(write.call_args.args[:2], ("PATCH", "check-runs/123"))
 
+    def test_comment_is_created_once_then_updated_and_unchanged_reports_do_not_write(self):
+        api = pages.GitHub("org/repo", "main")
+        state = {"previews": {"11": build(10)}, "retired_previews": []}
+        comments = [{"id": 1, "user": {"login": "reviewer", "type": "User"},
+                     "body": "<!-- quickdash-pages-preview -->\nHuman comment"}]
+        with patch.object(api, "pulls", return_value=[pull(11)]), patch.object(api, "comments", return_value=comments), patch.object(api, "write") as write:
+            pages.report_comments(state, api, "https://org.github.io/repo/")
+            method, endpoint, payload = write.call_args.args
+            self.assertEqual((method, endpoint), ("POST", "issues/11/comments"))
+            self.assertIn("[Open preview](https://org.github.io/repo/pr-preview/pr-11/)", payload["body"])
+            self.assertIn("abc", payload["body"])
+            comments.append({"id": 2, "user": {"login": "github-actions[bot]", "type": "Bot"}, "body": payload["body"]})
+            write.reset_mock()
+            pages.report_comments(state, api, "https://org.github.io/repo")
+            write.assert_not_called()
+            state["previews"]["11"] = build(20, "new")
+            pages.report_comments(state, api, "https://org.github.io/repo")
+            self.assertEqual(write.call_args.args[:2], ("PATCH", "issues/comments/2"))
+            self.assertIn("previous successful build", write.call_args.args[2]["body"])
+            self.assertIn("new", write.call_args.args[2]["body"])
+
+    def test_closed_comments_are_updated_after_removal_and_retried_until_report_succeeds(self):
+        source = Source()
+        with tempfile.TemporaryDirectory() as tmp:
+            site = Path(tmp)
+            pages.reconcile(site, source)
+            source.open = []
+            state = pages.reconcile(site, source)
+            self.assertEqual(set(state["retired_previews"]), {"11", "12"})
+            self.assertFalse((site / "pr-preview/pr-11").exists())
+            # A deployment or reporting failure leaves cleanup pending in stored state.
+            self.assertEqual(pages.reconcile(site, source)["retired_previews"], state["retired_previews"])
+        api = pages.GitHub("org/repo", "main")
+        comment = {"id": 5, "user": {"login": "github-actions[bot]", "type": "Bot"},
+                   "body": "<!-- quickdash-pages-preview -->\nOld link"}
+        with patch.object(api, "pulls", return_value=[]), patch.object(api, "comments", return_value=[comment]), patch.object(api, "write", side_effect=RuntimeError("API unavailable")):
+            with self.assertRaisesRegex(RuntimeError, "API unavailable"):
+                pages.report_comments(state, api, "https://org.github.io/repo")
+            self.assertEqual(set(state["retired_previews"]), {"11", "12"})
+        with patch.object(api, "pulls", return_value=[]), patch.object(api, "comments", side_effect=lambda n: [comment] if n == "11" else []), patch.object(api, "write") as write:
+            pages.report_comments(state, api, "https://org.github.io/repo")
+            self.assertEqual(write.call_count, 1)
+            self.assertEqual(write.call_args.args[:2], ("PATCH", "issues/comments/5"))
+            self.assertIn("Preview closed", write.call_args.args[2]["body"])
+            self.assertNotIn("[Open preview]", write.call_args.args[2]["body"])
+            self.assertEqual(state["retired_previews"], [])
+
+    def test_reopened_pr_is_not_marked_closed_and_unbuilt_pr_gets_no_comment(self):
+        api = pages.GitHub("org/repo", "main")
+        state = {"previews": {}, "retired_previews": ["11"]}
+        with patch.object(api, "pulls", return_value=[pull(11)]), patch.object(api, "comments") as comments, patch.object(api, "write") as write:
+            pages.report_comments(state, api, "https://org.github.io/repo")
+            comments.assert_not_called()
+            write.assert_not_called()
+            self.assertEqual(state["retired_previews"], [])
+
+    def test_comment_lookup_paginates_long_pr_discussions(self):
+        api = pages.GitHub("org/repo", "main")
+        first = [{"id": n} for n in range(100)]
+        with patch.object(api, "get", side_effect=[first, [{"id": 100}]]) as get:
+            self.assertEqual(len(api.comments("11")), 101)
+            self.assertEqual(get.call_args.args[0], "issues/11/comments?per_page=100&page=2")
+
     def test_worktree_state_round_trip_keeps_source_branch_intact(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -217,7 +280,8 @@ class PagesPreview(unittest.TestCase):
         self.assertEqual(steps[0]["with"]["ref"], "${{ github.event.repository.default_branch }}")
         self.assertEqual(publish["concurrency"]["group"], "quickdash-pages-publish")
         self.assertLess(next(i for i,s in enumerate(steps) if s.get("id") == "deployment"),
-                        next(i for i,s in enumerate(steps) if s.get("name") == "Link deployed previews from PR checks"))
+                        next(i for i,s in enumerate(steps) if s.get("name") == "Link deployed previews on PRs"))
+        self.assertEqual(publish["jobs"]["publish"]["permissions"]["pull-requests"], "write")
 
 
 if __name__ == "__main__":
