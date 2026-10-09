@@ -2,6 +2,6 @@ version: 1
 name: Any available
 mode: available
 exclude:
-  - global_piqa_prompted
+  - global_piqa_prompted # Scoring and normalization await validation.
 notes:
   - Compare recognized measurements shared by both models; warn about differences.

@@ -27,6 +27,8 @@ python3 -m app.build --results-dir results --sample-csv examples/sample-evals.cs
 
 The build validates every offered combination before replacing output. In the dashboard, inspect **Warnings** for the comparison you intend to use. Named-set scores with missing requirements are explicitly incomplete; extras are excluded but remain inspectable.
 
+Record intentional eval exclusions in the set's `exclude` list and explain each eval/language exclusion with an inline YAML comment. Explicit exclusions appear together under **Information**, outside the warning count. Keep the authored YAML in version control because exported YAML does not preserve comments.
+
 The generated `output/shared/catalogue.yaml` contains the complete catalogue, including every language assignment, with no file references. Browser catalogue export produces the same portable format. Import that complete file when moving settings between dashboards; the repository manifest alone is not a browser import.
 
 For temporary changes, use the separate load/export controls under **Eval configuration**. Files stay in the browser. Weight exports save edited weights and the active calculation; catalogue and eval-set exports are independent. None of these controls modify the repository.

@@ -18,7 +18,9 @@ test('displayed evals emit their caveats; unused catalogue rules and excluded ev
  const r=run([row()],[row()]);assert.deepEqual(r.warnings.filter(w=>w.type==='Config caveat').map(w=>w.name),['E']);
  const excluded=run([row(),row('f')],[row(),row('f')],{...available,exclude:['F']});
  assert.deepEqual(excluded.warnings.filter(w=>w.type==='Config caveat').map(w=>w.name),['E']);
- assert.equal(excluded.warnings.filter(w=>w.type==='Not used'&&w.name==='F').length,2);
+ assert.equal(excluded.warnings.filter(w=>w.type==='Not used').length,0);
+ const info=excluded.warnings.filter(w=>w.severity==='info');assert.equal(info.length,1);
+ assert.equal(info[0].code,'intentional_exclusion');assert.deepEqual(info[0].exclusions[0].models,['A','B']);
  assert.equal(excluded.coverage.pairs.length,1);
 });
 test('unselected eval data warns even if it only contains the wrong metric',()=>{
@@ -60,5 +62,6 @@ test('available-mode exclusions reject unknown catalogue names',()=>{
  assert.throws(()=>resolveConfig(catalogue(),{...available,exclude:['Absent from this catalogue']},profile),/no catalogue rule/);
  const r=run([row()],[row()],{...available,exclude:['E','F']});
  assert.equal(r.score,null);assert.equal(r.coverage.pairs.length,0);
- assert.equal(r.warnings.filter(w=>w.type==='Not used').length,2);
+ assert.equal(r.warnings.filter(w=>w.type==='Not used').length,0);
+ assert.equal(r.warnings.filter(w=>w.severity==='info').length,1);
 });

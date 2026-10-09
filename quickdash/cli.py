@@ -76,11 +76,11 @@ def main(argv=None):
         )
         for d in report.diagnostics:
             print(
-                f"warning [{d['code']}] {d['model']} / {d['name']}: {d['detail']}"
+                f"{d['severity']} [{d['code']}] {d['model']} / {d['name']}: {d['detail']}"
                 + (f" Tasks: {', '.join(d['tasks'])}" if d["tasks"] else ""),
                 file=sys.stderr,
             )
-        if args.strict and report.diagnostics:
+        if args.strict and any(d['severity'] == 'warning' for d in report.diagnostics):
             return 1
         if args.format == "json":
             print(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False))

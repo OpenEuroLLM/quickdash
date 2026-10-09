@@ -119,7 +119,7 @@ class QuickdashWarning(UserWarning):
 
 
 class DiagnosticError(ValueError):
-    """Strict mode rejected the result. All diagnostics remain inspectable."""
+    """Strict mode rejected the result; warning diagnostics remain inspectable."""
 
     def __init__(self, diagnostics):
         self.diagnostics = diagnostics
@@ -129,10 +129,11 @@ class DiagnosticError(ValueError):
 def finish(report, policy):
     if policy not in ("warn", "collect", "error"):
         raise ValueError("diagnostics must be warn, collect, or error")
-    if policy == "error" and report["diagnostics"]:
-        raise DiagnosticError(report["diagnostics"])
+    actionable = [d for d in report["diagnostics"] if d["severity"] == "warning"]
+    if policy == "error" and actionable:
+        raise DiagnosticError(actionable)
     if policy == "warn":
-        for diagnostic in report["diagnostics"]:
+        for diagnostic in actionable:
             warnings.warn(QuickdashWarning(diagnostic), stacklevel=3)
     return Report(report)
 
@@ -419,6 +420,7 @@ def protocol_inconsistent(rows):
 
 
 TITLES = dict(
+    intentional_exclusion="Intentional exclusions",
     config_caveat="Config caveat",
     no_config="No config",
     not_used="Not used",
@@ -439,10 +441,11 @@ TITLES = dict(
 )
 
 
-def diagnostic(code, model, eval_name, rows, detail, effect="included", tasks=None):
+def diagnostic(code, model, eval_name, rows, detail, effect="included", tasks=None, severity="warning"):
     names = sorted(set(tasks if tasks is not None else [r["task"] for r in rows]))
     return dict(
         code=code,
+        severity=severity,
         type=TITLES[code],
         model=model,
         eval=eval_name,
@@ -465,6 +468,26 @@ def report_diagnostics(
         resolved[k] for k in ("catalogue", "suite", "scheme", "profile")
     )
     out = []
+    exclusions = {}
+    metadata = {t: g for g in catalogue["languages"] for t in g["tasks"]}
+    local_languages = {e["name"]: e.get("exclude_languages", []) for e in suite.get("evals", [])}
+
+    def record_exclusion(row):
+        reasons = []
+        if row["eval"] in suite.get("exclude", []):
+            reasons.append(("eval", row["eval"], ""))
+        else:
+            group = metadata.get(row["task"], {})
+            codes = {group.get(k) for k in ("language", "source_language", "target_language")} - {None}
+            for language in codes:
+                if language in suite.get("exclude_languages", []):
+                    reasons.append(("language", language, ""))
+                elif language in local_languages.get(row["eval"], []):
+                    reasons.append(("language", language, row["eval"]))
+        for reason in reasons:
+            exclusions.setdefault(reason, {})[measurement_id(row)] = row
+        return bool(reasons)
+
     used = {r["eval"] for rr in included.values() for r in rr}
     for e in catalogue["evals"]:
         if e.get("warning") and e["name"] in used:
@@ -496,6 +519,7 @@ def report_diagnostics(
                 if ("select" not in e or match_task(e["select"], r["task"]) is not None)
                 and not in_suite(r, suite)
             ]
+            outside = [r for r in outside if not record_exclusion(r)]
             matching = [r for r in all_rows if in_suite(r, suite)]
             selected = [r for r in matching if r["selected"]]
 
@@ -729,6 +753,25 @@ def report_diagnostics(
                         "Matched results have different sample counts. Scores remain included.",
                     )
                 )
+    if exclusions:
+        groups, affected, variants, labels = [], {}, [], []
+        for (kind, name, scope), records in sorted(exclusions.items()):
+            affected.update(records)
+            rows = list(records.values())
+            tasks = sorted({r["task"] for r in rows})
+            models = sorted({r["checkpoint"] for r in rows})
+            groups.append(dict(kind=kind, name=name, eval=scope or None, models=models,
+                               tasks=tasks, measurement_ids=sorted(records)))
+            label = ("Eval " if kind == "eval" else "Language ") + name
+            if kind == "language":
+                label += " in " + scope if scope else " across the set"
+            labels.append(label)
+            variants.append(dict(settings=label + " · " + ", ".join(models), tasks=tasks))
+        info = diagnostic("intentional_exclusion", "Selected models", None, list(affected.values()),
+                          "Intentionally excluded by " + suite["name"] + ": " + "; ".join(labels) + ".",
+                          "excluded", severity="info")
+        info.update(name=suite["name"], exclusions=groups, variants=variants)
+        out.append(info)
     return out
 
 

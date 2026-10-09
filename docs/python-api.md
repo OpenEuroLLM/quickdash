@@ -124,7 +124,7 @@ requirements or exclusions; missing data for a valid requirement warns instead.
 
 ## Surface warnings
 
-By default, `analyze()` and `compare()` emit a `QuickdashWarning` through Python's standard `warnings` mechanism for each grouped diagnostic. Warnings normally appear on stderr. Each warning object has a `.diagnostic` attribute containing its structured record. The same diagnostics are retained in `report.diagnostics`, separately from the tree.
+By default, `analyze()` and `compare()` emit a `QuickdashWarning` through Python's standard `warnings` mechanism for each grouped diagnostic with `severity: "warning"`. Informational diagnostics remain in the report without emitting a Python warning. Warnings normally appear on stderr. Each warning object has a `.diagnostic` attribute containing its structured record. The same diagnostics are retained in `report.diagnostics`, separately from the tree.
 
 Applications that display diagnostics themselves can explicitly collect them:
 
@@ -134,14 +134,15 @@ for diagnostic in report.diagnostics:
     print(diagnostic["code"], diagnostic["model"], diagnostic["tasks"])
 ```
 
-For strict automation, use `diagnostics="error"`. If any diagnostic occurs, it raises `DiagnosticError`, whose `.diagnostics` contains all warnings; it returns no report. Invalid configurations, ambiguous selected matches, duplicate selected measurements, and invalid selected scores raise `ValueError` regardless of diagnostic policy. File access failures raise the usual `OSError` subclasses.
+For strict automation, use `diagnostics="error"`. If any warning occurs, it raises `DiagnosticError`, whose `.diagnostics` contains only warnings; it returns no report. Invalid configurations, ambiguous selected matches, duplicate selected measurements, and invalid selected scores raise `ValueError` regardless of diagnostic policy. File access failures raise the usual `OSError` subclasses.
 
-The diagnostic contract is `code`, `model`, `eval`, `tasks`, `measurement_ids`, and `effect`. `effect` describes the warning's policy (`excluded`, `included`, or `zero_weight`); the measurement's `included` field is authoritative when several conditions apply. Config-wide caveats have no individual measurement IDs. `type`, `name`, `detail`, and `variants` support dashboard presentation and are not wording contracts.
+The diagnostic contract is `code`, `severity` (`warning` or `info`), `model`, `eval`, `tasks`, `measurement_ids`, and `effect`. `effect` describes the condition's policy (`excluded`, `included`, or `zero_weight`); the measurement's `included` field is authoritative when several conditions apply. Config-wide caveats have no individual measurement IDs. `type`, `name`, `detail`, and `variants` support dashboard presentation and are not wording contracts.
 
 | Codes | Condition and action |
 | --- | --- |
 | `config_caveat` | An included eval has a configured warning. |
-| `no_config`, `not_used` | Unknown eval or data outside the selected set; excluded. |
+| `no_config`, `not_used` | Unknown eval or data outside the selected set without an explicit exclusion; excluded. |
+| `intentional_exclusion` | One informational record for data explicitly excluded by eval or language, across all affected models. |
 | `missing_scoring_field`, `missing_scoring_setting`, `no_selected_score` | Required metric/protocol unavailable; no alternate substitution. |
 | `missing_suite_data` | A named set has missing requirements; available shared results are reweighted. |
 | `strict_shot_setting` | Tasks excluded for a shot mismatch, grouped by eval/model/expected/actual count. Includes expected/actual counts and all affected task/measurement IDs. |
@@ -153,6 +154,8 @@ The diagnostic contract is `code`, `model`, `eval`, `tasks`, `measurement_ids`, 
 | `inconsistent_scoring_settings` | Selected variants use different protocols; ordinary results or complete component groups remain eligible. |
 | `invalid_sample_count`, `sample_count_mismatch` | Sample-count metadata needs review; it does not determine weights. |
 | `no_category_weight` | An included category has no profile weight and contributes zero. |
+
+`intentional_exclusion` has `severity: "info"` and an `exclusions` list. Each group records `kind` (`eval` or `language`), `name`, `eval` (the scope for a local language exclusion, otherwise null), `models`, `tasks`, and `measurement_ids`. The top-level measurement list deduplicates data covered by multiple exclusions. An explicitly excluded eval is not a required result. Missing data for included evals still warns.
 
 Strict shot mismatches produce one diagnostic per eval, model, and expected/actual shot-count pair. Covered tasks do not also generate `missing_scoring_setting`, `no_selected_score`, or `missing_suite_data` diagnostics for the same cause. Coverage still records those unsatisfied requirements and remains incomplete. Genuinely absent tasks and other missing settings retain their diagnostics.
 
@@ -171,6 +174,6 @@ quickdash examples/scores.csv \
 
 Add `--compare 'Example A' 'Example B'` for shared-coverage scores, or `--format json` for the complete machine-readable report. `python -m quickdash` provides the same command. Warnings go to stderr; stdout contains only the selected result format.
 
-Exit status is 0 for a successful calculation, including recoverable warnings. `--strict` prints warnings and exits 1 without writing a result. Invalid input exits 2. A score can be unavailable when no valid weighted data remains; inspect diagnostics and coverage or use strict mode when warnings must block a workflow.
+Exit status is 0 for a successful calculation, including recoverable warnings. `--strict` prints diagnostics and exits 1 without writing a result when warnings exist. Informational entries print as `info [...]` on stderr and do not fail strict mode. Invalid input exits 2. A score can be unavailable when no valid weighted data remains; inspect diagnostics and coverage or use strict mode when warnings must block a workflow.
 
-Use `--matching relaxed` to allow few-shot differences. This is separate from `--strict`, which makes the CLI fail on diagnostics; it does not choose the matching mode.
+Use `--matching relaxed` to allow few-shot differences. This is separate from `--strict`, which makes the CLI fail on warnings; it does not choose the matching mode.

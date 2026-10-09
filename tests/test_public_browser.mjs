@@ -473,12 +473,35 @@ reconcile(Path(sys.argv[3]), source)
  await evaluate('URL.createObjectURL=originalCreate;HTMLAnchorElement.prototype.click=originalClick');
  await upload('#suiteFile',serializeSuite({version:1,name:'Any example',mode:'available'}),'any.yaml');
  assert.equal(await evaluate("document.querySelector('#cards').textContent"),noShared);
- // A present excluded language warns; absent excluded languages are not requirements.
+ // Explicit language/eval exclusions are one informational entry, not warnings.
  const frenchCSV='checkpoint,task,metric,filter,n_shot,harness,backend,value\nShots A,example_reasoning_fr,acc_norm,none,5,test,cpu,0.5\nShots B,example_reasoning_fr,acc_norm,none,5,test,cpu,0.5';
  await click('#clearModels');await upload('#modelFile',shotCSV()+'\n'+frenchCSV.split('\n').slice(1).join('\n'),'languages.csv');await click('[data-view=config]');
  assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
  await upload('#suiteFile',serializeSuite({...shotSet,exclude_languages:['fra_Latn']}),'exclusions.yaml');
- await click('[data-view=warnings]');assert.match(await evaluate("document.querySelector('#view').textContent"),/Not used.*example_reasoning_fr/s);
+ await click('[data-view=warnings]');assert.match(await evaluate("document.querySelector('#information').textContent"),/Intentional exclusions.*example_reasoning_fr/s);
+ const knownExcludedCSV=shotCSV().replace('acc_norm,none,5','acc_norm,none,0')+'\n'+frenchCSV.split('\n').slice(1).join('\n')+'\nShots A,example_math_en,exact_match,none,0,test,cpu,0.2\nShots B,example_math_en,exact_match,none,0,test,cpu,0.3';
+ await click('#clearModels');await upload('#modelFile',knownExcludedCSV,'known-exclusions.csv');
+ const beforeExclusion=await evaluate("document.querySelector('#cards').textContent");
+ assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'2');
+ const markedSet={...shotSet,exclude:['Example math'],exclude_languages:['fra_Latn']};
+ await click('[data-view=config]');await upload('#suiteFile',serializeSuite(markedSet).replace('- Example math','- Example math # Intentionally outside this fixture.'),'intentional-exclusions.yaml');
+ assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),beforeExclusion);
+ assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'0');
+ assert.equal(await evaluate("document.querySelector('#warningCount').classList.contains('has-warnings')"),false);
+ await click('[data-view=warnings]');
+ assert.match(await evaluate("document.querySelector('#view').textContent"),/No warnings/);
+ assert.equal(await evaluate("document.querySelectorAll('#information tbody tr').length"),1);
+ assert.match(await evaluate("document.querySelector('#information').textContent"),/Example math.*fra_Latn/s);
+ assert.equal(await evaluate("document.querySelectorAll('#information details p').length"),2);
+ await click('[data-view=config]');
+ await evaluate(`window.originalCreate=URL.createObjectURL;window.originalClick=HTMLAnchorElement.prototype.click;URL.createObjectURL=b=>{window.exportBlob=b;return 'blob:test'};HTMLAnchorElement.prototype.click=function(){};`);
+ await click('#exportSuite');assert.deepEqual(await evaluate('exportBlob.text().then(parseSuite)'),markedSet);
+ await evaluate('URL.createObjectURL=originalCreate;HTMLAnchorElement.prototype.click=originalClick');
+ await upload('#suiteFile',JSON.stringify({...markedSet,exclude:['Example reasoning']}),'conflicting-exclusion.yaml');
+ assert.match(await evaluate("document.querySelector('#error').textContent"),/both required and excluded/);
+ assert.equal(await evaluate("document.querySelector('#cards').textContent"),beforeExclusion);
+ assert.equal(await evaluate("document.querySelector('#warningCount').textContent"),'0');
  await click('[data-view=config]');await upload('#suiteFile',serializeSuite({version:1,name:'Any example',mode:'available'}),'any.yaml');
  await click('#clearModels');await upload('#modelFile',shotCSV('bad'),'invalid-alternative.csv');
  const beforeRelax=await evaluate("document.querySelector('#cards').textContent");

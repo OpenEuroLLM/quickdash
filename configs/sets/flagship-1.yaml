@@ -1,7 +1,20 @@
 version: 1
 name: flagship-1
 mode: fixed
-exclude_languages: [kat_Geor]
+exclude_languages:
+  - kat_Geor # Excluded because of a vocabulary error in these evaluations.
+exclude:
+  - AIME24 # Replaced by aime24_cot with corrected CoT evaluation settings.
+  - AIME25 # Replaced by aime25_cot with corrected CoT evaluation settings.
+  - AMC23 # Replaced by amc23_cot with corrected CoT evaluation settings.
+  - GPQADiamond # Replaced by gpqa_diamond_cot with corrected CoT evaluation settings.
+  - JEEBench # Replaced by jeebench_cot with corrected CoT evaluation settings.
+  - MATH500 # Replaced by math500_cot with corrected CoT evaluation settings.
+  - polymath # Replaced by polymath_cot; all four corrected difficulty levels are required.
+  - HumanEval # Replaced by humaneval_cont with the corrected code-continuation protocol.
+  - LiveCodeBench # Replaced by livecodebench_cont with the corrected code-continuation protocol.
+  - mbpp # Replaced by mbpp_cont with the corrected code-continuation protocol.
+  - global_piqa_prompted # Scoring and normalization await validation; use completion-based global_piqa.
 notes:
   - Use corrected CoT reasoning and code-continuation protocols; original-protocol results are excluded without fallback.
   - Require the catalogue tasks for each listed eval, inheriting its scoring defaults.
@@ -42,7 +55,7 @@ evals:
   - name: winogrande
   - name: xcsqa
     exclude_languages:
-      - eng_Latn
+      - eng_Latn # Avoid overlap with CommonsenseQA.
   - name: xcopa
   - name: belebele
   - name: boolq
