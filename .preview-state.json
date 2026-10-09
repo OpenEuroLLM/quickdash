@@ -13,6 +13,14 @@
       "source": "owner"
     }
   },
-  "previews": {},
+  "previews": {
+    "15": {
+      "artifact_id": 11608567630,
+      "run_attempt": 1,
+      "run_id": 37914681114,
+      "run_url": "https://github.com/OpenEuroLLM/quickdash/actions/runs/37914681114",
+      "sha": "ed06e78d2e642d9246040dd108a1878650c09692"
+    }
+  },
   "retired_previews": []
 }
