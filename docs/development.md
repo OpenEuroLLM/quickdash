@@ -58,7 +58,7 @@ The shared suite in `tests/test_engines.py` sends the same input cases to native
 
 They cover input validation, normalization, warning/exclusion behavior, failed-build preservation, Python/JavaScript parity, hierarchy sorting, and deterministic randomized scoring comparisons against an independent calculation.
 
-The public browser suite also checks empty startup, shared models, independent profile/set selection, missing requirements, temporary uploads, rollback, and that file imports make no network requests. To run just that browser suite manually, start an isolated browser session, then run the suite in another terminal:
+The public browser suite also checks empty startup, shared models, independent profile/set selection, missing requirements, temporary uploads, rollback, and that file imports make no network requests. Exact scores and warning behavior use controlled fictional fixtures. The production catalogue and sample provide smoke coverage for builds, portable catalogue imports, all shipped profiles and sets, strict/relaxed matching, and view rendering without fixing particular scores, warning counts, or coverage outcomes. To run just that browser suite manually, start an isolated browser session, then run the suite in another terminal:
 
 ```sh
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \

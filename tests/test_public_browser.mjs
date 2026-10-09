@@ -8,6 +8,11 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url),{parseCatalogue,serializeCatalogue}=require('../app/eval_config.js'),{parseWeightProfile,serializeWeightProfile,serializeSuite}=require('../app/suite_config.js');
 const root=fileURLToPath(new URL('../',import.meta.url));
+const shippedChoices=directory=>({
+ files:fs.readdirSync(path.join(root,directory)).filter(name=>/\.ya?ml$/i.test(name)).sort(),
+ defaultFile:fs.readFileSync(path.join(root,directory,'default.txt'),'utf8').trim(),
+});
+const shippedSets=shippedChoices('configs/sets'),shippedProfiles=shippedChoices('configs/weights');
 const temporary=fs.mkdtempSync(path.join(os.tmpdir(),'quickdash-browser-'));
 let ws;
 try{
@@ -49,8 +54,8 @@ try{
  assert.equal(await evaluate("document.querySelector('#modelA').options.length"),0);
  assert.equal(await evaluate("document.querySelector('#cards').hidden"),true);
  assert.match(await evaluate("document.querySelector('#view').textContent"),/Compare your evaluation results/);
- assert.equal(await evaluate("document.querySelector('#suitePreset').options.length"),2);
- assert.equal(await evaluate("document.querySelector('#suitePreset').selectedOptions[0].textContent"),'flagship-1');
+ assert.equal(await evaluate("document.querySelector('#suitePreset').options.length"),shippedSets.files.length);
+ assert.equal(await evaluate("DATA.suites[Number(document.querySelector('#suitePreset').value)].file"),shippedSets.defaultFile);
  for(const view of ['categories','languages','comparisons','config','warnings','score'])await click('[data-view='+view+']');
  const upload=async(selector,content,name)=>evaluate(`(async()=>{const dt=new DataTransfer();dt.items.add(new File([${JSON.stringify(content)}],${JSON.stringify(name)}));const e=document.querySelector(${JSON.stringify(selector)});e.files=dt.files;if(e.id==='modelFile')await e.onchange({target:e});else await document.querySelector('#view').onchange({target:e});})()`);
  await click('[data-view=config]');await upload('#suiteFile',serializeSuite({version:1,name:'Any example',mode:'available'}),'any.yaml');await upload('#configFile',serializeCatalogue(fixture),'catalogue.yaml');
@@ -139,6 +144,16 @@ try{
  assert.equal(await evaluate("document.querySelector('#modelB').value"),'Example B');
  for(const view of ['score','categories','languages','comparisons','config','warnings'])await click('[data-view='+view+']');
  assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+ // Synthetic score differences use the controlled example data and config.
+ const syntheticNames=await evaluate("syntheticOptions.map(o=>o.name)"),syntheticScores=[];
+ for(const name of syntheticNames){
+  await change('#modelB',name);
+  assert.match(await evaluate("document.querySelector('#demo').textContent"),/synthetic scores/);
+  assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+  syntheticScores.push(await evaluate("document.querySelector('#cards').textContent"));
+  for(const view of ['categories','languages','comparisons','config','warnings','score'])await click('[data-view='+view+']');
+ }
+ assert.equal(new Set(syntheticScores).size,syntheticNames.length);
  // Explicit defaults can select any embedded pair without hiding older models.
  const preferred=path.join(temporary,'preferred');
  fs.writeFileSync(path.join(results,'alternative.csv'),fs.readFileSync(path.join(root,'examples/scores.csv'),'utf8').replaceAll('Example A','Alternative A').replaceAll('Example B','Alternative B'));
@@ -238,13 +253,15 @@ try{
  await evaluate(`{for(const input of document.querySelectorAll('[data-weight]')){input.value=input.dataset.weight==='Custom'?'1':'0';document.querySelector('#view').onchange({target:input});}}`);
  assert.equal(await evaluate("document.querySelector('#cards').textContent"),beforeCategoryEdit);
  await click('[data-view=warnings]');assert.doesNotMatch(await evaluate("document.querySelector('#view').textContent"),/No category weight/);
- // Exercise the actual Pages fallback with the full public sample and every synthetic choice.
+ // Smoke-test shipped configs with the Pages sample without fixing their scoring outcomes.
  const sample=path.join(temporary,'sample'),resultsDir=path.join(temporary,'empty-results');fs.mkdirSync(resultsDir);
  execFileSync('python3',['-m','app.build','--results-dir',resultsDir,'--sample-csv','examples/sample-evals.csv','--output',sample],{cwd:root,stdio:'pipe'});
  await navigate(pathToFileURL(path.join(sample,'index.html')).href);
  assert.match(await evaluate("document.querySelector('#modelA').value"),/^SAMPLE/);
- assert.equal(await evaluate("document.querySelector('#suitePreset').selectedOptions[0].textContent"),'flagship-1');
- await change('#suitePreset',await evaluate("String(DATA.suites.findIndex(s=>s.file==='any-available.yaml'))"));
+ assert.deepEqual(await evaluate("DATA.suites.map(s=>s.file).sort()"),shippedSets.files);
+ assert.deepEqual(await evaluate("DATA.profiles.map(p=>p.file).sort()"),shippedProfiles.files);
+ assert.equal(await evaluate("DATA.suites[Number(document.querySelector('#suitePreset').value)].file"),shippedSets.defaultFile);
+ assert.equal(await evaluate("DATA.profiles[Number(document.querySelector('#weightPreset').value)].file"),shippedProfiles.defaultFile);
  // The generated catalogue contains every eval and language, with no filesystem dependency.
  const exportedCatalogue=fs.readFileSync(path.join(sample,'catalogue.yaml'),'utf8');
  assert.deepEqual(parseCatalogue(exportedCatalogue),require('../app/catalogue_io.cjs').loadCatalogue(path.join(root,'configs/catalogue.yaml')));
@@ -259,42 +276,77 @@ try{
  await upload('#configFile',exportedCatalogue,'portable-catalogue.yaml');
 
  assert.equal(await evaluate("document.querySelector('#cards').hidden"),false);
- const strictSampleCards=await evaluate("document.querySelector('#cards').textContent");
- // Strict shot mismatches collapse per eval, including duplicate missing-set warnings.
- await change('#suitePreset',await evaluate("String(DATA.suites.findIndex(s=>s.file==='flagship-1.yaml'))"));await click('[data-view=warnings]');
- const arcWarnings=await evaluate("[...document.querySelectorAll('#view tbody tr')].filter(r=>r.cells[1]?.textContent==='arc_challenge').map(r=>r.textContent)");
- assert.equal(arcWarnings.length,1);
- assert.match(arcWarnings[0],/Few-shot mismatch excluded.*\d+ tasks use 0 shots; expected 10/s);
- assert.match(arcWarnings[0],/arc_challenge_mt_cs/);
- assert.match(await evaluate("document.querySelector('#coverage').textContent"),/INCOMPLETE/);
- await click('[data-view=config]');
- await evaluate("document.querySelector('.catalogue-eval[data-eval=\"arc_challenge\"]').open=true");
- await new Promise(r=>setTimeout(r,50));
- assert.ok(await evaluate("document.querySelectorAll('.catalogue-eval[data-eval=\"arc_challenge\"] .has-missing-field').length>0"));
- await change('#suitePreset',await evaluate("String(DATA.suites.findIndex(s=>s.file==='any-available.yaml'))"));
- assert.equal(await evaluate("document.querySelector('#cards').textContent"),strictSampleCards);
-
- await change('#matching','relaxed');
- assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
- assert.match(await evaluate("document.querySelector('#matchingNotice').textContent"),/INCONSISTENT EVALUATION SETTINGS/);
- await click('[data-view=warnings]');
- assert.match(await evaluate("document.querySelector('#view').textContent"),/Using 0 shots despite expected 10/);
- await change('#matching','strict');
- assert.equal(await evaluate("document.querySelector('#cards').textContent"),strictSampleCards);
- const syntheticNames=await evaluate("syntheticOptions.map(o=>o.name)");
- const scores=[];
+ for(let s=0;s<shippedSets.files.length;s++)for(let p=0;p<shippedProfiles.files.length;p++){
+  await change('#suitePreset',String(s));await change('#weightPreset',String(p));
+  assert.equal(await evaluate("document.querySelector('#suitePreset').value"),String(s));
+  assert.equal(await evaluate("document.querySelector('#weightPreset').value"),String(p));
+  const strictCards=await evaluate("document.querySelector('#cards').textContent");
+  for(const matching of ['relaxed','strict']){
+   await change('#matching',matching);
+   assert.equal(await evaluate("document.querySelector('#matching').value"),matching);
+   for(const view of ['categories','languages','comparisons','config','warnings','score']){
+    await click('[data-view='+view+']');
+    assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+   }
+  }
+  assert.equal(await evaluate("document.querySelector('#cards').textContent"),strictCards);
+ }
  for(const name of syntheticNames){
   await change('#modelB',name);
   assert.match(await evaluate("document.querySelector('#demo').textContent"),/synthetic scores/);
   assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
-  scores.push(await evaluate("document.querySelector('#cards').textContent"));
   for(const view of ['categories','languages','comparisons','config','warnings','score'])await click('[data-view='+view+']');
  }
- assert.equal(new Set(scores).size,syntheticNames.length);
  await change('#modelB',await evaluate("document.querySelector('#modelA').value"));
  assert.match(await evaluate("document.querySelector('#demo').textContent"),/Sample dataset/);
  await click('#clearModels');
  assert.equal(await evaluate("document.querySelector('#modelA').options.length"),0);
+ // Controlled few-shot data groups warnings by actual setting, suppresses duplicate
+ // missing-set warnings, and exposes excluded tasks in the catalogue view.
+ await navigate(pathToFileURL(path.join(empty,'index.html')).href);
+ const shotCatalogue={version:1,name:'Shot fixture',evals:[{name:'Shot reasoning',category:'Reasoning',match:{regex:'shot_(en|fr|de)'},metric:'acc',metric_filter:'none',shots:5,score:{scale:1}}],languages:[
+  {tasks:['shot_en'],scope:'single',language:'eng_Latn'},
+  {tasks:['shot_fr'],scope:'single',language:'fra_Latn'},
+  {tasks:['shot_de'],scope:'single',language:'deu_Latn'},
+ ]};
+ const shotAvailable={version:1,name:'Available shots',mode:'available'};
+ const shotRequired={version:1,name:'Required shots',mode:'fixed',evals:[{name:'Shot reasoning'}]};
+ await click('[data-view=config]');await upload('#suiteFile',serializeSuite(shotAvailable),'available-shots.yaml');
+ await upload('#configFile',serializeCatalogue(shotCatalogue),'shot-catalogue.yaml');
+ await upload('#weightsFile',serializeWeightProfile({version:1,name:'Shot weights',weights:{Reasoning:1}}),'shot-weights.yaml');
+ await upload('#modelFile','checkpoint,task,metric,filter,n_shot,harness,backend,value\nShot model,shot_en,acc,none,5,test,cpu,0.8\nShot model,shot_fr,acc,none,0,test,cpu,0.6\nShot model,shot_de,acc,none,0,test,cpu,0.4','shot-model.csv');
+ await change('#modelB','Shot model');
+ for(const expected of [5,25]){
+  await click('[data-view=config]');
+  shotCatalogue.evals[0].shots=expected;
+  await upload('#configFile',serializeCatalogue(shotCatalogue),'shot-catalogue.yaml');
+  await upload('#suiteFile',serializeSuite(shotRequired),'required-shots.yaml');
+  assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+  const strictScores=await evaluate("[...document.querySelectorAll('.score-card strong')].map(e=>e.textContent)");
+  assert.equal(await evaluate("document.querySelector('.score-card strong').textContent"),expected===5?'80.00':'—');
+  await click('[data-view=warnings]');
+  const warnings=await evaluate("[...document.querySelectorAll('#view tbody tr')].map(r=>({type:r.cells[0].textContent,eval:r.cells[1].textContent,detail:r.cells[3].textContent,tasks:[...r.querySelectorAll('details')].map(e=>e.textContent).join(' ')}))");
+  assert.deepEqual(warnings.map(w=>[w.type,w.eval]),Array.from({length:expected===5?1:2},()=>['Few-shot mismatch excluded','Shot reasoning']));
+  assert.ok(warnings[0].detail.startsWith(`2 tasks use 0 shots; expected ${expected}.`));
+  for(const task of ['shot_fr','shot_de'])assert.ok(warnings[0].tasks.includes(task));
+  if(expected===25){assert.ok(warnings[1].detail.startsWith('1 task uses 5 shots; expected 25.'));assert.match(warnings[1].tasks,/shot_en/);}
+  assert.match(await evaluate("document.querySelector('#coverage').textContent"),/INCOMPLETE/);
+  await click('[data-view=config]');await click('.catalogue-eval[data-eval="Shot reasoning"] > summary');
+  await new Promise(r=>setTimeout(r,50));
+  assert.equal(await evaluate("document.querySelectorAll('.catalogue-eval[data-eval=\"Shot reasoning\"] .has-missing-field').length"),expected===5?2:3);
+  await upload('#suiteFile',serializeSuite(shotAvailable),'available-shots.yaml');
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('.score-card strong')].map(e=>e.textContent)"),strictScores);
+  const strictCards=await evaluate("document.querySelector('#cards').textContent");
+  await change('#matching','relaxed');
+  assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+  assert.match(await evaluate("document.querySelector('#matchingNotice').textContent"),/INCONSISTENT EVALUATION SETTINGS/);
+  assert.equal(await evaluate("document.querySelector('.score-card strong').textContent"),'60.00');
+  await click('[data-view=warnings]');
+  assert.ok((await evaluate("document.querySelector('#view').textContent")).includes(`Using 0 shots despite expected ${expected}`));
+  if(expected===25)assert.match(await evaluate("document.querySelector('#view').textContent"),/Using 5 shots despite expected 25/);
+  await change('#matching','strict');
+  assert.equal(await evaluate("document.querySelector('#cards').textContent"),strictCards);
+ }
  // Real A/B few-shot differences are allowed only through the explicit runtime option.
  await navigate(pathToFileURL(path.join(empty,'index.html')).href);
  const expectedShots=structuredClone(fixture);expectedShots.evals[0].shots=5;
@@ -410,14 +462,19 @@ try{
  assert.match(await evaluate("document.querySelector('#linkNotice').textContent"),/Could not restore.*temporary uploads/);
  // Profile and suite references use filenames, independent of selector order.
  await openLink(pathToFileURL(path.join(sample,'index.html')).href);
- await change('#weightPreset',await evaluate("String(DATA.profiles.findIndex(p=>p.file==='code-math.yaml'))"));
- await change('#suitePreset',await evaluate("String(DATA.suites.findIndex(s=>s.file==='any-available.yaml'))"));
- await click('[data-view=score]');await change('#scoreCategory','Math');
+ const linkedPresets=await evaluate("({profile:DATA.profiles.at(-1),suite:DATA.suites.at(-1)})");
+ await change('#weightPreset',String(shippedProfiles.files.length-1));
+ await change('#suitePreset',String(shippedSets.files.length-1));
+ await click('[data-view=score]');
+ const linkedCategory=await evaluate("document.querySelector('#scoreCategory').options[0].value");
+ await change('#scoreCategory',linkedCategory);
  const presetLink=await evaluate('location.href'),presetCards=await evaluate("document.querySelector('#cards').textContent");
+ assert.equal(new URLSearchParams(new URL(presetLink).hash.slice(1)).get('profile'),linkedPresets.profile.file);
+ assert.equal(new URLSearchParams(new URL(presetLink).hash.slice(1)).get('suite'),linkedPresets.suite.file);
  await openLink(presetLink);
- assert.equal(await evaluate("document.querySelector('#weightPreset').selectedOptions[0].textContent"),'Code & math emphasis');
- assert.equal(await evaluate("document.querySelector('#suitePreset').selectedOptions[0].textContent"),'Any available');
- assert.equal(await evaluate("document.querySelector('#scoreCategory').value"),'Math');
+ assert.equal(await evaluate("document.querySelector('#weightPreset').selectedOptions[0].textContent"),linkedPresets.profile.config.name);
+ assert.equal(await evaluate("document.querySelector('#suitePreset').selectedOptions[0].textContent"),linkedPresets.suite.config.name);
+ assert.equal(await evaluate("document.querySelector('#scoreCategory').value"),linkedCategory);
  assert.equal(await evaluate("document.querySelector('#cards').textContent"),presetCards);
  assert.deepEqual(errors,[]);assert.deepEqual(network,[],'Loading and comparing local files must not send HTTP requests');
  console.log('Public browser checks passed: empty start, shared models, independent weights and eval sets, required coverage, temporary uploads, rollback, Pages sample, synthetic choices, clear models and no uploads.');
