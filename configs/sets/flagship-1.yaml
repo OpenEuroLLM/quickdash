@@ -2,7 +2,7 @@ version: 1
 name: flagship-1
 mode: fixed
 exclude_languages:
-  - kat_Geor # Excluded because of a vocabulary error in these evaluations.
+  - kat_Geor # Not targeted or evaluated for this model generation because Georgian was omitted from tokenizer training.
 exclude:
   - AIME24 # Replaced by aime24_cot with corrected CoT evaluation settings.
   - AIME25 # Replaced by aime25_cot with corrected CoT evaluation settings.
@@ -18,7 +18,8 @@ exclude:
 notes:
   - Use corrected CoT reasoning and code-continuation protocols; original-protocol results are excluded without fallback.
   - Require the catalogue tasks for each listed eval, inheriting its scoring defaults.
-  - Exclude Georgian results because of a vocabulary error. Exclude English X-CSQA to avoid overlap with CommonsenseQA.
+  - The omission of Georgian from tokenizer training was discovered too late to correct for this model generation, so Georgian is not targeted or evaluated.
+  - Exclude English X-CSQA to avoid overlap with CommonsenseQA.
 evals:
   - name: bigbench_cs_algorithms
   - name: humaneval_cont
