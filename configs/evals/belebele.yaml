@@ -50,7 +50,7 @@ languages:
     tasks: [belebele_mlt_Latn]
   - language: nld_Latn
     tasks: [belebele_nld_Latn]
-  - language: nor_Latn
+  - language: nob_Latn
     tasks: [belebele_nob_Latn]
   - language: pol_Latn
     tasks: [belebele_pol_Latn]

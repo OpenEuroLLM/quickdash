@@ -56,7 +56,7 @@ languages:
     tasks: [arc_challenge_mt_lt]
   - language: lav_Latn
     tasks: [arc_challenge_mt_lv]
-  - language: nor_Latn
+  - language: nob_Latn
     tasks: [arc_challenge_mt_nb]
   - language: nld_Latn
     tasks: [arc_challenge_mt_nl]

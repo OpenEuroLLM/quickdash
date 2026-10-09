@@ -4,7 +4,7 @@ match:
   name: piqa
 metric: acc_norm
 metric_filter: none
-shots: 10
+shots: 0
 score:
   scale: 1
 normalize:
