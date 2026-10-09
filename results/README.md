@@ -7,11 +7,14 @@ When this directory contains no CSVs, Pages shows the [sample dataset and synthe
 The shared files are `flag-evals-471` exports retrieved on 2026-10-09 from
 `/scratch/project_465002530/poppelko/flag-evals/results/` on LUMI. Each contains
 2,123 measurement rows, including 101 rows for 33 `_cot` reasoning and `_cont`
-code-continuation tasks. These protocol variants have distinct task identifiers;
-their raw rows are available for inspection but are not selected by the shipped
-scoring rules. Dedicated catalogue rules are needed before these new metrics can
-contribute to composite scores. The exports retain their original metric values,
-shot counts, checkpoint labels, and source metadata.
+code-continuation tasks. The default `flagship-1` set selects these corrected
+protocols using `pass@1`, filter `all`, at 0 shots (3 for `mbpp_cont`). Original
+protocol rows remain inspectable under separate catalogue entries but do not
+contribute to this set. Missing corrected results produce incomplete coverage;
+there is no fallback to original runs. **Any available** can include both
+protocols. See the [protocol selection rules](../docs/configuration.md#choose-weights-and-expected-coverage).
+The exports retain their original metric values, shot counts, checkpoint labels,
+and source metadata.
 
 Choose the models shown on first opening the dashboard in [default.yaml](default.yaml):
 

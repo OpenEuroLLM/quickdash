@@ -9,7 +9,7 @@ The main page opens with **v1annealC_120k_l0fix** as A and **v2anneal_120k** as 
 ## Compare models
 
 1. Select shared models as A and B, or use **Add model CSV** to open your exports. Three labelled synthetic comparisons (perturbed, higher, and lower scores) are supplied for exploring the interface.
-2. Choose a **Weighting profile**. **Eval set** starts on **flagship-1** to check the expected evals and apply its language exclusions. Select **Any available** to compare shared measurements without requiring that set. Weights and eval sets are independent. The supplied sets exclude prompted Global PIQA pending scoring validation.
+2. Choose a **Weighting profile**. **Eval set** starts on **flagship-1**, using corrected CoT reasoning and code-continuation results with its expected coverage and language exclusions. Missing corrected results show incomplete coverage; original runs remain inspectable. Select **Any available** to compare all recognized shared measurements, which can include both protocols. Weights and eval sets are independent. The supplied sets exclude prompted Global PIQA pending scoring validation.
 3. Review **Warnings**, then explore the scores and breakdowns. The global catalogue determines how to interpret each eval: category, scoring field, normalization, and language assignments.
 
 **Original** is the startup weighting profile. **Code & math emphasis** gives Code and Math 20% each, with the other category weights adjusted as shown in the [configuration reference](docs/configuration.md#choose-weights-and-expected-coverage).
