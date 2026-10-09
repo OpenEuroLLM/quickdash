@@ -103,7 +103,8 @@ def main():
     # Browser tests invoke python3; use this command's Python environment for builds.
     os.environ['PATH'] = str(Path(sys.executable).parent) + os.pathsep + os.environ.get('PATH', '')
     subprocess.run([sys.executable, '-m', 'unittest', 'tests.test_check',
-                    'tests.test_data', 'tests.test_engines', 'tests.test_pages_preview'], cwd=ROOT, check=True)
+                    'tests.test_data', 'tests.test_engines', 'tests.test_config_docs',
+                    'tests.test_pages_preview'], cwd=ROOT, check=True)
     subprocess.run(['node', '--test'] + ['tests/' + name for name in NODE_TESTS], cwd=ROOT, check=True)
     run_browser(chrome)
     print('All public checks passed, including the browser.')

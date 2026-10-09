@@ -250,17 +250,14 @@ class Engines(unittest.TestCase):
             results.append((py, other))
         return results
 
-    def test_documented_eval_sets_resolve_in_both_engines(self):
-        section = (ROOT / "docs/configuration.md").read_text().split("## Strict and relaxed matching")[0]
-        examples = [parse_yaml(block) for block in re.findall(r"```yaml\n(.*?)```", section, re.S)]
-        self.assertTrue(examples, "The eval-set guide must contain executable examples")
-        base = load_config(catalogue=ROOT / "configs/catalogue.yaml",
-                           weights=ROOT / "configs/weights/oellm.yaml")
-        rows = parse_csv((ROOT / "examples/sample-evals.csv").read_text())
-        cases = [dict(config={**base, "suite": suite}, rows=rows) for suite in examples]
-        for results in self.both(cases):
-            for result in results:
-                self.assertNotIn("error", result)
+    def test_documented_configurations_resolve_in_both_engines(self):
+        from tests.config_docs import engine_cases
+        cases = engine_cases()
+        self.assertTrue(cases, "The configuration guide must contain executable examples")
+        for name, results in zip(cases, self.both(list(cases.values()))):
+            with self.subTest(example=name):
+                for result in results:
+                    self.assertNotIn("error", result)
 
     def test_per_eval_catalogue_assembly(self):
         original = fixture()
