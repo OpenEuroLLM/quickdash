@@ -11,11 +11,6 @@
       "allowed": true,
       "sha": "9234f84ec9ac95c85f29a85876f0aa8bd8b18db6",
       "source": "owner"
-    },
-    "14": {
-      "allowed": true,
-      "sha": "d16feb0359a9ff3461b73864b9d7dd9146060f6f",
-      "source": "owner"
     }
   },
   "previews": {
@@ -25,14 +20,9 @@
       "run_id": 37911305705,
       "run_url": "https://github.com/OpenEuroLLM/quickdash/actions/runs/37911305705",
       "sha": "9234f84ec9ac95c85f29a85876f0aa8bd8b18db6"
-    },
-    "14": {
-      "artifact_id": 11609001515,
-      "run_attempt": 1,
-      "run_id": 37914104958,
-      "run_url": "https://github.com/OpenEuroLLM/quickdash/actions/runs/37914104958",
-      "sha": "d16feb0359a9ff3461b73864b9d7dd9146060f6f"
     }
   },
-  "retired_previews": []
+  "retired_previews": [
+    "14"
+  ]
 }
