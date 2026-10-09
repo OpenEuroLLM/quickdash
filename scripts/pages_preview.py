@@ -6,6 +6,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tarfile
@@ -19,6 +20,32 @@ STATE_BRANCH = "pages-content"
 MAX_BYTES = 100 * 1024 * 1024
 BUILD_FIELDS = ("run_id", "run_attempt", "sha", "artifact_id", "run_url")
 COMMENT_MARKER = "<!-- quickdash-pages-preview -->"
+
+
+def read_owners(path=None):
+    path = path or Path(__file__).resolve().parents[1] / "OWNERS"
+    owners = set()
+    for line in Path(path).read_text().splitlines():
+        login = line.split("#", 1)[0].strip().lower()
+        if login:
+            if not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?", login):
+                raise ValueError("OWNERS must contain one GitHub login per line")
+            owners.add(login)
+    if not owners:
+        raise ValueError("OWNERS must not be empty")
+    return owners
+
+
+def preview_authorization(pr, owners, comments, sha=None):
+    sha = sha or pr["head"]["sha"]
+    if pr["user"]["login"].lower() in owners:
+        return dict(allowed=True, sha=sha, source="owner")
+    for comment in comments:
+        author = comment.get("user", {}).get("login", "").lower()
+        command = re.fullmatch(r"/deploy ([0-9a-f]{40})", (comment.get("body") or "").strip())
+        if author in owners and command and command[1] == sha:
+            return dict(allowed=True, sha=sha, source="approval", approver=author, comment_id=comment["id"])
+    return dict(allowed=False, sha=sha, source="approval_required")
 
 
 def read_bundle(data):
@@ -54,9 +81,10 @@ def read_bundle(data):
 
 
 class GitHub:
-    def __init__(self, repository, default_branch):
+    def __init__(self, repository, default_branch, owners=None):
         self.repository = repository
         self.default_branch = default_branch
+        self.owners = read_owners() if owners is None else owners
 
     def get(self, path):
         endpoint = f"repos/{self.repository}" + ("/" + path if path else "")
@@ -85,6 +113,12 @@ class GitHub:
             if len(batch) < 100:
                 return results
             page += 1
+
+    def authorization(self, pr, sha=None):
+        # GitHub comments are the approval record. Reconciliation reads them all
+        # so coalesced Actions events cannot drop an owner's command.
+        comments = [] if pr["user"]["login"].lower() in self.owners else self.comments(pr["number"])
+        return preview_authorization(pr, self.owners, comments, sha)
 
     def latest_build(self, pr=None):
         filters = dict(status="success", per_page=100)
@@ -169,9 +203,18 @@ def reconcile(site, source):
     # Persist cleanup until post-deployment reporting succeeds, including retries
     # and coalesced close events. A reopened PR no longer needs a closed notice.
     state["retired_previews"] = sorted(retired)
+    state["preview_access"] = {}
     warnings = []
     for pr in pulls:
         number = str(pr["number"])
+        access = source.authorization(pr)
+        state["preview_access"][number] = access
+        previous = state["previews"].get(number)
+        if previous and not source.authorization(pr, previous["sha"])["allowed"]:
+            shutil.rmtree(preview_dir / ("pr-" + number))
+            del state["previews"][number]
+        if not access["allowed"]:
+            continue
         try:
             candidate = source.latest_build(pr)
             if candidate and not same_build(state["previews"].get(number), candidate):
@@ -191,13 +234,15 @@ def reconcile(site, source):
             link = f'<a href="pr-{number}/index.html">Open preview</a>'
             provenance = f'<a href="{html.escape(preview["run_url"], quote=True)}">{preview["sha"][:12]}</a>'
         else:
-            status, link, provenance = "Awaiting successful build", "—", "—"
+            status = "Awaiting successful build" if state["preview_access"][number]["allowed"] else "Awaiting owner approval"
+            link, provenance = "—", "—"
         rows.append(f"<tr><td>{label}</td><td>{link}</td><td>{status}</td><td>{provenance}</td></tr>")
     page = '''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>Quickdash PR previews</title><style>body{font:16px system-ui;max-width:1100px;margin:3rem auto;padding:0 1rem}
 table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:.8rem;border-bottom:1px solid #ccc}</style>
 <h1>Quickdash PR previews</h1><p><a href="../index.html">Main dashboard</a></p>
-<p>Previews update after successful builds. A previous successful build may be shown while a newer commit is pending or failing.
+<p>Previews require an author listed in OWNERS or an owner's approval of the exact commit, and a successful build.
+A previous approved build may be shown while a newer commit is awaiting approval, pending, or failing.
 The commit link identifies the build being served. Closed PRs are removed.</p>
 <table><thead><tr><th>Pull request</th><th>Preview</th><th>Status</th><th>Built commit</th></tr></thead><tbody>'''
     (preview_dir / "index.html").write_text(page + "".join(rows) + "</tbody></table></html>\n")
@@ -212,7 +257,7 @@ def report_checks(state, api, base_url):
     for pr in api.pulls():
         number = str(pr["number"])
         preview = state["previews"].get(number)
-        if not preview or preview["sha"] != pr["head"]["sha"]:
+        if not preview or preview["sha"] != pr["head"]["sha"] or not api.authorization(pr)["allowed"]:
             continue
         url = f"{base_url.rstrip('/')}/pr-preview/pr-{number}/"
         external_id = "quickdash-preview-" + number
@@ -245,16 +290,31 @@ def report_comments(state, api, base_url):
     open_prs = {str(pr["number"]): pr for pr in api.pulls()}
     for number, pr in open_prs.items():
         preview = state["previews"].get(number)
-        if not preview:
-            continue
-        url = f"{base_url.rstrip('/')}/pr-preview/pr-{number}/"
-        body = (f"{COMMENT_MARKER}\n"
-                f"**🚀 [Open preview]({url})**\n\n"
-                f"Built from `{preview['sha'][:12]}` · [Build details]({preview['run_url']})\n\n")
-        if preview["sha"] != pr["head"]["sha"]:
-            body += "This preview is from a previous successful build; it does not include the latest PR commit.\n\n"
-        body += "This link updates after successful builds. The preview is removed when this PR closes."
+        access = api.authorization(pr)
+        body = f"{COMMENT_MARKER}\n"
+        if preview:
+            url = f"{base_url.rstrip('/')}/pr-preview/pr-{number}/"
+            body += (f"**🚀 [Open preview]({url})**\n\n"
+                     f"Built from `{preview['sha'][:12]}` · [Build details]({preview['run_url']})\n\n")
+            if preview["sha"] != pr["head"]["sha"]:
+                body += "This preview is from a previous successful build; it does not include the latest PR commit.\n\n"
+        if not access["allowed"]:
+            owners_url = f"https://github.com/{api.repository}/blob/{api.default_branch}/OWNERS"
+            body += (f"**Owner approval required for this commit.**\n\n"
+                     f"Did not auto-deploy because the PR author is not listed in [OWNERS]({owners_url}). "
+                     "An OWNER can approve this commit by copying this command into a new comment:\n\n"
+                     f"```text\n/deploy {pr['head']['sha']}\n```\n\n"
+                     "Checks must pass before deployment. Later commits need a new approval. "
+                     "To enable automatic previews for this author, add them to OWNERS through a reviewed change on the default branch.")
+        elif not preview:
+            if access["source"] != "approval":
+                continue
+            body += "**Preview approved; waiting for a successful build.**"
+        else:
+            body += "This link updates after successful, authorized builds. The preview is removed when this PR closes."
         update_comment(api, number, body)
+        if preview and preview["sha"] == access["sha"] and access.get("source") == "approval":
+            api.write("POST", f"issues/comments/{access['comment_id']}/reactions", {"content": "rocket"})
     for number in state.get("retired_previews", []):
         if number not in open_prs:
             update_comment(api, number, f"{COMMENT_MARKER}\n**Preview closed**\n\n"

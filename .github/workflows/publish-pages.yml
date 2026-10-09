@@ -6,18 +6,23 @@ on:
     types: [completed]
   pull_request_target:
     types: [closed]
+  issue_comment:
+    types: [created]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# Reconcile all open PRs on every run: Actions may coalesce pending runs.
-concurrency:
-  group: quickdash-pages-publish
-  cancel-in-progress: false
-
 jobs:
   publish:
+    if: >-
+      github.event_name != 'issue_comment' ||
+      (github.event.issue.pull_request && startsWith(github.event.comment.body, '/deploy '))
+    # Only deployment requests enter the queue; ordinary/bot comments cannot
+    # replace pending deployments. Every publish reconciles all open PRs.
+    concurrency:
+      group: quickdash-pages-publish
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     permissions:
       actions: read
