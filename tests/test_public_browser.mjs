@@ -379,6 +379,38 @@ reconcile(Path(sys.argv[3]), source)
   await change('#matching','strict');
   assert.equal(await evaluate("document.querySelector('#cards').textContent"),strictCards);
  }
+ // Named sets select a corrected protocol once and never substitute an older run.
+ await navigate(pathToFileURL(path.join(empty,'index.html')).href);
+ const protocolCatalogue={version:1,name:'Protocol fixture',evals:[
+  {name:'Original protocol',category:'Reasoning',match:{name:'protocol'},metric:'accuracy_avg',metric_filter:'',shots:0,score:{scale:1}},
+  {name:'CoT protocol',category:'Reasoning',match:{name:'protocol_cot'},metric:'pass@1',metric_filter:'all',shots:0,score:{scale:1}},
+ ],languages:[{tasks:['protocol','protocol_cot'],scope:'single',language:'eng_Latn'}]};
+ await click('[data-view=config]');await upload('#suiteFile',serializeSuite(shotAvailable),'available.yaml');
+ await upload('#configFile',serializeCatalogue(protocolCatalogue),'protocols.yaml');
+ await upload('#weightsFile',serializeWeightProfile({version:1,name:'Protocol weights',weights:{Reasoning:1}}),'weights.yaml');
+ await upload('#suiteFile',serializeSuite({version:1,name:'Corrected protocol',mode:'fixed',evals:[{name:'CoT protocol'}]}),'corrected.yaml');
+ const protocolRows=['checkpoint,task,metric,filter,n_shot,harness,backend,value',
+  'Protocol A,protocol,accuracy_avg,,0,test,cpu,1','Protocol B,protocol,accuracy_avg,,0,test,cpu,1',
+  'Protocol A,protocol_cot,pass@1,all,0,test,cpu,0.6','Protocol B,protocol_cot,pass@1,all,0,test,cpu,0.4',
+  'Protocol A,protocol_cot,pass@4,all,0,test,cpu,1','Protocol B,protocol_cot,pass@4,all,0,test,cpu,1',
+  'Original only,protocol,accuracy_avg,,0,test,cpu,1'];
+ await upload('#modelFile',protocolRows.join('\n'),'protocols.csv');
+ await change('#modelA','Protocol A');await change('#modelB','Protocol B');
+ assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+ assert.deepEqual(await evaluate("[...document.querySelectorAll('.score-card strong')].map(e=>e.textContent)"),['60.00','40.00','20.00']);
+ assert.match(await evaluate("document.querySelector('#coverage').textContent"),/Complete.*1\/1 requirements shared/);
+ await click('[data-view=warnings]');assert.match(await evaluate("document.querySelector('#view').textContent"),/Not used.*Original protocol/s);
+ await click('[data-view=config]');
+ assert.ok(await evaluate("document.querySelector('[data-eval=\"Original protocol\"]')!==null"));
+ assert.ok(await evaluate("document.querySelector('[data-eval=\"CoT protocol\"]')!==null"));
+ await change('#modelB','Original only');
+ for(const matching of ['strict','relaxed']){
+  await change('#matching',matching);
+  assert.equal(await evaluate("document.querySelector('#error').textContent"),'');
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('.score-card strong')].map(e=>e.textContent)"),['—','—','—']);
+  assert.match(await evaluate("document.querySelector('#coverage').textContent"),/INCOMPLETE.*0\/1 requirements shared/);
+  await click('[data-view=warnings]');assert.match(await evaluate("document.querySelector('#view').textContent"),/Missing suite data.*CoT protocol.*Original only/s);
+ }
  // Real A/B few-shot differences are allowed only through the explicit runtime option.
  await navigate(pathToFileURL(path.join(empty,'index.html')).href);
  const expectedShots=structuredClone(fixture);expectedShots.evals[0].shots=5;
