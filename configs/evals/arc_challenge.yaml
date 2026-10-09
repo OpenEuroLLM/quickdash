@@ -4,7 +4,7 @@ match:
   regex: arc_challenge(?:_mt_.+)?
 metric: acc_norm
 metric_filter: none
-shots: 10
+shots: 25
 score:
   scale: 1
 normalize:
