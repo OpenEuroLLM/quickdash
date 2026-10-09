@@ -165,8 +165,45 @@ class GitHub:
             f"repos/{self.repository}/actions/artifacts/{candidate['artifact_id']}/zip"])
 
 
-def install(site, candidate, source):
+def preview_html(data, pr):
+    """Apply the current preview appearance to new or retained static pages."""
+    number = int(pr["number"])
+    page = data.decode("utf-8")
+    marker = "quickdash-dev-preview"
+    page = re.sub(f"<!-- {marker} -->.*?<!-- /{marker} -->", "", page, flags=re.S)
+    page, titles = re.subn(r"(<title\b[^>]*>)(?:\[DEV PREVIEW\] PR #\d+ · )?",
+                          lambda match: f"{match[1]}[DEV PREVIEW] PR #{number} · ",
+                          page, count=1, flags=re.I)
+    if titles != 1:
+        raise ValueError("Preview HTML needs a document title")
+    banner = (f'<aside id="{marker}" aria-label="Development preview">'
+              f'<strong>DEV PREVIEW</strong><span>Unmerged changes · '
+              f'<a href="{html.escape(pr["html_url"], quote=True)}">PR #{number}</a></span>'
+              '<a class="preview-main" href="../../">Main dashboard ↗</a></aside>')
+    # Escape '<' in the JSON string so embedded markup cannot end the script.
+    encoded = json.dumps(banner).replace("<", "\\u003c")
+    decoration = '''<style>
+html.quickdash-dev-preview{background:#fff7ed}
+html.quickdash-dev-preview body>header{background:#71340f}
+#quickdash-dev-preview{position:sticky;top:0;z-index:1000;display:flex;align-items:center;flex-wrap:wrap;gap:10px 20px;padding:13px 4vw;background:#fef3c7;color:#71340f;border-bottom:4px solid #d97706;font:14px system-ui;box-shadow:0 2px 8px #71340f20}
+#quickdash-dev-preview strong{background:#71340f;color:#fff;padding:5px 9px;border-radius:4px;letter-spacing:.08em;font-size:13px}
+#quickdash-dev-preview a{color:#71340f;font-weight:650;text-decoration:underline;text-underline-offset:3px}
+#quickdash-dev-preview .preview-main{margin-left:auto}
+@media(max-width:600px){#quickdash-dev-preview{padding:10px 14px;gap:8px 12px}#quickdash-dev-preview .preview-main{margin-left:0}}
+</style><script>
+document.documentElement.classList.add('quickdash-dev-preview');
+document.addEventListener('DOMContentLoaded',()=>document.body.insertAdjacentHTML('afterbegin',BANNER));
+</script>'''.replace("BANNER", encoded)
+    decoration = f"<!-- {marker} -->{decoration}<!-- /{marker} -->"
+    return re.sub(r"</title\s*>", lambda match: match[0] + decoration,
+                  page, count=1, flags=re.I).encode("utf-8")
+
+
+def install(site, candidate, source, pr=None):
     files = read_bundle(source.download(candidate))
+    if pr:
+        files = {name: preview_html(data, pr) if name.endswith(".html") else data
+                 for name, data in files.items()}
     site.mkdir(parents=True, exist_ok=True)
     for name, data in files.items():
         (site / name).write_bytes(data)
@@ -213,12 +250,20 @@ def reconcile(site, source):
         if previous and not source.authorization(pr, previous["sha"])["allowed"]:
             shutil.rmtree(preview_dir / ("pr-" + number))
             del state["previews"][number]
-        if not access["allowed"]:
-            continue
         try:
+            if number in state["previews"]:
+                # Refresh retained previews too, without depending on their
+                # build artifacts still being available or a new PR commit.
+                paths = [preview_dir / ("pr-" + number) / name for name in ("index.html", "demo.html")]
+                decorated = [preview_html(path.read_bytes(), pr) for path in paths]
+                for path, data in zip(paths, decorated):
+                    if path.read_bytes() != data:
+                        path.write_bytes(data)
+            if not access["allowed"]:
+                continue
             candidate = source.latest_build(pr)
             if candidate and not same_build(state["previews"].get(number), candidate):
-                state["previews"][number] = install(preview_dir / ("pr-" + number), candidate, source)
+                state["previews"][number] = install(preview_dir / ("pr-" + number), candidate, source, pr)
         except ValueError as error:
             # A malformed PR bundle must not prevent production/other PRs publishing.
             warnings.append(f"PR #{number}: {error}")

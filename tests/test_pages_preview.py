@@ -14,6 +14,10 @@ from scripts import pages_preview as pages
 from quickdash.io import parse_yaml
 
 
+def page(label, name="index.html"):
+    return f"<!doctype html><title>{label}</title><header>{label}:{name}</header>".encode()
+
+
 def archive(label="dashboard", extra=None, files=None):
     tar = io.BytesIO()
     with tarfile.open(fileobj=tar, mode="w") as out:
@@ -21,7 +25,7 @@ def archive(label="dashboard", extra=None, files=None):
         root.type = tarfile.DIRTYPE
         out.addfile(root)
         for name in pages.SITE_FILES:
-            data = (files or {}).get(name, (label + ":" + name).encode())
+            data = (files or {}).get(name, page(label, name) if name.endswith('.html') else (label + ":" + name).encode())
             member = tarfile.TarInfo("./" + name)
             member.size = len(data)
             out.addfile(member, io.BytesIO(data))
@@ -64,6 +68,29 @@ class Source:
 
 
 class PagesPreview(unittest.TestCase):
+    def test_preview_decoration_is_visible_idempotent_and_preserves_content(self):
+        original = page('Dashboard &amp; demo')
+        rendered = pages.preview_html(original, pull(11)).decode()
+        self.assertIn('<title>[DEV PREVIEW] PR #11 · Dashboard &amp; demo</title>', rendered)
+        self.assertIn('DEV PREVIEW', rendered)
+        self.assertIn('https://github.com/org/repo/pull/11', rendered)
+        self.assertIn('Main dashboard', rendered)
+        self.assertIn('<header>Dashboard &amp; demo:index.html</header>', rendered)
+        self.assertEqual(pages.preview_html(rendered.encode(), pull(11)), rendered.encode())
+
+    def test_existing_previews_get_decoration_without_downloading_expired_artifacts(self):
+        source = Source()
+        with tempfile.TemporaryDirectory() as tmp:
+            site = Path(tmp)
+            pages.reconcile(site, source)
+            (site / 'pr-preview/pr-11/index.html').write_bytes(page('Stored preview'))
+            source.previews = {}
+            with patch.object(source, 'download') as download:
+                pages.reconcile(site, source)
+                download.assert_not_called()
+            self.assertIn('[DEV PREVIEW]', (site / 'pr-preview/pr-11/index.html').read_text())
+            self.assertEqual((site / 'index.html').read_bytes(), page('production'))
+
     def test_owners_are_explicit_nonempty_logins(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "OWNERS"
@@ -121,7 +148,7 @@ class PagesPreview(unittest.TestCase):
                 source.previews[11] = build(12, later, "new")
                 state = pages.reconcile(site, source)
                 self.assertEqual(state["previews"]["11"]["sha"], sha)
-                self.assertEqual((site / "pr-preview/pr-11/index.html").read_text(), "approved:index.html")
+                self.assertIn("<header>approved:index.html</header>", (site / "pr-preview/pr-11/index.html").read_text())
                 self.assertFalse(state["preview_access"]["11"]["allowed"])
                 approvals.append({"id": 21, "body": "/deploy " + later, "user": {"login": "trusted"}})
                 state = pages.reconcile(site, source)
@@ -156,8 +183,8 @@ class PagesPreview(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             site = Path(tmp)
             first = pages.reconcile(site, source)
-            self.assertEqual((site / "index.html").read_text(), "production:index.html")
-            self.assertEqual((site / "pr-preview/pr-12/index.html").read_text(), "fork:index.html")
+            self.assertEqual((site / "index.html").read_text(), page("production").decode())
+            self.assertIn("<header>fork:index.html</header>", (site / "pr-preview/pr-12/index.html").read_text())
             self.assertEqual(set(first["previews"]), {"11", "12"})
 
             # A main deploy preserves previews whose latest build is pending/failed/expired.
@@ -165,8 +192,8 @@ class PagesPreview(unittest.TestCase):
             source.previews = {}
             source.open[0]["head"]["sha"] = "pending"
             pages.reconcile(site, source)
-            self.assertEqual((site / "index.html").read_text(), "new production:index.html")
-            self.assertEqual((site / "pr-preview/pr-11/index.html").read_text(), "first:index.html")
+            self.assertEqual((site / "index.html").read_text(), page("new production").decode())
+            self.assertIn("<header>first:index.html</header>", (site / "pr-preview/pr-11/index.html").read_text())
             self.assertIn("Previous successful build", (site / "pr-preview/index.html").read_text())
 
             # Every event reconciles all open PRs, regardless of which run triggered it.
@@ -174,8 +201,8 @@ class PagesPreview(unittest.TestCase):
             source.open = [pull(11, "next", title="<script>alert(1)</script>")]
             source.previews = {11: build(30, "next", "updated")}
             final = pages.reconcile(site, source)
-            self.assertEqual((site / "index.html").read_text(), "new production:index.html")
-            self.assertEqual((site / "pr-preview/pr-11/index.html").read_text(), "updated:index.html")
+            self.assertEqual((site / "index.html").read_text(), page("new production").decode())
+            self.assertIn("<header>updated:index.html</header>", (site / "pr-preview/pr-11/index.html").read_text())
             self.assertFalse((site / "pr-preview/pr-12").exists())
             self.assertEqual(final["previews"]["11"]["sha"], "next")
             self.assertNotIn("<script>", (site / "pr-preview/index.html").read_text())
@@ -188,7 +215,7 @@ class PagesPreview(unittest.TestCase):
             pages.reconcile(site, source)
             source.main = build(9, label="old")
             pages.reconcile(site, source)
-            self.assertEqual((site / "index.html").read_text(), "production:index.html")
+            self.assertEqual((site / "index.html").read_text(), page("production").decode())
 
     def test_bad_preview_cannot_replace_main_or_block_other_previews(self):
         source = Source()
@@ -198,7 +225,7 @@ class PagesPreview(unittest.TestCase):
             state = pages.reconcile(site, source)
             self.assertNotIn("11", state["previews"])
             self.assertIn("12", state["previews"])
-            self.assertEqual((site / "index.html").read_text(), "production:index.html")
+            self.assertEqual((site / "index.html").read_text(), page("production").decode())
             self.assertIn("Awaiting successful build", (site / "pr-preview/index.html").read_text())
 
     def test_first_publish_requires_a_successful_main_artifact(self):
@@ -361,7 +388,7 @@ class PagesPreview(unittest.TestCase):
                 self.assertEqual((checkout / "source.txt").read_text(), "source must remain")
                 git("worktree", "remove", str(site), cwd=checkout)
                 pages.prepare_worktree(site)
-                self.assertEqual((site / "index.html").read_text(), "production:index.html")
+                self.assertEqual((site / "index.html").read_text(), page("production").decode())
                 pages.save_worktree(site)  # An unchanged snapshot needs no new commit.
             finally:
                 os.chdir(previous)
