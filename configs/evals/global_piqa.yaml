@@ -1,0 +1,79 @@
+name: global_piqa
+category: Commonsense
+match:
+  regex: global_piqa_completions_.+
+metric: acc_norm
+metric_filter: none
+shots: 10
+score:
+  scale: 1
+normalize:
+  min: 0.5
+  max: 1
+  basis: uniform_choice
+  note: The completion tasks compare two solutions. Uniform guessing gives 1/2
+  sources:
+    - https://github.com/OpenEuroLLM/oellm-eval/blob/8a4b2412a8e8f7f0d95e3845e2164c792add6a79/oellm/resources/custom_lm_eval_tasks/global_piqa/completions/_template
+languages:
+  - language: sqi_Latn
+    tasks: [global_piqa_completions_als_latn]
+  - language: bos_Latn
+    tasks: [global_piqa_completions_bos_latn]
+  - language: bul_Cyrl
+    tasks: [global_piqa_completions_bul_cyrl]
+  - language: cat_Latn
+    tasks: [global_piqa_completions_cat_latn]
+  - language: ces_Latn
+    tasks: [global_piqa_completions_ces_latn]
+  - language: deu_Latn
+    tasks: [global_piqa_completions_deu_latn]
+  - language: est_Latn
+    tasks: [global_piqa_completions_ekk_latn]
+  - language: ell_Grek
+    tasks: [global_piqa_completions_ell_grek]
+  - language: eng_Latn
+    tasks: [global_piqa_completions_eng_latn]
+  - language: fin_Latn
+    tasks: [global_piqa_completions_fin_latn]
+  - language: fra_Latn
+    tasks: [global_piqa_completions_fra_latn_fran]
+  - language: glg_Latn
+    tasks: [global_piqa_completions_glg_latn]
+  - language: hrv_Latn
+    tasks: [global_piqa_completions_hrv_latn]
+  - language: hun_Latn
+    tasks: [global_piqa_completions_hun_latn]
+  - language: isl_Latn
+    tasks: [global_piqa_completions_isl_latn]
+  - language: ita_Latn
+    tasks: [global_piqa_completions_ita_latn]
+  - language: kat_Geor
+    tasks: [global_piqa_completions_kat_geor]
+  - language: lit_Latn
+    tasks: [global_piqa_completions_lit_latn]
+  - language: mkd_Cyrl
+    tasks: [global_piqa_completions_mkd_cyrl]
+  - language: nld_Latn
+    tasks: [global_piqa_completions_nld_latn]
+  - language: nor_Latn
+    tasks: [global_piqa_completions_nno_latn, global_piqa_completions_nob_latn]
+  - language: pol_Latn
+    tasks: [global_piqa_completions_pol_latn]
+  - language: por_Latn
+    tasks: [global_piqa_completions_por_latn_port]
+  - language: ron_Latn
+    tasks: [global_piqa_completions_ron_latn]
+  - language: slk_Latn
+    tasks: [global_piqa_completions_slk_latn]
+  - language: slv_Latn
+    tasks: [global_piqa_completions_slv_latn]
+  - language: spa_Latn
+    tasks: [global_piqa_completions_spa_latn_spai]
+  - language: srp_Cyrl
+    tasks: [global_piqa_completions_srp_cyrl]
+  - language: swe_Latn
+    tasks: [global_piqa_completions_swe_latn]
+  - language: tur_Latn
+    tasks: [global_piqa_completions_tur_latn]
+  - language: ukr_Cyrl
+    tasks: [global_piqa_completions_ukr_cyrl]

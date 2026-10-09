@@ -35,6 +35,7 @@ evals:
   - name: copa
   - name: hellaswag
   - name: piqa
+  - name: global_piqa
   - name: social_iqa
   - name: wsc273
   - name: winogrande
