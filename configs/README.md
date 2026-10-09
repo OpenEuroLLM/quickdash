@@ -17,7 +17,7 @@ Put repeated language `evidence` and `note` under `language_defaults` in the eva
 
 Each profile or set needs a distinct `name` within its directory. To change a selector's startup choice, edit that directory's `default.txt` to name one YAML file. The catalogue is selected at build time with `--catalogue`, or temporarily loaded in the browser.
 
-The [configuration reference](../docs/configuration.md) describes all three formats with small examples. [examples/](examples/) contains the fictional catalogue and weights used by [examples/scores.csv](../examples/scores.csv).
+The [configuration reference](../docs/configuration.md) lists every field's type, required/optional status, allowed values, and default behavior. Start with [eval sets](../docs/configuration.md#eval-sets), [weighting profiles](../docs/configuration.md#weighting-profiles), or [per-eval definitions](../docs/configuration.md#per-eval-definitions). It also covers catalogue manifests, portable catalogues, language assignments, and startup selections. [examples/](examples/) contains the fictional catalogue and weights used by [examples/scores.csv](../examples/scores.csv).
 
 Submit changes as a PR, then check the generated dashboard:
 

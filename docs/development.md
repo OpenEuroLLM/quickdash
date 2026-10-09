@@ -16,6 +16,22 @@ Run commands from the repository root. Install the Python package with `python -
 | `docs/` | Configuration and contributor documentation. |
 | `data/`, `output/` | Ignored local inputs and generated files. |
 
+## Keep configuration docs in sync
+
+The public checks validate the schema tables and YAML examples in
+[the configuration reference](configuration.md). Invisible `config-schema` labels
+identify field tables; `config-example` labels identify executable examples.
+Keep those labels when moving sections or rewriting prose. Every YAML block
+needs an example label and a validation context in `tests/config_docs.py`.
+
+`tests/test_config_docs.py` observes the Python validators' field checks to
+compare allowed fields and unconditional requirements with the tables. It also
+loads the manifest and startup examples from disk. `tests/test_engines.py` runs
+the scoring examples through both engines. These checks do not snapshot prose,
+line numbers, or heading order. Conditional requirements, defaults, and numeric
+semantics still need behavioral regressions when the corresponding contract
+changes; the tests cannot prove that every explanatory sentence is correct.
+
 ## Build and inspect a change
 
 ```sh

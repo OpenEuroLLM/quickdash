@@ -95,7 +95,7 @@ scopes are resolved during loading; local metadata overrides are preserved. The 
 complete in-memory catalogue, so later analysis does not access those files.
 Existing single-file catalogues remain supported. When passing a dictionary
 instead of a filename, supply the complete catalogue; a filesystem manifest needs
-a filename to resolve its directory. See [editing an eval](configuration.md#edit-one-eval).
+a filename to resolve its directory. See the [per-eval YAML format](configuration.md#per-eval-definitions).
 
 ## Expected settings and relaxed comparisons
 
@@ -103,8 +103,10 @@ Both `analyze()` and `compare()` accept `matching="strict"` (the default) or
 `matching="relaxed"`. They first apply the eval set's optional whole-eval `metric`,
 `metric_filter`, and `shots` overrides to the catalogue defaults. Set-wide and
 per-eval `exclude_languages` remove results from membership and required coverage.
-See the [configuration contract](configuration.md#strict-and-relaxed-matching)
-for selection, ambiguity, and component-group rules.
+See the [set field reference](configuration.md#set-eval-entries) for `shots`,
+`metric`, and `metric_filter` override syntax, and the
+[matching rules](configuration.md#strict-and-relaxed-matching) for selection,
+ambiguity, and component-group behavior.
 
 ```python
 comparison = compare(
