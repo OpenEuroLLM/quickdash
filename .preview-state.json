@@ -6,33 +6,10 @@
     "run_url": "https://github.com/OpenEuroLLM/quickdash/actions/runs/37948667149",
     "sha": "8871d5b17140d20816555474d39b6b82f841c5cc"
   },
-  "preview_access": {
-    "18": {
-      "allowed": true,
-      "sha": "8fe1402bc58a6c2fef3a8fd51795635897685261",
-      "source": "owner"
-    },
-    "19": {
-      "allowed": true,
-      "sha": "a52b2895d9e0d05e848f348dc569988aaa0e52e4",
-      "source": "owner"
-    }
-  },
-  "previews": {
-    "18": {
-      "artifact_id": 11625897364,
-      "run_attempt": 1,
-      "run_id": 37950905189,
-      "run_url": "https://github.com/OpenEuroLLM/quickdash/actions/runs/37950905189",
-      "sha": "8fe1402bc58a6c2fef3a8fd51795635897685261"
-    },
-    "19": {
-      "artifact_id": 11625114509,
-      "run_attempt": 1,
-      "run_id": 37951169801,
-      "run_url": "https://github.com/OpenEuroLLM/quickdash/actions/runs/37951169801",
-      "sha": "a52b2895d9e0d05e848f348dc569988aaa0e52e4"
-    }
-  },
-  "retired_previews": []
+  "preview_access": {},
+  "previews": {},
+  "retired_previews": [
+    "18",
+    "19"
+  ]
 }
