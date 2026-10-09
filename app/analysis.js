@@ -241,19 +241,38 @@ function sameCoverage(a,b,config=null,matching='strict'){return a.length===b.len
 // Public, serializable analysis boundary used by Python parity tests and the UI.
 function measurementId(r){return JSON.stringify([r.checkpoint,...['task','metric','filter','n_shot','harness','backend'].map(k=>r[k])]);}
 const diagnosticTitles={config_caveat:'Config caveat',no_config:'No config',not_used:'Not used',unknown_language:'Unknown language',invalid_sample_count:'Invalid sample count',strict_shot_setting:'Few-shot mismatch excluded',relaxed_shot_setting:'Few-shot mismatch allowed',ambiguous_shot_setting:'Ambiguous few-shot setting',inconsistent_scoring_settings:'Inconsistent scoring settings',missing_scoring_field:'Missing scoring field',missing_scoring_setting:'Missing scoring setting',no_selected_score:'No selected score',missing_suite_data:'Missing suite data',incomplete_components:'Incomplete components',comparison_coverage:'Comparison coverage',sample_count_mismatch:'Sample-count mismatch',no_category_weight:'No category weight'};
-function diagnostic(code,model,evalName,rows,detail,effect='included',tasks=null){
+diagnosticTitles.intentional_exclusion='Intentional exclusions';
+function diagnostic(code,model,evalName,rows,detail,effect='included',tasks=null,severity='warning'){
  const names=[...new Set(tasks??rows.map(r=>r.task))].sort(compareText);
- return {code,type:diagnosticTitles[code],model,eval:evalName,name:evalName||names[0]||model,tasks:names,measurement_ids:rows.map(measurementId).sort(compareText),effect,detail,variants:names.length?[{settings:detail,tasks:names}]:[]};
+ return {code,severity,type:diagnosticTitles[code],model,eval:evalName,name:evalName||names[0]||model,tasks:names,measurement_ids:rows.map(measurementId).sort(compareText),effect,detail,variants:names.length?[{settings:detail,tasks:names}]:[]};
 }
 function reportDiagnostics(audits,config,included,comparison=false,matchingMode='strict',resolved=null){
  const {profile,catalogue,suite,scheme}=resolved||resolveInputs(config.catalogue,config.suite,config.profile),out=[];
+ const exclusions=new Map(),metadata=new Map(catalogue.languages.flatMap(g=>g.tasks.map(t=>[t,g]))),localLanguages=new Map((suite.evals||[]).map(e=>[e.name,e.exclude_languages||[]]));
+ function recordExclusion(row){
+  const reasons=[];
+  if((suite.exclude||[]).includes(row.eval))reasons.push(['eval',row.eval,'']);
+  else{
+   const group=metadata.get(row.task)||{},codes=new Set(['language','source_language','target_language'].map(k=>group[k]).filter(Boolean));
+   for(const language of codes){
+    if((suite.exclude_languages||[]).includes(language))reasons.push(['language',language,'']);
+    else if((localLanguages.get(row.eval)||[]).includes(language))reasons.push(['language',language,row.eval]);
+   }
+  }
+  for(const [kind,name,scope] of reasons){
+   const key=JSON.stringify([kind,name,scope]);
+   if(!exclusions.has(key))exclusions.set(key,{kind,name,scope,records:new Map()});
+   exclusions.get(key).records.set(measurementId(row),row);
+  }
+  return reasons.length>0;
+ }
  const used=new Set([...included.values()].flat().map(r=>r.eval));
  for(const e of catalogue.evals)if(e.warning&&used.has(e.name))out.push(diagnostic('config_caveat','Selected comparison',e.name,[],e.warning));
  for(const [model,rows] of audits){
   const scope=scopeRows(rows,suite),explainedShots=new Set(),accepted=included.get(model)||[],acceptedIds=new Set(accepted.map(measurementId));
   for(const task of [...new Set(rows.filter(r=>!r.eval).map(r=>r.task))].sort(compareText))out.push(diagnostic('no_config',model,null,rows.filter(r=>r.task===task),'No eval configuration; excluded from scoring.','excluded'));
   for(const e of catalogue.evals){
-   const all=rows.filter(r=>r.eval===e.name),outside=all.filter(r=>(!e.select||matchTask(e.select,r.task))&&!inSuite(r,suite)),matching=all.filter(r=>inSuite(r,suite)),selected=matching.filter(r=>r.selected);
+   const all=rows.filter(r=>r.eval===e.name),outside=all.filter(r=>(!e.select||matchTask(e.select,r.task))&&!inSuite(r,suite)).filter(r=>!recordExclusion(r)),matching=all.filter(r=>inSuite(r,suite)),selected=matching.filter(r=>r.selected);
    const add=(code,rr,detail,effect='included',tasks=null)=>out.push(diagnostic(code,model,e.name,rr,detail,effect,tasks));
    if(matchingMode==='relaxed'&&'shots'in e){
     const actuals=[...new Set(selected.filter(r=>acceptedIds.has(measurementId(r))&&Number(r.n_shot)!==e.shots).map(r=>Number(r.n_shot)))].sort((a,b)=>a-b);
@@ -294,6 +313,17 @@ function reportDiagnostics(audits,config,included,comparison=false,matchingMode=
  for(const category of [...new Set([...included.values()].flat().map(r=>r.category))])if(!Object.hasOwn(profile.weights,category))out.push({...diagnostic('no_category_weight','Selected comparison',null,[...included.values()].flat().filter(r=>r.category===category),category+' has no category weight and contributes zero.','zero_weight'),name:category,category});
  if(comparison){const match=r=>matchingKey(r,scheme,matchingMode),entries=[...included],a=entries[0]?.[1]||[],b=entries[1]?.[1]||a,bm=new Map(b.map(r=>[match(r),r]));
   for(const e of catalogue.evals){const rr=a.filter(r=>r.eval===e.name&&bm.has(match(r))&&sampleCount(r)!==null&&sampleCount(bm.get(match(r)))!==null&&sampleCount(r)!==sampleCount(bm.get(match(r))));if(rr.length)out.push(diagnostic('sample_count_mismatch','Selected comparison',e.name,rr.concat(rr.map(r=>bm.get(match(r)))),'Matched results have different sample counts. Scores remain included.'));}
+ }
+ if(exclusions.size){
+  const groups=[],affected=new Map(),variants=[],labels=[];
+  for(const {kind,name,scope,records} of [...exclusions.values()].sort((a,b)=>compareText(a.kind,b.kind)||compareText(a.name,b.name)||compareText(a.scope,b.scope))){
+   for(const [id,row] of records)affected.set(id,row);
+   const rows=[...records.values()],tasks=[...new Set(rows.map(r=>r.task))].sort(compareText),models=[...new Set(rows.map(r=>r.checkpoint))].sort(compareText);
+   groups.push({kind,name,eval:scope||null,models,tasks,measurement_ids:[...records.keys()].sort(compareText)});
+   const label=(kind==='eval'?'Eval ':'Language ')+name+(kind==='language'?(scope?' in '+scope:' across the set'):'');
+   labels.push(label);variants.push({settings:label+' · '+models.join(', '),tasks});
+  }
+  out.push({...diagnostic('intentional_exclusion','Selected models',null,[...affected.values()],'Intentionally excluded by '+suite.name+': '+labels.join('; ')+'.','excluded',null,'info'),name:suite.name,exclusions:groups,variants});
  }
  return out;
 }

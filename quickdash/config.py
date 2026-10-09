@@ -727,8 +727,7 @@ def validate_suite(s):
     ):
         raise ValueError("Notes must be strings")
     if "exclude" in s and (
-        s["mode"] != "available"
-        or not isinstance(s["exclude"], list)
+        not isinstance(s["exclude"], list)
         or any(not isinstance(n, str) or not n.strip() for n in s["exclude"])
         or len(set(s["exclude"])) != len(s["exclude"])
     ):
@@ -774,6 +773,8 @@ def validate_suite(s):
         ):
             raise ValueError("Suite eval names must be unique")
         names.add(e["name"])
+        if e["name"] in s.get("exclude", []):
+            raise ValueError("Eval cannot be both required and excluded: " + e["name"])
         if "variants" not in e:
             continue
         if not isinstance(e["variants"], list) or not e["variants"]:
@@ -906,10 +907,10 @@ def resolve_suite(catalogue, suite):
     all_tasks = set(t for tasks in task_sets.values() for t in tasks)
     removed = excluded(suite.get("exclude_languages", []), all_tasks, "catalogue")
     result = deepcopy(suite)
+    for name in suite.get("exclude", []):
+        if name not in by_name:
+            raise ValueError("Excluded eval has no catalogue rule: " + name)
     if suite["mode"] == "available":
-        for name in suite.get("exclude", []):
-            if name not in by_name:
-                raise ValueError("Excluded eval has no catalogue rule: " + name)
         result["_excluded_tasks"] = sorted(removed)
         return result
     for required in result["evals"]:

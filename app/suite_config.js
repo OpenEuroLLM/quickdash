@@ -12,7 +12,7 @@ const SuiteConfig=(()=>{
   if(s.version!==1||!text(s.name))throw Error('Suite requires version 1 and a name');
   if(!['available','fixed'].includes(s.mode))throw Error('Suite mode must be available or fixed');
   if('notes'in s&&(!Array.isArray(s.notes)||s.notes.some(n=>typeof n!=='string')))throw Error('Suite notes must be strings');
-  if('exclude'in s&&(s.mode!=='available'||!Array.isArray(s.exclude)||s.exclude.some(n=>!text(n))||new Set(s.exclude).size!==s.exclude.length))throw Error('exclude must be a unique list of eval names in available mode');
+  if('exclude'in s&&(!Array.isArray(s.exclude)||s.exclude.some(n=>!text(n))||new Set(s.exclude).size!==s.exclude.length))throw Error('exclude must be a unique list of eval names');
   validateLanguageExclusions(s);
   if(s.mode==='available'){if('evals'in s)throw Error('Available mode does not declare required evals');return s;}
   if(!Array.isArray(s.evals)||!s.evals.length)throw Error('Fixed suite needs required evals');
@@ -23,6 +23,7 @@ const SuiteConfig=(()=>{
    if('metric_filter'in e&&typeof e.metric_filter!=='string')throw Error('metric_filter must be text');
    if('shots'in e&&(!Number.isSafeInteger(e.shots)||e.shots<0))throw Error('shots must be a nonnegative integer');
    if(!text(e.name)||names.has(e.name))throw Error('Suite eval names must be unique');names.add(e.name);
+   if((s.exclude||[]).includes(e.name))throw Error('Eval cannot be both required and excluded: '+e.name);
    if(!('variants'in e))continue;
    if(!Array.isArray(e.variants)||!e.variants.length)throw Error('Required variants must be a nonempty list');
    const seen=new Map();
@@ -71,8 +72,8 @@ const SuiteConfig=(()=>{
    return new Set(tasks.filter(t=>codes(t).some(c=>languages.includes(c))));
   }
   const removed=excluded(suite.exclude_languages||[],[...new Set([...taskSets.values()].flat())],'catalogue'),result=structuredClone(suite);
+  for(const name of suite.exclude||[])if(!byName.has(name))throw Error('Excluded eval has no catalogue rule: '+name);
   if(suite.mode==='available'){
-   for(const name of suite.exclude||[])if(!byName.has(name))throw Error('Excluded eval has no catalogue rule: '+name);
    result._excluded_tasks=[...removed].sort(api.compareText);return result;
   }
   for(const required of result.evals){

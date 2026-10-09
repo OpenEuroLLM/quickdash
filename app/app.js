@@ -104,7 +104,7 @@ function start(){
  }
  function activeWarnings(){
   if(!models.size)return [];
-  const coverage=selected(),warnings=coverage.result.diagnostics.filter(w=>(!isDemoModel(w.model)||w.code==='relaxed_shot_setting')&&(w.code!=='no_category_weight'||weights[w.category]===0));
+  const coverage=selected(),warnings=coverage.result.diagnostics.filter(w=>w.severity==='warning'&&(!isDemoModel(w.model)||w.code==='relaxed_shot_setting')&&(w.code!=='no_category_weight'||weights[w.category]===0));
   if(state.aggregate!=='standard')for(const c of totals(coverage.a,scheme,weights,state.aggregate,englishWeights,metadata).categories)if(c.issue)warnings.push({type:'English split unavailable',name:c.name,model:'Selected comparison',detail:c.issue});
   return warnings;
  }
@@ -194,7 +194,11 @@ function start(){
   const total=a.components.reduce((sum,c)=>sum+c.relative_weight,0);
   return '<div class="normalization-info component-info"><strong>Component aggregation</strong><p><code>group score = sum(relative_weight × normalized score) / '+esc(total)+'</code></p>'+table(['Component','Task match','Relative weight','Share of group'],a.components.map(c=>'<tr>'+td(c.name)+td(c.match.name??c.match.regex)+num(c.relative_weight,3)+'<td class="num">'+fmt(c.relative_weight/total*100,2)+'%</td></tr>'),[2,3])+'<p>All components are required within the same language and scoring protocol. Missing, ambiguous, or duplicate components exclude that group from both comparison scores. Complete groups are averaged within the eval, with the selected English balance applied afterward.</p>'+(a.note?'<p>'+esc(a.note)+'</p>':'')+(a.sources?.length?'<p>'+a.sources.map((u,i)=>'<a target="_blank" rel="noopener" href="'+esc(u)+'">Aggregation source '+(i+1)+'</a>').join(' · ')+'</p>':'')+'</div>';
  }
- function renderWarnings(){const warnings=activeWarnings();return '<div class="section-heading"><div><h2>Warnings</h2><p>Coverage for the selected comparison, scoring consistency, and config caveats. A named eval set checks required measurements; unused global catalogue rules are allowed.</p></div></div>'+(warnings.length?table(['Warning','Eval / task','Model','Details'],warnings.map(w=>'<tr>'+td(w.type)+td(w.name)+td(w.model)+'<td>'+esc(w.detail)+(w.variants?'<details><summary>All affected variants</summary>'+w.variants.map(v=>'<p><strong>'+esc(v.settings)+'</strong><br>'+v.tasks.map(esc).join('<br>')+'</p>').join('')+'</details>':'')+'</td></tr>')):'<p>No warnings. The selected comparison has no detected data or configuration issues.</p>');}
+ function diagnosticTable(items,label){return table([label,'Eval / scope','Model','Details'],items.map(w=>'<tr>'+td(w.type)+td(w.name)+td(w.model)+'<td>'+esc(w.detail)+(w.variants?.length?'<details><summary>All affected variants</summary>'+w.variants.map(v=>'<p><strong>'+esc(v.settings)+'</strong><br>'+v.tasks.map(esc).join('<br>')+'</p>').join('')+'</details>':'')+'</td></tr>'));}
+ function renderWarnings(){
+  const warnings=activeWarnings(),information=models.size?selected().result.diagnostics.filter(d=>d.severity==='info'):[];
+  return '<div class="section-heading"><div><h2>Warnings</h2><p>Coverage for the selected comparison, scoring consistency, and config caveats. Intentional exclusions are listed separately as information.</p></div></div>'+(warnings.length?diagnosticTable(warnings,'Warning'):'<p>No warnings. The selected comparison has no detected data or configuration issues.</p>')+(information.length?'<section id="information"><h3>Information</h3><p>Explicit exclusions do not count as warnings. Their data remains available in Eval configuration.</p>'+diagnosticTable(information,'Information')+'</section>':'');
+ }
  function scoringOptions(e,rows){
   const used=rows.filter(r=>r.selected),values=(rr,key)=>[...new Set(rr.map(r=>String(r[key])))].sort((a,b)=>key==='n_shot'?Number(a)-Number(b):a.localeCompare(b));
   const shots=values(used,'n_shot'),otherMetrics=values(rows,'metric').filter(m=>m!==e.metric),otherShots=values(rows,'n_shot').filter(n=>!shots.includes(n)),otherFilters=values(rows,'filter').filter(f=>f!==e.metric_filter);

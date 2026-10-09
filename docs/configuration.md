@@ -29,9 +29,9 @@ Both profiles default to the standard calculation and store an English share of 
 
 **flagship-1** is the startup eval set. The **Weighting profile** and **Eval set** selectors operate independently. Switching a profile resets category weights, English shares, and the calculation to that profile's values, leaving the eval set unchanged. Switching eval sets preserves your current weights and calculation. Export edits before switching profiles if you want to keep them.
 
-**Any available** uses recognized selected measurements shared by A and B. Measurements present on only one side generate comparison warnings and are excluded from both scores. Catalogue entries absent from both models do not generate warnings. The supplied freeform set explicitly excludes prompted Global PIQA pending validation; present data for it generates a **Not used** warning.
+**Any available** uses recognized selected measurements shared by A and B. Measurements present on only one side generate comparison warnings and are excluded from both scores. Catalogue entries absent from both models do not generate warnings. The supplied freeform set explicitly excludes prompted Global PIQA pending validation; present data for it appears in the **Intentional exclusions** informational summary.
 
-**flagship-1** requires the catalogue's known tasks for each listed eval, excluding Georgian throughout the set because of a vocabulary error and English specifically for X-CSQA. Original and translated tasks stay under their existing eval group (for example `arc_challenge`). A missing required result generates a warning even if other languages for that eval are present. The score is labelled **INCOMPLETE** and uses the shared subset with redistributed weights. Excluded tasks are not requirements; present excluded data produces **Not used** warnings and remains inspectable.
+**flagship-1** requires the catalogue's known tasks for each listed eval. Georgian is excluded throughout the set because it was omitted from tokenizer training, and this was discovered too late to correct for this model generation. Georgian is therefore neither targeted nor evaluated for this generation. English is excluded specifically for X-CSQA to avoid overlap with CommonsenseQA. Original and translated tasks stay under their existing eval group (for example `arc_challenge`). A missing required result generates a warning even if other languages for that eval are present. The score is labelled **INCOMPLETE** and uses the shared subset with redistributed weights. Excluded tasks are not requirements; present explicitly excluded data appears in one informational summary and remains inspectable.
 
 The set uses the corrected CoT reasoning and code-continuation protocols from the `flag-evals-471` exports. Each has its own catalogue entry, so the original and corrected runs retain distinct task identities:
 
@@ -79,10 +79,29 @@ Available-mode sets can exclude entire evals or languages without creating requi
 version: 1
 name: Any available
 mode: available
-exclude: [global_piqa_prompted]
+exclude:
+  - global_piqa_prompted # Scoring and normalization await validation.
 ```
 
-`exclude` is allowed only in available mode and contains unique, exact catalogue eval names. All names must exist even if no corresponding model results are loaded. Fixed sets exclude unlisted evals automatically. Exclusions warn when eligible task data is present, including rows with only the wrong metric. Alternate metric rows or summary children of a selected eval do not warn merely because another field or summary was selected.
+`exclude` works in both modes and contains unique, exact catalogue eval names. All names must exist even if no corresponding model results are loaded. An eval cannot be both required under `evals` and listed in `exclude`. Fixed sets exclude unlisted evals automatically; listing an intentional exclusion explicitly explains why its presence should not warn.
+
+Document each exclusion with an inline YAML comment explaining the replacement or known issue. For example:
+
+```yaml
+version: 1
+name: Corrected AIME
+mode: fixed
+evals:
+  - name: aime25_cot
+exclude:
+  - AIME25 # Replaced by aime25_cot with corrected CoT evaluation settings.
+```
+
+An excluded eval is outside this set even if its results arrive later. To require it again, remove it from `exclude` and add it to `evals`. An intentionally missing eval therefore does not become an unsatisfied requirement; genuinely missing required evals still warn and make coverage incomplete. This mechanism does not waive missing components or protocols of an included eval.
+
+Explicit eval and language exclusions produce one **Intentional exclusions** entry under **Information** in the Warnings view when eligible data is present, including rows with only the wrong metric. It combines the affected models and evals, with expandable task lists for each exclusion. It does not increase the warning badge, emit Python warnings, or fail strict diagnostic checks. If no excluded data is present, no informational entry is needed. Unlisted evals and unselected variants without an explicit exclusion still produce **Not used** warnings. Alternate metric rows or summary children of a selected eval do not warn merely because another field or summary was selected.
+
+YAML comments document the source file; the parsers and browser exports do not preserve comments. Exclusion names survive import/export. Keep the authored YAML in version control as the record of why each exclusion exists.
 
 For an explicitly pinned task inventory, a fixed entry may still use `variants: [{task: example_en}]`, optionally with a hard `n_shot` requirement. Each task must be known and selected by its catalogue rule. These are membership constraints, not setting overrides; a pinned `n_shot` must agree with the effective eval settings and is not loosened by relaxed matching. Ordinary named sets need no `variants` list.
 
@@ -412,7 +431,7 @@ The referenced [OpenSubtitles task](https://github.com/OpenEuroLLM/oellm-eval/bl
 
 Both translation evals retain native 0–100 points (`score.scale: 100`, `normalize: {min: 0, max: 1}`), without chance correction. This accepted policy is documented in their notes rather than flagged as an unresolved caveat. A shared numerical range does not imply equal difficulty across metrics or language pairs.
 
-Completion-based PIQA retains `acc_norm` and a 0.5 baseline. **Global PIQA (prompted)** has a separate interpretation rule for `exact_match` / `strict_match`, a provisional zero floor, and a warning that normalization and metric selection have not been validated. It is excluded by the supplied Any available set and omitted from flagship-1. Its data generates a **Not used** notice while excluded. Including it in a custom set surfaces its scoring caveat; configuration inspection always shows the attached warning.
+Completion-based PIQA retains `acc_norm` and a 0.5 baseline. **Global PIQA (prompted)** has a separate interpretation rule for `exact_match` / `strict_match`, a provisional zero floor, and a warning that normalization and metric selection have not been validated. It is excluded by the supplied Any available set and omitted from flagship-1. Its data appears in the **Intentional exclusions** informational summary while explicitly excluded. Including it in a custom set surfaces its scoring caveat; configuration inspection always shows the attached warning.
 
 With these defaults, MultiBlimp's Croatian/Serbian pooling is the only configured caveat for included evals. Runtime warnings for coverage, inconsistent settings, missing fields, and unused data still apply.
 
@@ -485,7 +504,8 @@ Builds and browser imports use the same CSV parser. Required columns are `checkp
 | Task has no eval config, or lacks the configured metric/filter/shots | Warn and exclude from scoring. Alternate metrics remain inspectable and never silently substitute for the configured metric. |
 | Measurements match only one of the compared models | Warn; use only shared measurements and redistribute weights. |
 | Named set requirement is missing from either or both models | Warn and mark the set incomplete; compare the shared subset. |
-| Eval/task data is not selected by a named set or freeform exclusion | Show **Not used** and exclude it, even if only an alternate metric exists; keep it in the audit. |
+| Eval/task data is covered by an explicit eval or language exclusion | Combine it into one **Intentional exclusions** informational entry across models and evals; exclude it from scoring and retain it in the audit. |
+| Eval/task data is outside the selected set without an explicit exclusion | Show **Not used**, even if only an alternate metric exists; keep it in the audit. |
 | Catalogue rule has no results in either model | No warning unless required by the selected named set. |
 | Shared category has no profile weight | Warn; zero contribution until a weight is assigned. |
 | Selected task has no explicit language assignment | For component evals, warn and exclude the group. Otherwise warn and retain the score. Language views show Unknown; English-balance modes use the English fallback. Known mixed-language pools use the documented fallback without claiming a resolved single language. |
@@ -494,7 +514,7 @@ Builds and browser imports use the same CSV parser. Required columns are `checkp
 | Valid component selection has missing data or multiple exported results for a component | Warn and exclude the whole language/protocol group from both scores. Keep raw data inspectable; never average only the remaining components. |
 | Matched A/B measurements report different positive `n_samples` | Warn and retain scores; sample count does not determine score weights. Review whether dataset coverage is comparable. |
 | Supplied `n_samples` is not a positive integer | Warn and retain scores; omit it from sample-count comparisons. Absent/blank sample counts are allowed. |
-| Eval has a YAML `warning` | Show the caveat in Warnings when the eval has shared comparison data. Always show it in its configuration details. Excluded evals get **Not used**, not an active scoring caveat. |
+| Eval has a YAML `warning` | Show the caveat in Warnings when the eval has shared comparison data. Always show it in its configuration details. Explicitly excluded evals appear under **Information**; other unselected evals get **Not used**. Neither produces an active scoring caveat. |
 | No shared data with positive category weight | Show an unavailable composite (`—`), never an invented zero. |
 
 Invalid model/config imports leave the active models, settings, and scores unchanged, including multi-model files where a later model is invalid. Build input validation completes before existing output files are replaced. Warnings are calculated from the current config and loaded results; fixing or removing the underlying issue removes its warning. Fields not used for scoring, such as source paths and standard errors, remain audit information; their presence is not a guarantee that dataset revisions or prompts match. Invalid values in excluded alternate metrics remain visible but are not normalized using the selected metric's scale.

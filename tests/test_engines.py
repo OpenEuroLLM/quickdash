@@ -113,6 +113,106 @@ def semantics(value):
 
 
 class Engines(unittest.TestCase):
+    def test_intentional_language_exclusions_coalesce_across_models_and_evals(self):
+        c = fixture()
+        c['catalogue']['evals'].append({**deepcopy(c['catalogue']['evals'][0]),
+                                      'name': 'Translation', 'match': {'regex': 't_.+'}})
+        c['catalogue']['languages'] += [
+            dict(tasks=[task], scope='translation', source_language=source, target_language=target)
+            for task, source, target in [('t_fr_en', 'fra_Latn', 'eng_Latn'),
+                                        ('t_en_fr', 'eng_Latn', 'fra_Latn'),
+                                        ('t_en_de', 'eng_Latn', 'deu_Latn')]
+        ]
+        c['suite'] = dict(version=1, name='Required', mode='fixed',
+                          exclude_languages=['fra_Latn'],
+                          evals=[dict(name='E'), dict(name='Translation', exclude_languages=['deu_Latn'])])
+        rows = paired([row(t) for t in ['e_en', 'e_fr', 't_fr_en', 't_en_fr', 't_en_de']])
+        for output in self.both([dict(config=c, rows=rows, operation='compare')])[0]:
+            report = output['value']
+            self.close([report['a']['score'], report['b']['score']], [50, 20])
+            self.assertTrue(report['coverage']['complete'])
+            self.assertEqual(report['coverage']['required'], 1)
+            self.assertEqual(len(report['diagnostics']), 1)
+            info = report['diagnostics'][0]
+            self.assertEqual((info['code'], info['severity']), ('intentional_exclusion', 'info'))
+            self.assertEqual(info['tasks'], ['e_fr', 't_en_de', 't_en_fr', 't_fr_en'])
+            self.assertEqual(len(info['measurement_ids']), 8)
+            self.assertEqual([(g['kind'], g['name'], g['eval']) for g in info['exclusions']],
+                             [('language', 'deu_Latn', 'Translation'), ('language', 'fra_Latn', None)])
+            self.assertTrue(all(g['models'] == ['A', 'B'] for g in info['exclusions']))
+            self.assertEqual([len(g['measurement_ids']) for g in info['exclusions']], [2, 6])
+        # Both translation endpoints can match, but each measurement is counted once.
+        c['suite']['exclude_languages'].append('eng_Latn')
+        c['suite']['evals'][1]['exclude_languages'].append('fra_Latn')
+        for output in self.both([dict(config=c, rows=rows, operation='compare')])[0]:
+            info = output['value']['diagnostics'][0]
+            self.assertEqual(len(output['value']['diagnostics']), 1)
+            self.assertEqual(len(info['measurement_ids']), 10)
+            self.assertEqual(len(set(info['measurement_ids'])), 10)
+            self.assertEqual(len(info['exclusions']), 3)
+
+    def test_fixed_exclusions_explain_unused_data_without_hiding_missing_requirements(self):
+        c = fixture()
+        for name in ('Old', 'Missing'):
+            c['catalogue']['evals'].append({**deepcopy(c['catalogue']['evals'][0]),
+                'name': name, 'match': {'name': name.lower()}, 'warning': 'Review this eval'})
+            c['catalogue']['languages'].append(dict(tasks=[name.lower()], scope='single', language='eng_Latn'))
+        c['suite'] = dict(version=1, name='Required', mode='fixed', exclude=['Old'],
+                          evals=[dict(name='E'), dict(name='Missing')])
+        rows = paired([row(), row('e_fr'), row('old', metric='wrong_metric')])
+        unmarked = deepcopy(c)
+        unmarked['suite'].pop('exclude')
+        reference = native(dict(config=unmarked, rows=rows, operation='compare'))['value']
+        for output in self.both([dict(config=c, rows=rows, operation='compare')])[0]:
+            report = output['value']
+            self.assertFalse(report['coverage']['complete'])
+            self.close([report['a']['score'], report['b']['score']], [50, 20])
+            self.close({k: v for k, v in report.items() if k != 'diagnostics'},
+                       {k: v for k, v in reference.items() if k != 'diagnostics'})
+            warnings = [d for d in report['diagnostics'] if d['severity'] == 'warning']
+            self.assertEqual([(d['code'], d['model'], d['eval']) for d in warnings],
+                             [('missing_suite_data', 'A', 'Missing'), ('missing_suite_data', 'B', 'Missing')])
+            infos = [d for d in report['diagnostics'] if d['severity'] == 'info']
+            self.assertEqual(len(infos), 1)
+            self.assertEqual(infos[0]['exclusions'][0]['name'], 'Old')
+            self.assertEqual(infos[0]['exclusions'][0]['kind'], 'eval')
+            self.assertEqual(len(infos[0]['measurement_ids']), 2)
+        # An intentionally absent eval is not required and creates no data notice.
+        c['suite']['evals'] = [dict(name='E')]
+        for output in self.both([dict(config=c, rows=paired([row(), row('e_fr')]), operation='compare')])[0]:
+            self.assertTrue(output['value']['coverage']['complete'])
+            self.assertEqual(output['value']['diagnostics'], [])
+
+    def test_exclusions_reject_unknown_names_and_required_excluded_conflicts(self):
+        cases = []
+        for mode in ('available', 'fixed'):
+            for exclusion in (None, 'E', [1], [''], ['E', 'E'], ['Unknown eval']):
+                c = fixture()
+                c['suite'] = dict(version=1, name='Bad', mode=mode, exclude=exclusion)
+                if mode == 'fixed':
+                    c['suite']['evals'] = [dict(name='E')]
+                cases.append(dict(config=c, rows=[row()]))
+        c = fixture()
+        c['suite'] = dict(version=1, name='Conflict', mode='fixed', exclude=['E'], evals=[dict(name='E')])
+        cases.append(dict(config=c, rows=[row()]))
+        for outputs in self.both(cases):
+            for output in outputs:
+                self.assertIn('error', output)
+
+    def test_information_is_retained_without_emitting_warnings_or_failing_strict_mode(self):
+        c = fixture()
+        c['suite']['exclude_languages'] = ['fra_Latn']
+        rows = [row(), row('e_fr')]
+        with warnings.catch_warnings(record=True) as seen:
+            warnings.simplefilter('always')
+            report = analyze(rows, c)
+        self.assertFalse(seen)
+        self.assertEqual(report.diagnostics[0]['severity'], 'info')
+        self.assertEqual(analyze(rows, c, diagnostics='error'), report)
+        with self.assertRaises(DiagnosticError) as raised:
+            analyze(rows + [row('unknown')], c, diagnostics='error')
+        self.assertEqual([d['code'] for d in raised.exception.diagnostics], ['no_config'])
+
     def close(self, a, b, path="result"):
         if isinstance(a, dict):
             self.assertEqual(a.keys(), b.keys(), path)
@@ -459,7 +559,7 @@ class Engines(unittest.TestCase):
             ds = result["value"]["diagnostics"]
             shot = next(d for d in ds if d["code"] == "strict_shot_setting")
             self.assertEqual(shot["tasks"], ["e_en"])
-            self.assertIn("not_used", {d["code"] for d in ds})
+            self.assertIn("intentional_exclusion", {d["code"] for d in ds})
         # Counts are grouped independently for each model.
         for result in self.both([dict(config=c, rows=paired(rr))])[0]:
             ds = result["value"]["diagnostics"]
@@ -643,7 +743,7 @@ class Engines(unittest.TestCase):
                 {m["task"] for m in r["a"]["measurements"] if m["included"]},
                 {"e_en", "e_fr"},
             )
-            self.assertEqual({d["code"] for d in r["diagnostics"]}, {"not_used"})
+            self.assertEqual({d["code"] for d in r["diagnostics"]}, {"intentional_exclusion"})
         self.assertEqual(c, before, "Resolution must not mutate inputs")
         c["suite"]["evals"][0]["exclude_languages"] = ["eng_Latn"]
         cases = [dict(config=deepcopy(c), rows=rr, operation="compare")]
@@ -839,7 +939,7 @@ class Engines(unittest.TestCase):
             self.assertEqual(r["coverage"]["required"], 2)
             self.assertTrue(r["coverage"]["complete"])
             self.assertAlmostEqual(r["a"]["score"], 200 / 3)
-            self.assertEqual({d["code"] for d in r["diagnostics"]}, {"not_used"})
+            self.assertEqual({d["code"] for d in r["diagnostics"]}, {"intentional_exclusion"})
         # Explicit membership may not slice a required component group.
         c["suite"]["evals"][0]["variants"] = [dict(task="e_en_low")]
         for result in self.both([dict(config=c, rows=rr)])[0]:
@@ -875,7 +975,7 @@ class Engines(unittest.TestCase):
         self.assertTrue(excluded_tasks)
         self.assertIn("xcsqa_eng_Latn", excluded_tasks)
         warned = {
-            t for d in report.diagnostics if d["code"] == "not_used" for t in d["tasks"]
+            t for d in report.diagnostics if d["code"] == "intentional_exclusion" for t in d["tasks"]
         }
         self.assertTrue(excluded_tasks <= warned)
         self.assertFalse(
@@ -1078,7 +1178,7 @@ class Engines(unittest.TestCase):
         add(c, paired([row()]), ["config_caveat"])
         c = fixture()
         c["suite"]["exclude"] = ["E"]
-        add(c, paired([row()]), ["not_used"])
+        add(c, paired([row()]), ["intentional_exclusion"])
         c = fixture()
         c["suite"] = dict(
             version=1,
@@ -1547,6 +1647,27 @@ notes:
             self.assertEqual(strict.returncode, 1)
             self.assertEqual(strict.stdout, "")
             self.assertIn("no_config", strict.stderr)
+            # Information remains visible on stderr/JSON without failing --strict.
+            suite = {**fixture()['suite'], 'exclude_languages': ['fra_Latn']}
+            (folder / 'suite.yaml').write_text(json.dumps(suite))
+            stream = io.StringIO()
+            writer = csv.DictWriter(stream, fieldnames=row())
+            writer.writeheader()
+            writer.writerows([row(), row('e_fr')])
+            (folder / 'scores.csv').write_text(stream.getvalue())
+            info_command = command + ['--eval-set', str(folder / 'suite.yaml'), '--strict']
+            info = subprocess.run(info_command, capture_output=True, text=True, env=env, cwd=ROOT)
+            self.assertEqual(info.returncode, 0, info.stderr)
+            self.assertIn('info [intentional_exclusion]', info.stderr)
+            self.assertNotIn('warning [', info.stderr)
+            self.assertEqual(json.loads(info.stdout)['diagnostics'][0]['severity'], 'info')
+            writer.writerow(row('unknown'))
+            (folder / 'scores.csv').write_text(stream.getvalue())
+            mixed = subprocess.run(info_command, capture_output=True, text=True, env=env, cwd=ROOT)
+            self.assertEqual(mixed.returncode, 1)
+            self.assertEqual(mixed.stdout, '')
+            self.assertIn('info [intentional_exclusion]', mixed.stderr)
+            self.assertIn('warning [no_config]', mixed.stderr)
 
     def test_diagnostic_context_and_suppression(self):
         c = fixture()
