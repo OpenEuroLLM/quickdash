@@ -57,8 +57,10 @@ languages:
     tasks: [global_piqa_prompted_mkd_cyrl]
   - language: nld_Latn
     tasks: [global_piqa_prompted_nld_latn]
-  - language: nor_Latn
-    tasks: [global_piqa_prompted_nno_latn, global_piqa_prompted_nob_latn]
+  - language: nno_Latn
+    tasks: [global_piqa_prompted_nno_latn]
+  - language: nob_Latn
+    tasks: [global_piqa_prompted_nob_latn]
   - language: pol_Latn
     tasks: [global_piqa_prompted_pol_latn]
   - language: por_Latn

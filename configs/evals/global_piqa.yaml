@@ -55,8 +55,10 @@ languages:
     tasks: [global_piqa_completions_mkd_cyrl]
   - language: nld_Latn
     tasks: [global_piqa_completions_nld_latn]
-  - language: nor_Latn
-    tasks: [global_piqa_completions_nno_latn, global_piqa_completions_nob_latn]
+  - language: nno_Latn
+    tasks: [global_piqa_completions_nno_latn]
+  - language: nob_Latn
+    tasks: [global_piqa_completions_nob_latn]
   - language: pol_Latn
     tasks: [global_piqa_completions_pol_latn]
   - language: por_Latn
