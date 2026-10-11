@@ -15,9 +15,6 @@ normalize:
     is 1/2.
   sources:
     - https://github.com/EleutherAI/lm-evaluation-harness/blob/d6de81643928d653435c431bae19945d41d32520/lm_eval/tasks/multiblimp/_template_yaml
-warning: 'Language-grouping approximation: multiblimp_hbs pools Croatian and Serbian. Assign its combined score
-  to Serbian (srp_Latn) because Serbian has more speakers, not because of the dataset''s language proportions.
-  The score still includes both languages and is not a Serbian-only result.'
 language_defaults:
   evidence: https://huggingface.co/datasets/jumelet/multiblimp
   note: Dataset language resolved from the OELLM task registry and benchmark configuration.
@@ -48,13 +45,10 @@ languages:
     tasks: [multiblimp_gle]
   - language: glg_Latn
     tasks: [multiblimp_glg]
-  - language: srp_Latn
+  - language: hbs_Latn
     tasks: [multiblimp_hbs]
     evidence: https://huggingface.co/datasets/jumelet/multiblimp/blob/main/hbs/data.tsv
-    note: 'Grouping convention: assign the pooled Croatian/Serbian score to Serbian, the language with more
-      speakers; retain Latin script. This does not separate the data or produce a Serbian-only score. UCLA
-      estimates approximately 11 million Serbian speakers and 6 million Croatian speakers: https://slavic.ucla.edu/languages/bcs/serbian-background-info/
-      and https://slavic.ucla.edu/languages/bcs/croatian-background-info/.'
+    note: 'MultiBlimp Serbo-Croatian examples use Latin script.'
   - language: hun_Latn
     tasks: [multiblimp_hun]
   - language: isl_Latn
