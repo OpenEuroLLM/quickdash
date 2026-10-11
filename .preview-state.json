@@ -1,10 +1,10 @@
 {
   "main": {
-    "artifact_id": 11625974879,
+    "artifact_id": 11695154439,
     "run_attempt": 1,
-    "run_id": 37953191068,
-    "run_url": "https://github.com/OpenEuroLLM/quickdash/actions/runs/37953191068",
-    "sha": "f78a9052b95726ed92be53be937413ddbf161a03"
+    "run_id": 38122102504,
+    "run_url": "https://github.com/OpenEuroLLM/quickdash/actions/runs/38122102504",
+    "sha": "14d7eb22e05747b44ab720bb4a0e25fbbb4feb59"
   },
   "preview_access": {},
   "previews": {},
