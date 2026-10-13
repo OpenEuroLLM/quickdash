@@ -1,5 +1,5 @@
 name: bigbench_operators
-category: Math
+category: math
 match:
   name: bigbench_operators_generate_until
 metric: exact_match

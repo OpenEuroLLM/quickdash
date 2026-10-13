@@ -1,5 +1,5 @@
 name: winogrande
-category: Commonsense
+category: commonsense
 match:
   name: winogrande
 metric: acc

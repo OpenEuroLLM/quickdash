@@ -1,5 +1,5 @@
 name: bigbench_repeat_copy_logic
-category: Math
+category: math
 match:
   name: bigbench_repeat_copy_logic_generate_until
 metric: exact_match

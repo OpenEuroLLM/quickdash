@@ -1,5 +1,5 @@
 name: commonsense_qa
-category: Commonsense
+category: commonsense
 match:
   name: commonsense_qa
 metric: acc

@@ -1,5 +1,5 @@
 name: include_base_44
-category: Knowledge
+category: knowledge
 match:
   regex: include_base_44_.+
 select:

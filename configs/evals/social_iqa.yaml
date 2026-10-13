@@ -1,5 +1,5 @@
 name: social_iqa
-category: Commonsense
+category: commonsense
 match:
   name: social_iqa
 metric: acc

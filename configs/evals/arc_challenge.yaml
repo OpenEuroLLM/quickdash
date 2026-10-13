@@ -1,5 +1,5 @@
 name: arc_challenge
-category: Knowledge
+category: knowledge
 match:
   regex: arc_challenge(?:_mt_.+)?
 metric: acc_norm

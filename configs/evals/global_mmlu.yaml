@@ -1,5 +1,5 @@
 name: global_mmlu
-category: Knowledge
+category: knowledge
 match:
   regex: global_mmlu_.+
 select:

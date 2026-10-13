@@ -1,5 +1,5 @@
 name: JEEBench
-category: Reasoning
+category: reasoning
 match:
   name: JEEBench
 metric: accuracy_avg

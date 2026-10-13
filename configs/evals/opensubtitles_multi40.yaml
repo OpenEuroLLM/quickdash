@@ -1,5 +1,5 @@
 name: opensubtitles_multi40
-category: Translation
+category: translation
 match:
   regex: opensubtitles_.+
 metric: chrf

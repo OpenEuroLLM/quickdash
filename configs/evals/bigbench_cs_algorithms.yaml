@@ -1,5 +1,5 @@
 name: bigbench_cs_algorithms
-category: Code
+category: code
 match:
   name: bigbench_cs_algorithms_generate_until
 metric: exact_match

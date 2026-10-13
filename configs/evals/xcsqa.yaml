@@ -1,5 +1,5 @@
 name: xcsqa
-category: Commonsense
+category: commonsense
 match:
   regex: xcsqa_.+
 metric: acc_norm

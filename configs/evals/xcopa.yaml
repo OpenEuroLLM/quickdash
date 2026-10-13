@@ -1,5 +1,5 @@
 name: xcopa
-category: Commonsense
+category: commonsense
 match:
   regex: xcopa:.+
 metric: acc

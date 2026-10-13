@@ -1,5 +1,5 @@
 name: mgsm
-category: Math
+category: math
 match:
   regex: (?:mgsm_native_cot_.+|global_mgsm_.+)
 metric: exact_match

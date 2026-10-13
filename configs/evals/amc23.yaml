@@ -1,5 +1,5 @@
 name: AMC23
-category: Reasoning
+category: reasoning
 match:
   name: AMC23
 metric: accuracy_avg

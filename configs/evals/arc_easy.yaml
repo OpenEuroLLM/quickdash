@@ -1,5 +1,5 @@
 name: arc_easy
-category: Knowledge
+category: knowledge
 match:
   name: arc_easy
 metric: acc_norm

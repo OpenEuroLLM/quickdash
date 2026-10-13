@@ -1,5 +1,5 @@
 name: wsc273
-category: Commonsense
+category: commonsense
 match:
   name: wsc273
 metric: acc

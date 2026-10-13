@@ -1,5 +1,5 @@
 name: agieval_lsat_ar
-category: Reasoning
+category: reasoning
 match:
   name: agieval_lsat_ar
 metric: acc_norm

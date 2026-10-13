@@ -1,5 +1,5 @@
 name: LiveCodeBench
-category: Code
+category: code
 match:
   name: LiveCodeBench
 metric: accuracy_avg

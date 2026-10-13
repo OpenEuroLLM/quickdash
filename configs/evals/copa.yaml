@@ -1,5 +1,5 @@
 name: copa
-category: Commonsense
+category: commonsense
 match:
   name: copa
 metric: acc

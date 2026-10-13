@@ -1,5 +1,5 @@
 name: livecodebench_cont
-category: Code
+category: code
 match:
   name: livecodebench_cont
 metric: pass@1

@@ -1,5 +1,5 @@
 name: flores200
-category: Translation
+category: translation
 match:
   regex: flores200:.+
 metric: chrf++

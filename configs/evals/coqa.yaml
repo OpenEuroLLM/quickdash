@@ -1,5 +1,5 @@
 name: coqa
-category: Reading
+category: reading
 match:
   name: coqa
 metric: f1

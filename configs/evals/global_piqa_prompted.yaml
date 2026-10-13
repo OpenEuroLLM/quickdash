@@ -1,5 +1,5 @@
 name: global_piqa_prompted
-category: Commonsense
+category: commonsense
 match:
   regex: global_piqa_prompted_.+
 metric: exact_match

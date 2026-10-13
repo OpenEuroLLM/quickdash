@@ -1,5 +1,5 @@
 name: sib200
-category: Reading
+category: reading
 match:
   regex: sib200_.+
 # Use acc: acc_norm is not a reliable/useful metric for this eval in our export

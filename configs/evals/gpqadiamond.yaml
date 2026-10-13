@@ -1,5 +1,5 @@
 name: GPQADiamond
-category: Knowledge
+category: knowledge
 match:
   name: GPQADiamond
 metric: accuracy_avg

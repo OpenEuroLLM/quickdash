@@ -1,5 +1,5 @@
 name: piqa
-category: Commonsense
+category: commonsense
 match:
   name: piqa
 metric: acc_norm

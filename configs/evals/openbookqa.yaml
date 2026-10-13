@@ -1,5 +1,5 @@
 name: openbookqa
-category: Knowledge
+category: knowledge
 match:
   name: openbookqa
 metric: acc_norm

@@ -1,5 +1,5 @@
 name: gpqa_diamond_cot
-category: Knowledge
+category: knowledge
 match:
   name: gpqa_diamond_cot
 metric: pass@1

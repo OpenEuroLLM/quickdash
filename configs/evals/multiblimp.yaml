@@ -1,5 +1,5 @@
 name: multiblimp
-category: Language
+category: language
 match:
   regex: multiblimp_.+
 metric: acc_norm

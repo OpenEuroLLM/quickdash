@@ -1,5 +1,5 @@
 name: boolq
-category: Reading
+category: reading
 match:
   name: boolq
 metric: acc

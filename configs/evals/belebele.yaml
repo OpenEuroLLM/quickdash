@@ -1,5 +1,5 @@
 name: belebele
-category: Reading
+category: reading
 match:
   regex: belebele_.+
 metric: acc_norm

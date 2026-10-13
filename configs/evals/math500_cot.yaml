@@ -1,5 +1,5 @@
 name: math500_cot
-category: Math
+category: math
 match:
   name: math500_cot
 metric: pass@1

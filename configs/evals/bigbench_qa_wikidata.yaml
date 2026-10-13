@@ -1,5 +1,5 @@
 name: bigbench_qa_wikidata
-category: Knowledge
+category: knowledge
 match:
   name: bigbench_qa_wikidata_generate_until
 metric: exact_match

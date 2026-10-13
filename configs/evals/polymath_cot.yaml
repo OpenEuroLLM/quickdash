@@ -1,5 +1,5 @@
 name: polymath_cot
-category: Reasoning
+category: reasoning
 match:
   regex: polymath_.+_(?:low|medium|high|top)_cot
 metric: pass@1

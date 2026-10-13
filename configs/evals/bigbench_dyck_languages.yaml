@@ -1,5 +1,5 @@
 name: bigbench_dyck_languages
-category: Math
+category: math
 match:
   name: bigbench_dyck_languages_generate_until
 metric: exact_match

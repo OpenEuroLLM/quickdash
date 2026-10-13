@@ -1,5 +1,5 @@
 name: global_piqa
-category: Commonsense
+category: commonsense
 match:
   regex: global_piqa_completions_.+
 metric: acc_norm

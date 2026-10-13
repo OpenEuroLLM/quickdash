@@ -1,5 +1,5 @@
 name: polymath
-category: Reasoning
+category: reasoning
 match: {regex: 'polymath_.+_(?:low|medium|high|top)'}
 metric: exact_match
 metric_filter: none

@@ -1,5 +1,5 @@
 name: aime25_cot
-category: Reasoning
+category: reasoning
 match:
   name: aime25_cot
 metric: pass@1

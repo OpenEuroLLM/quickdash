@@ -1,5 +1,5 @@
 name: mbpp
-category: Code
+category: code
 match:
   name: mbpp
 metric: pass_at_1

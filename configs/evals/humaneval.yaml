@@ -1,5 +1,5 @@
 name: HumanEval
-category: Code
+category: code
 match:
   name: HumanEval
 metric: python_pass@1

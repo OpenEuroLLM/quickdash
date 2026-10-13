@@ -1,5 +1,5 @@
 name: mbpp_cont
-category: Code
+category: code
 match:
   name: mbpp_cont
 metric: pass@1

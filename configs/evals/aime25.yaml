@@ -1,5 +1,5 @@
 name: AIME25
-category: Reasoning
+category: reasoning
 match:
   name: AIME25
 metric: accuracy_avg

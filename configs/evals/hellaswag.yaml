@@ -1,5 +1,5 @@
 name: hellaswag
-category: Commonsense
+category: commonsense
 match:
   regex: hellaswag(?:_.+)?
 metric: acc_norm

@@ -1,5 +1,5 @@
 name: gsm8k
-category: Math
+category: math
 match:
   name: gsm8k
 metric: exact_match

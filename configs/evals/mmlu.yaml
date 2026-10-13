@@ -1,5 +1,5 @@
 name: mmlu
-category: Knowledge
+category: knowledge
 match:
   regex: mmlu(?:_.+)?
 select:

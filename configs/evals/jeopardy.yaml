@@ -1,5 +1,5 @@
 name: jeopardy
-category: Knowledge
+category: knowledge
 match:
   name: jeopardy
 metric: exact_match

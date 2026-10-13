@@ -1,5 +1,5 @@
 name: squadv2
-category: Reading
+category: reading
 match:
   name: squadv2
 metric: f1
